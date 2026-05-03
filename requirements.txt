@@ -1,0 +1,11 @@
+PyJHora>=4.8.0
+pyswisseph>=2.10.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+geocoder
+geopy
+timezonefinder
+pytz
+python-dateutil
+numpy
+requests

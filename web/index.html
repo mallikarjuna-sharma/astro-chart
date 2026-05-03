@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Birth chart (PyJHora)</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 52rem; padding: 1.25rem; line-height: 1.45; }
+    h1 { font-size: 1.35rem; margin-top: 0; }
+    fieldset { border: 1px solid #8884; border-radius: 8px; margin-bottom: 1rem; padding: 0.75rem 1rem; }
+    legend { padding: 0 0.35rem; }
+    label { display: grid; gap: 0.2rem; margin-bottom: 0.65rem; font-size: 0.9rem; }
+    input, select { font: inherit; padding: 0.35rem 0.5rem; max-width: 100%; box-sizing: border-box; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 36rem) { .row2 { grid-template-columns: 1fr; } }
+    button { font: inherit; padding: 0.5rem 1rem; cursor: pointer; border-radius: 6px; border: 1px solid #8886; background: #2a6; color: #fff; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .err { color: #c22; white-space: pre-wrap; font-size: 0.9rem; margin: 0.75rem 0; }
+    .meta { white-space: pre-wrap; font-size: 0.85rem; background: #8881; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; overflow: auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; font-size: 0.9rem; }
+    th, td { border: 1px solid #8885; padding: 0.35rem 0.45rem; text-align: left; }
+    th { background: #8882; }
+    .hint { font-size: 0.8rem; opacity: 0.85; margin-top: 1rem; }
+    code { font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>Sidereal birth chart</h1>
+  <p>Enter birth data, then <strong>Show chart</strong>. Uses your API at the URL below (same server as this page if left blank).</p>
+
+  <form id="f" novalidate>
+    <fieldset>
+      <legend>API</legend>
+      <label>Base URL (empty = this site)
+        <input type="url" id="apiBase" placeholder="https://your-api.onrender.com" autocomplete="off"/>
+      </label>
+    </fieldset>
+    <fieldset>
+      <legend>Date &amp; time (local)</legend>
+      <div class="row2">
+        <label>Year <input type="number" id="year" required min="1" max="3000" step="1"/></label>
+        <label>Month <input type="number" id="month" required min="1" max="12" step="1"/></label>
+        <label>Day <input type="number" id="day" required min="1" max="31" step="1"/></label>
+        <label>Hour (0–23) <input type="number" id="hour" required min="0" max="23" step="1"/></label>
+        <label>Minute <input type="number" id="minute" required min="0" max="59" step="1"/></label>
+        <label>Second <input type="number" id="second" required min="0" max="59" step="1"/></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Place</legend>
+      <label>Label
+        <input type="text" id="place_label" maxlength="120"/>
+      </label>
+      <div class="row2">
+        <label>Latitude <input type="number" id="latitude" required step="any"/></label>
+        <label>Longitude <input type="number" id="longitude" required step="any"/></label>
+      </div>
+      <label>Timezone (hours east of UTC, e.g. India 5.5)
+        <input type="number" id="timezone_offset_hours" required step="any"/>
+      </label>
+      <label>Ayanamsa
+        <input type="text" id="ayanamsa" maxlength="40" placeholder="LAHIRI"/>
+      </label>
+    </fieldset>
+    <fieldset>
+      <legend>Options</legend>
+      <label><input type="checkbox" id="use_true_nodes"/> Use true nodes (needs full Swiss ephemeris on server)</label>
+      <label><input type="checkbox" id="include_outer_planets"/> Include Uranus–Pluto</label>
+    </fieldset>
+    <button type="submit" id="btn">Show chart</button>
+  </form>
+
+  <p id="msg" class="err" hidden></p>
+  <section id="out" aria-live="polite"></section>
+
+  <p class="hint">Deploy the FastAPI app (e.g. <a href="https://render.com">Render</a>): root <code>requirements.txt</code>, start <code>uvicorn api.main:app --host 0.0.0.0 --port $PORT</code>. Set env <code>CORS_ORIGINS</code> to your static site URL if the UI is hosted elsewhere. Optional query: <code>?api=https://your-api.onrender.com</code> to point the form at another API.</p>
+
+  <script>
+(function () {
+  const LS = "pyjhora_api_base";
+  const params = new URLSearchParams(location.search);
+  const apiFromQuery = params.get("api");
+
+  function apiBase() {
+    const raw = (apiFromQuery || document.getElementById("apiBase").value || "").trim().replace(/\/$/, "");
+    return raw;
+  }
+
+  function loadDefaults() {
+    document.getElementById("year").value = "1985";
+    document.getElementById("month").value = "9";
+    document.getElementById("day").value = "29";
+    document.getElementById("hour").value = "12";
+    document.getElementById("minute").value = "35";
+    document.getElementById("second").value = "0";
+    document.getElementById("place_label").value = "Dharmapuri";
+    document.getElementById("latitude").value = "12.136";
+    document.getElementById("longitude").value = "78.1432";
+    document.getElementById("timezone_offset_hours").value = "5.5";
+    document.getElementById("ayanamsa").value = "LAHIRI";
+    const saved = apiFromQuery || localStorage.getItem(LS) || "";
+    document.getElementById("apiBase").value = saved;
+  }
+
+  function renderPayload(data) {
+    const out = document.getElementById("out");
+    out.innerHTML = "";
+
+    const h2 = document.createElement("h2");
+    h2.textContent = data.title || "Chart";
+    out.appendChild(h2);
+
+    const pre = document.createElement("pre");
+    pre.className = "meta";
+    pre.textContent = JSON.stringify(data.meta || {}, null, 2);
+    out.appendChild(pre);
+
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    (data.columns || []).forEach(function (c) {
+      const th = document.createElement("th");
+      th.textContent = c;
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    (data.rows || []).forEach(function (row) {
+      const tr = document.createElement("tr");
+      row.forEach(function (cell) {
+        const td = document.createElement("td");
+        td.textContent = cell === null || cell === undefined ? "" : String(cell);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    out.appendChild(table);
+  }
+
+  document.getElementById("f").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const msg = document.getElementById("msg");
+    const btn = document.getElementById("btn");
+    msg.hidden = true;
+    msg.textContent = "";
+    document.getElementById("out").innerHTML = "";
+
+    const base = apiBase();
+    const url = (base ? base : "") + "/api/birth-chart-table";
+    const body = {
+      year: Number(document.getElementById("year").value),
+      month: Number(document.getElementById("month").value),
+      day: Number(document.getElementById("day").value),
+      hour: Number(document.getElementById("hour").value),
+      minute: Number(document.getElementById("minute").value),
+      second: Number(document.getElementById("second").value),
+      place_label: document.getElementById("place_label").value || "Birth place",
+      latitude: Number(document.getElementById("latitude").value),
+      longitude: Number(document.getElementById("longitude").value),
+      timezone_offset_hours: Number(document.getElementById("timezone_offset_hours").value),
+      ayanamsa: document.getElementById("ayanamsa").value.trim() || null,
+      use_true_nodes: document.getElementById("use_true_nodes").checked,
+      include_outer_planets: document.getElementById("include_outer_planets").checked,
+      response_format: "json",
+    };
+
+    if (!apiFromQuery) localStorage.setItem(LS, document.getElementById("apiBase").value.trim());
+
+    btn.disabled = true;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (_) {
+        throw new Error("Not JSON (HTTP " + res.status + "): " + text.slice(0, 400));
+      }
+      if (!res.ok) {
+        const detail = data.detail != null ? JSON.stringify(data.detail) : text;
+        throw new Error("HTTP " + res.status + ": " + detail);
+      }
+      renderPayload(data);
+    } catch (err) {
+      msg.textContent = String(err.message || err);
+      msg.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  loadDefaults();
+})();
+  </script>
+</body>
+</html>
