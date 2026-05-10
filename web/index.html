@@ -74,7 +74,83 @@
   <p id="msg" class="err" hidden></p>
   <section id="out" aria-live="polite"></section>
 
-  <p class="hint">Deploy the FastAPI app (e.g. <a href="https://render.com">Render</a>): root <code>requirements.txt</code>, start <code>uvicorn api.main:app --host 0.0.0.0 --port $PORT</code>. Set env <code>CORS_ORIGINS</code> to your static site URL if the UI is hosted elsewhere. Optional query: <code>?api=https://your-api.onrender.com</code> to point the form at another API.</p>
+  <!-- ===================================================================
+       BEGIN: Vedic divisional charts component (D1..D9)
+       Independent of the existing table component above.
+       Calls POST /api/divisional-charts and renders South-Indian style grids.
+       =================================================================== -->
+  <style>
+    .vargas-wrap { margin-top: 1.5rem; max-width: none; }
+    .vargas-wrap h2 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+    .vargas-wrap .vmsg { color: #c22; white-space: pre-wrap; font-size: 0.9rem; margin: 0.5rem 0; }
+    .vargas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+    .varga-chart {
+      border: 1px solid #8885;
+      border-radius: 8px;
+      padding: 0.5rem;
+      background: var(--vc-bg, #fff1);
+    }
+    .varga-chart .vc-title { text-align: center; font-weight: 600; margin: 0 0 0.4rem; font-size: 0.95rem; }
+    .vc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      grid-template-areas:
+        "r11 r0  r1  r2"
+        "r10 ce  ce  r3"
+        "r9  ce  ce  r4"
+        "r8  r7  r6  r5";
+      aspect-ratio: 1 / 1;
+      gap: 0;
+      border: 1px solid #888a;
+    }
+    .vc-cell {
+      border: 1px solid #888a;
+      padding: 0.25rem;
+      font-size: 0.78rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      overflow: hidden;
+      background: #fff;
+      color: #111;
+    }
+    @media (prefers-color-scheme: dark) {
+      .vc-cell { background: #1c1c1c; color: #eaeaea; }
+    }
+    .vc-cell .rname { font-size: 0.65rem; opacity: 0.65; line-height: 1; }
+    .vc-cell .bodies { display: flex; flex-wrap: wrap; gap: 0.2rem; font-weight: 600; }
+    .vc-cell .bodies .b { padding: 0 0.2rem; border-radius: 3px; background: #8882; }
+    .vc-center {
+      grid-area: ce;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.25rem;
+      background: #f4f4f8;
+      color: #222;
+      font-weight: 700;
+      border: 1px solid #888a;
+    }
+    @media (prefers-color-scheme: dark) {
+      .vc-center { background: #2a2a2a; color: #f0f0f0; }
+    }
+    .vc-center .ctitle { font-size: 0.95rem; }
+    .vc-center .cmeta { font-weight: 400; font-size: 0.7rem; opacity: 0.85; text-align: center; line-height: 1.2; }
+    .vc-r0  { grid-area: r0; }   .vc-r1  { grid-area: r1; }
+    .vc-r2  { grid-area: r2; }   .vc-r3  { grid-area: r3; }
+    .vc-r4  { grid-area: r4; }   .vc-r5  { grid-area: r5; }
+    .vc-r6  { grid-area: r6; }   .vc-r7  { grid-area: r7; }
+    .vc-r8  { grid-area: r8; }   .vc-r9  { grid-area: r9; }
+    .vc-r10 { grid-area: r10; }  .vc-r11 { grid-area: r11; }
+    .vc-legend { font-size: 0.78rem; opacity: 0.85; margin-top: 0.75rem; }
+    .vc-legend code { background: #8882; padding: 0 0.25rem; border-radius: 3px; }
+  </style>
+
+  <section id="vargas" class="vargas-wrap" aria-live="polite"></section>
+
+  <p class="hint">Deploy the FastAPI app (e.g. <a href="https://render.com">Render</a>): root <code>requirements.txt</code>, start <code>uvicorn api.main:app --host 0.0.0.0 --port $PORT</code>. Set env <code>CORS_ORIGINS</code> if the UI is on another host. Optional: <code>?api=https://your-api.onrender.com</code> to point at another API.</p>
 
   <script>
 (function () {
@@ -198,6 +274,161 @@
   });
 
   loadDefaults();
+})();
+  </script>
+
+  <!-- ===================================================================
+       Divisional charts script — independent IIFE.
+       Listens to the same form's submit event with a SECOND listener so
+       the existing handler is not modified. Renders into #vargas only.
+       =================================================================== -->
+  <script>
+(function () {
+  const VARGAS_PATH = "/api/divisional-charts";
+  // South-Indian fixed rasi cell order in the 4x4 grid (top-left → clockwise).
+  // Indexes match `houses[i].rasi` returned by the API (0=Aries..11=Pisces).
+  const SI_CELL_RASI = [11, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  function vApiBase() {
+    const params = new URLSearchParams(location.search);
+    const apiFromQuery = params.get("api");
+    const fromInput = document.getElementById("apiBase");
+    const raw = (apiFromQuery || (fromInput && fromInput.value) || "").trim().replace(/\/$/, "");
+    return raw;
+  }
+
+  function buildBodyFromForm() {
+    return {
+      year: Number(document.getElementById("year").value),
+      month: Number(document.getElementById("month").value),
+      day: Number(document.getElementById("day").value),
+      hour: Number(document.getElementById("hour").value),
+      minute: Number(document.getElementById("minute").value),
+      second: Number(document.getElementById("second").value),
+      place_label: document.getElementById("place_label").value || "Birth place",
+      latitude: Number(document.getElementById("latitude").value),
+      longitude: Number(document.getElementById("longitude").value),
+      timezone_offset_hours: Number(document.getElementById("timezone_offset_hours").value),
+      ayanamsa: document.getElementById("ayanamsa").value.trim() || null,
+      use_true_nodes: document.getElementById("use_true_nodes").checked,
+      include_outer_planets: document.getElementById("include_outer_planets").checked,
+    };
+  }
+
+  function el(tag, props, children) {
+    const node = document.createElement(tag);
+    if (props) {
+      Object.keys(props).forEach(function (k) {
+        if (k === "class") node.className = props[k];
+        else if (k === "text") node.textContent = props[k];
+        else node.setAttribute(k, props[k]);
+      });
+    }
+    (children || []).forEach(function (c) { if (c) node.appendChild(c); });
+    return node;
+  }
+
+  function buildChartGrid(chart, meta) {
+    // Map rasi index -> bodies array
+    const byRasi = {};
+    (chart.houses || []).forEach(function (h) { byRasi[h.rasi] = h; });
+
+    const grid = el("div", { class: "vc-grid" });
+
+    // 12 perimeter cells in fixed rasi positions
+    SI_CELL_RASI.forEach(function (r) {
+      const h = byRasi[r] || { rasi: r, rasi_name: "", bodies: [] };
+      const cell = el("div", { class: "vc-cell vc-r" + r });
+      cell.appendChild(el("div", { class: "rname", text: h.rasi_name || ("R" + r) }));
+      const bodies = el("div", { class: "bodies" });
+      (h.bodies || []).forEach(function (b) {
+        bodies.appendChild(el("span", { class: "b", text: b }));
+      });
+      cell.appendChild(bodies);
+      grid.appendChild(cell);
+    });
+
+    // Centre cell with chart title and birth meta
+    const centre = el("div", { class: "vc-center" });
+    centre.appendChild(el("div", { class: "ctitle", text: chart.name }));
+    if (meta) {
+      const mtext = [
+        meta.place_label || "",
+        meta.birth_local || "",
+        meta.ayanamsa_mode ? "Ayan: " + meta.ayanamsa_mode : "",
+      ].filter(Boolean).join("\n");
+      centre.appendChild(el("div", { class: "cmeta", text: mtext }));
+    }
+    grid.appendChild(centre);
+
+    return grid;
+  }
+
+  function renderVargas(payload) {
+    const out = document.getElementById("vargas");
+    out.innerHTML = "";
+
+    const heading = el("h2", { text: "Divisional charts (D1–D9)" });
+    out.appendChild(heading);
+
+    const grid = el("div", { class: "vargas-grid" });
+    (payload.charts || []).forEach(function (chart) {
+      const card = el("div", { class: "varga-chart" });
+      card.appendChild(el("div", { class: "vc-title", text: chart.name }));
+      card.appendChild(buildChartGrid(chart, payload.meta));
+      grid.appendChild(card);
+    });
+    out.appendChild(grid);
+
+    const legend = el("div", { class: "vc-legend" });
+    legend.innerHTML =
+      "Codes: <code>La</code> Lagna · <code>Su</code> Sun · <code>Mo</code> Moon · " +
+      "<code>Ma</code> Mars · <code>Me</code> Mercury · <code>Ju</code> Jupiter · " +
+      "<code>Ve</code> Venus · <code>Sa</code> Saturn · <code>Ra</code> Rahu · " +
+      "<code>Ke</code> Ketu · <code>Gu</code> Gulika · <code>Md</code> Maandi.";
+    out.appendChild(legend);
+  }
+
+  function showError(text) {
+    const out = document.getElementById("vargas");
+    out.innerHTML = "";
+    out.appendChild(el("div", { class: "vmsg", text: String(text) }));
+  }
+
+  async function fetchAndRender() {
+    const out = document.getElementById("vargas");
+    out.innerHTML = "";
+    out.appendChild(el("div", { class: "vmsg", text: "Loading divisional charts…" }));
+
+    const url = vApiBase() + VARGAS_PATH;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildBodyFromForm()),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) { throw new Error("Not JSON (HTTP " + res.status + "): " + text.slice(0, 400)); }
+      if (!res.ok) {
+        const detail = data && data.detail != null ? JSON.stringify(data.detail) : text;
+        throw new Error("HTTP " + res.status + ": " + detail);
+      }
+      renderVargas(data);
+    } catch (err) {
+      showError(err.message || err);
+    }
+  }
+
+  const form = document.getElementById("f");
+  if (form) {
+    form.addEventListener("submit", function (e) {
+      // Existing handler also handles preventDefault; we just kick off our fetch.
+      // Use a microtask so this runs after the existing handler bound earlier.
+      setTimeout(fetchAndRender, 0);
+    });
+  }
 })();
   </script>
 </body>

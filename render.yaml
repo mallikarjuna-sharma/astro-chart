@@ -1,5 +1,4 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
-# New → Blueprint → connect this repo; adjust region/plan if needed.
 services:
   - type: web
     name: pyjhora-api
@@ -9,8 +8,5 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      # Comma-separated origins if the UI is on another host, e.g.
-      # https://myapp.pages.dev,https://www.example.com
-      # Use * only for testing (avoid with credentials).
       - key: CORS_ORIGINS
         value: "*"

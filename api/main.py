@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from jhora import const, utils
+from jhora.horoscope.chart import charts as jhora_charts
 from jhora.horoscope.match import compatibility
 from jhora.panchanga import drik
 from jhora.panchanga.drik import nakshatra_pada
@@ -415,6 +416,194 @@ def birth_chart_view(
     data = _compute_birth_chart(body)
     page = _build_html_page(data.title, data.columns, data.rows, data.meta)
     return HTMLResponse(content=page, media_type="text/html; charset=utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Divisional charts (D1..D9) — independent endpoint for the Vedic chart grid
+# ---------------------------------------------------------------------------
+
+# Short labels used in chart cells (compact for South-Indian style 12 boxes).
+_BODY_SHORT = {
+    "L": "La",  # Lagna / Ascendant
+    0: "Su",
+    1: "Mo",
+    2: "Ma",
+    3: "Me",
+    4: "Ju",
+    5: "Ve",
+    6: "Sa",
+    7: "Ra",
+    8: "Ke",
+    9: "Ur",
+    10: "Ne",
+    11: "Pl",
+    "Gu": "Gu",  # Gulika
+    "Md": "Md",  # Maandi
+}
+
+_DIVISION_NAMES = {
+    1: "Rasi (D1)",
+    2: "Hora (D2)",
+    3: "Drekkana (D3)",
+    4: "Chaturthamsa (D4)",
+    5: "Panchamsa (D5)",
+    6: "Shashthamsa (D6)",
+    7: "Saptamsa (D7)",
+    8: "Ashtamsa (D8)",
+    9: "Navamsa (D9)",
+}
+
+
+class DivisionalChart(BaseModel):
+    factor: int = Field(..., description="Divisional factor: 1..9")
+    name: str = Field(..., description="Human-readable chart name")
+    # 12 entries, indexed 0..11 (Aries..Pisces). Each item is a list of body short codes.
+    houses: list[dict[str, Any]] = Field(
+        ...,
+        description=(
+            "12 rasi houses (Aries..Pisces). Each item: "
+            "`{rasi: 0..11, rasi_name: str, bodies: ['La','Su',...]}`."
+        ),
+    )
+
+
+class DivisionalChartsResponse(BaseModel):
+    charts: list[DivisionalChart]
+    meta: dict[str, Any]
+
+
+def _compute_divisional_charts(
+    body: BirthChartBody, factors: list[int]
+) -> DivisionalChartsResponse:
+    """Compute D-N varga charts for the given factors. Adds Lagna + 9 grahas (+ Gulika/Maandi for D-N).
+
+    Sources:
+      - PyJHora `jhora.horoscope.chart.charts.divisional_chart(jd, place, divisional_chart_factor=N)`
+        returns `[['L', (rasi, lon)], [planet_id, (rasi, lon)], ...]`.
+      - Gulika/Maandi via `drik.gulika_longitude` / `drik.maandi_longitude` (both accept
+        `divisional_chart_factor` and return `[rasi, lon_in_rasi]`).
+    """
+    init_jhora()
+    if body.use_true_nodes:
+        const.set_node_mode(True)
+    else:
+        const.set_node_mode(False)
+
+    place = drik.Place(
+        body.place_label,
+        body.latitude,
+        body.longitude,
+        body.timezone_offset_hours,
+    )
+    jd = utils.julian_day_number(
+        (body.year, body.month, body.day),
+        (body.hour, body.minute, body.second),
+    )
+    mode = (body.ayanamsa or const._DEFAULT_AYANAMSA_MODE).upper()
+    try:
+        drik.set_ayanamsa_mode(mode)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Unknown ayanamsa: {mode!r}: {exc}"
+        ) from exc
+
+    dob = drik.Date(body.year, body.month, body.day)
+    tob_tuple = (body.hour, body.minute, body.second)
+
+    out_charts: list[DivisionalChart] = []
+    warnings: list[str] = []
+
+    for factor in factors:
+        try:
+            positions = jhora_charts.divisional_chart(
+                jd, place, divisional_chart_factor=factor
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"divisional_chart failed for D{factor}: {exc}",
+            ) from exc
+
+        # Initialize 12 buckets keyed by rasi index (0..11)
+        buckets: list[list[str]] = [[] for _ in range(12)]
+        for pid, (rasi_idx, _lon) in positions:
+            r = int(rasi_idx) % 12
+            label = _BODY_SHORT.get(pid, str(pid))
+            # Skip outer planets (>= Uranus) unless explicitly requested.
+            if isinstance(pid, int) and pid > const.KETU_ID and not body.include_outer_planets:
+                continue
+            buckets[r].append(label)
+
+        # Optional upagrahas: Gulika and Maandi for the same divisional factor
+        for label, lon_fn in (
+            ("Gu", drik.gulika_longitude),
+            ("Md", drik.maandi_longitude),
+        ):
+            try:
+                r_i, _lon_i = lon_fn(dob, tob_tuple, place, divisional_chart_factor=factor)
+                buckets[int(r_i) % 12].append(label)
+            except Exception as exc:
+                warnings.append(f"D{factor} {label}: {exc}")
+
+        houses = [
+            {
+                "rasi": r,
+                "rasi_name": const.rasi_names_en[r],
+                "bodies": buckets[r],
+            }
+            for r in range(12)
+        ]
+
+        out_charts.append(
+            DivisionalChart(
+                factor=factor,
+                name=_DIVISION_NAMES.get(factor, f"D{factor}"),
+                houses=houses,
+            )
+        )
+
+    meta = {
+        "place_label": body.place_label,
+        "birth_local": (
+            f"{body.year:04d}-{body.month:02d}-{body.day:02d} "
+            f"{body.hour:02d}:{body.minute:02d}:{body.second:02d}"
+        ),
+        "latitude": body.latitude,
+        "longitude": body.longitude,
+        "timezone_offset_hours": body.timezone_offset_hours,
+        "julian_day": jd,
+        "ayanamsa_mode": mode,
+        "use_true_nodes": body.use_true_nodes,
+        "include_outer_planets": body.include_outer_planets,
+        "body_short_legend": {
+            "La": "Lagna",
+            "Su": "Sun",
+            "Mo": "Moon",
+            "Ma": "Mars",
+            "Me": "Mercury",
+            "Ju": "Jupiter",
+            "Ve": "Venus",
+            "Sa": "Saturn",
+            "Ra": "Rahu",
+            "Ke": "Ketu",
+            "Gu": "Gulika",
+            "Md": "Maandi",
+        },
+    }
+    if warnings:
+        meta["warnings"] = warnings
+    return DivisionalChartsResponse(charts=out_charts, meta=meta)
+
+
+@app.post("/api/divisional-charts", response_model=DivisionalChartsResponse)
+def divisional_charts_endpoint(body: BirthChartBody) -> DivisionalChartsResponse:
+    """Return D1..D9 charts as 12-house buckets (Aries..Pisces) with body short codes.
+
+    The frontend uses this to render the South-Indian style 4x4 chart grid for each
+    division. This endpoint is independent of `/api/birth-chart-table` and does not
+    affect the existing JSON/HTML responses.
+    """
+    return _compute_divisional_charts(body, factors=[1, 2, 3, 4, 5, 6, 7, 8, 9])
 
 
 _web_dir = Path(__file__).resolve().parent.parent / "web"
