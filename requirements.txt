@@ -10,3 +10,4 @@ pytz
 python-dateutil
 numpy
 requests
+certifi>=2024.0.0

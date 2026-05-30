@@ -22,6 +22,30 @@
     .inline-actions { display: flex; gap: 0.5rem; align-items: center; }
     .inline-actions input { flex: 1; min-width: 0; margin-bottom: 0; }
     .inline-actions button { white-space: nowrap; margin-bottom: 0.65rem; }
+    .place-search { position: relative; }
+    .place-suggestions {
+      list-style: none;
+      margin: 0.25rem 0 0.65rem;
+      padding: 0;
+      border: 1px solid #8885;
+      border-radius: 6px;
+      max-height: 12rem;
+      overflow: auto;
+      background: Canvas;
+      position: absolute;
+      z-index: 20;
+      left: 0;
+      right: 0;
+      box-shadow: 0 4px 12px #0003;
+    }
+    .place-suggestions li {
+      padding: 0.45rem 0.6rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #8883;
+    }
+    .place-suggestions li:last-child { border-bottom: none; }
+    .place-suggestions li:hover { background: #8882; }
     .err { color: #c22; white-space: pre-wrap; font-size: 0.9rem; margin: 0.75rem 0; }
     .ok { color: #167; white-space: pre-wrap; font-size: 0.9rem; margin: 0.75rem 0; }
     .meta { white-space: pre-wrap; font-size: 0.85rem; background: #8881; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; overflow: auto; }
@@ -78,9 +102,12 @@
     <fieldset>
       <legend>Place</legend>
       <label>Location (city / town)
-        <div class="inline-actions">
-          <input type="text" id="location_query" maxlength="200" placeholder="Srirangam, Madurai, Kolkata, Delhi, Pune"/>
-          <button type="button" id="btnFetchLocation" class="secondary">Fetch lat/long</button>
+        <div class="place-search">
+          <div class="inline-actions">
+            <input type="text" id="location_query" maxlength="200" placeholder="Start typing — e.g. Kollam, Srirangam" autocomplete="off"/>
+            <button type="button" id="btnFetchLocation" class="secondary">Fetch lat/long</button>
+          </div>
+          <ul id="placeSuggestions" class="place-suggestions" hidden></ul>
         </div>
       </label>
       <p id="geoStatus" class="hint" hidden></p>
@@ -422,13 +449,14 @@
     const geoStatus = document.getElementById("geoStatus");
     const btn = document.getElementById("btnFetchLocation");
     const query = document.getElementById("location_query").value.trim();
+    hidePlaceSuggestions();
     msg.hidden = true;
     msg.textContent = "";
     geoStatus.hidden = true;
     geoStatus.textContent = "";
 
     if (!query) {
-      msg.textContent = "Enter a location (e.g. Srirangam, Madurai, Kolkata).";
+      msg.textContent = "Enter a location (e.g. Kollam, Srirangam, Madurai).";
       msg.hidden = false;
       return;
     }
@@ -445,16 +473,7 @@
         const detail = data.detail != null ? JSON.stringify(data.detail) : text;
         throw new Error("HTTP " + res.status + ": " + detail);
       }
-      document.getElementById("latitude").value = String(data.latitude);
-      document.getElementById("longitude").value = String(data.longitude);
-      document.getElementById("place_label").value = data.place_label || query;
-      if (data.timezone_offset_hours != null && !Number.isNaN(Number(data.timezone_offset_hours))) {
-        document.getElementById("timezone_offset_hours").value = String(data.timezone_offset_hours);
-      }
-      geoStatus.textContent =
-        "Resolved via " + data.provider + ": " + data.place_label +
-        " (" + data.latitude + ", " + data.longitude + ")";
-      geoStatus.hidden = false;
+      applyGeocodeResult(data);
     } catch (err) {
       msg.textContent = String(err.message || err);
       msg.hidden = false;
@@ -462,6 +481,87 @@
       btn.disabled = false;
     }
   }
+
+  function applyGeocodeResult(data) {
+    const geoStatus = document.getElementById("geoStatus");
+    document.getElementById("latitude").value = String(data.latitude);
+    document.getElementById("longitude").value = String(data.longitude);
+    document.getElementById("place_label").value = data.place_label || document.getElementById("location_query").value;
+    if (data.timezone_offset_hours != null && !Number.isNaN(Number(data.timezone_offset_hours))) {
+      document.getElementById("timezone_offset_hours").value = String(data.timezone_offset_hours);
+    }
+    geoStatus.textContent =
+      "Resolved via " + data.provider + ": " + data.place_label +
+      " (" + data.latitude + ", " + data.longitude + ")";
+    geoStatus.hidden = false;
+  }
+
+  function hidePlaceSuggestions() {
+    const list = document.getElementById("placeSuggestions");
+    list.hidden = true;
+    list.innerHTML = "";
+  }
+
+  let placeAcTimer = null;
+
+  async function resolvePlaceId(placeId, description) {
+    hidePlaceSuggestions();
+    const msg = document.getElementById("msg");
+    msg.hidden = true;
+    const url = (apiBase() || "") + "/api/places/resolve?place_id=" + encodeURIComponent(placeId);
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail != null ? JSON.stringify(data.detail) : "HTTP " + res.status);
+      }
+      document.getElementById("location_query").value = description || data.place_label;
+      applyGeocodeResult(data);
+    } catch (err) {
+      msg.textContent = String(err.message || err);
+      msg.hidden = false;
+    }
+  }
+
+  async function fetchPlaceSuggestions(input) {
+    const list = document.getElementById("placeSuggestions");
+    if (input.length < 2) {
+      hidePlaceSuggestions();
+      return;
+    }
+    const url = (apiBase() || "") + "/api/places/autocomplete?input=" + encodeURIComponent(input);
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) {
+        hidePlaceSuggestions();
+        return;
+      }
+      list.innerHTML = "";
+      (data.suggestions || []).forEach(function (item) {
+        const li = document.createElement("li");
+        li.textContent = item.description;
+        li.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          resolvePlaceId(item.place_id, item.description);
+        });
+        list.appendChild(li);
+      });
+      list.hidden = !(data.suggestions && data.suggestions.length);
+    } catch (_) {
+      hidePlaceSuggestions();
+    }
+  }
+
+  document.getElementById("location_query").addEventListener("input", function (e) {
+    clearTimeout(placeAcTimer);
+    const val = e.target.value.trim();
+    placeAcTimer = setTimeout(function () { fetchPlaceSuggestions(val); }, 300);
+  });
+
+  document.getElementById("location_query").addEventListener("blur", function () {
+    setTimeout(hidePlaceSuggestions, 200);
+  });
 
   async function saveChartToDb() {
     const msg = document.getElementById("msg");

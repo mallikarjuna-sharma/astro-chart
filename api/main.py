@@ -24,7 +24,7 @@ from jhora.panchanga.drik import nakshatra_pada
 
 from api.db import repository as chart_repository
 from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
-from api.geocode import GeocodeError, geocode_location
+from api.geocode import GeocodeError, geocode_location, geocode_place_id, places_autocomplete
 from api.jhora_bootstrap import init_jhora
 from api.schemas.chart import (
     BirthChartBody,
@@ -296,6 +296,15 @@ class GeocodeResponse(BaseModel):
     provider: str
 
 
+class PlaceSuggestion(BaseModel):
+    place_id: str
+    description: str
+
+
+class AutocompleteResponse(BaseModel):
+    suggestions: list[PlaceSuggestion]
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -310,6 +319,36 @@ def geocode_location_endpoint(
         result = geocode_location(location)
     except GeocodeError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Geocoding failed: {exc}") from exc
+    return GeocodeResponse.model_validate(result)
+
+
+@app.get("/api/places/autocomplete", response_model=AutocompleteResponse)
+def places_autocomplete_endpoint(
+    input: str = Query(..., min_length=1, max_length=200, alias="input", examples=["Kollam"]),
+) -> AutocompleteResponse:
+    """Google Places autocomplete for Indian locations (requires GOOGLE_MAPS_API_KEY + Places API)."""
+    try:
+        items = places_autocomplete(input)
+    except GeocodeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Autocomplete failed: {exc}") from exc
+    return AutocompleteResponse(suggestions=items)
+
+
+@app.get("/api/places/resolve", response_model=GeocodeResponse)
+def places_resolve_endpoint(
+    place_id: str = Query(..., min_length=1, max_length=200, examples=["ChIJ..."]),
+) -> GeocodeResponse:
+    """Resolve a Google place_id to coordinates (requires GOOGLE_MAPS_API_KEY + Places API)."""
+    try:
+        result = geocode_place_id(place_id)
+    except GeocodeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Place resolve failed: {exc}") from exc
     return GeocodeResponse.model_validate(result)
 
 
