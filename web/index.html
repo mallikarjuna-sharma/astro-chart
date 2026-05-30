@@ -16,6 +16,7 @@
     @media (max-width: 36rem) { .row2 { grid-template-columns: 1fr; } }
     button { font: inherit; padding: 0.5rem 1rem; cursor: pointer; border-radius: 6px; border: 1px solid #8886; background: #2a6; color: #fff; }
     button.secondary { background: #456; }
+    button.muted { background: #666; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     .btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
     .inline-actions { display: flex; gap: 0.5rem; align-items: center; }
@@ -33,7 +34,7 @@
 </head>
 <body>
   <h1>Sidereal birth chart</h1>
-  <p>Enter birth data, fetch coordinates from a place name, then <strong>Show chart</strong>. Use <strong>Save to database</strong> only when you want to persist the chart in DynamoDB.</p>
+  <p>Enter birth data or <strong>Fetch user</strong> to load a saved chart. Use <strong>Clear</strong> for a new entry. <strong>Save to database</strong> persists to DynamoDB only when clicked.</p>
 
   <form id="f" novalidate>
     <fieldset>
@@ -44,17 +45,24 @@
     </fieldset>
     <fieldset>
       <legend>User</legend>
+      <label>User ID
+        <div class="inline-actions">
+          <input type="text" id="user_id" maxlength="80" placeholder="e.g. user-662a3e80"/>
+          <button type="button" id="btnFetchUser" class="secondary">Fetch user</button>
+          <button type="button" id="btnClear" class="muted">Clear</button>
+        </div>
+      </label>
+      <label>Chart ID (optional — latest saved chart if empty)
+        <input type="text" id="chart_id" maxlength="80" placeholder="leave empty for most recent"/>
+      </label>
       <div class="row2">
-        <label>User ID
-          <input type="text" id="user_id" maxlength="80" placeholder="auto-generated if empty"/>
-        </label>
         <label>Display name
           <input type="text" id="display_name" required maxlength="120"/>
         </label>
+        <label>Email (optional)
+          <input type="email" id="email" maxlength="254" autocomplete="email"/>
+        </label>
       </div>
-      <label>Email (optional)
-        <input type="email" id="email" maxlength="254" autocomplete="email"/>
-      </label>
     </fieldset>
     <fieldset>
       <legend>Date &amp; time (local)</legend>
@@ -227,6 +235,67 @@
     };
   }
 
+  function d1TableToRenderPayload(d1, meta) {
+    const cols = d1.columns || [];
+    const rows = (d1.rows || []).map(function (r) {
+      if (Array.isArray(r)) return r;
+      return cols.map(function (c) { return r[c]; });
+    });
+    return {
+      title: d1.title || "Chart",
+      columns: cols,
+      rows: rows,
+      meta: meta || {},
+    };
+  }
+
+  function fillFormFromSaved(data) {
+    const ui = data.user_info || {};
+    const bi = data.birth_input || {};
+    document.getElementById("user_id").value = data.user_id || "";
+    document.getElementById("chart_id").value = data.chart_id || "";
+    document.getElementById("display_name").value = ui.display_name || "";
+    document.getElementById("email").value = ui.email || "";
+    document.getElementById("location_query").value = ui.location_query || "";
+    document.getElementById("year").value = bi.year != null ? String(bi.year) : "";
+    document.getElementById("month").value = bi.month != null ? String(bi.month) : "";
+    document.getElementById("day").value = bi.day != null ? String(bi.day) : "";
+    document.getElementById("hour").value = bi.hour != null ? String(bi.hour) : "";
+    document.getElementById("minute").value = bi.minute != null ? String(bi.minute) : "";
+    document.getElementById("second").value = bi.second != null ? String(bi.second) : "";
+    document.getElementById("place_label").value = bi.place_label || "";
+    document.getElementById("latitude").value = bi.latitude != null ? String(bi.latitude) : "";
+    document.getElementById("longitude").value = bi.longitude != null ? String(bi.longitude) : "";
+    document.getElementById("timezone_offset_hours").value =
+      bi.timezone_offset_hours != null ? String(bi.timezone_offset_hours) : "";
+    document.getElementById("ayanamsa").value = bi.ayanamsa || "LAHIRI";
+    document.getElementById("use_true_nodes").checked = !!bi.use_true_nodes;
+    document.getElementById("include_outer_planets").checked = !!bi.include_outer_planets;
+    if (data.user_id) localStorage.setItem(LS_USER, data.user_id);
+  }
+
+  function clearAllFields() {
+    [
+      "user_id", "chart_id", "display_name", "email", "location_query",
+      "year", "month", "day", "hour", "minute", "second",
+      "place_label", "latitude", "longitude", "timezone_offset_hours", "ayanamsa",
+    ].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    document.getElementById("use_true_nodes").checked = false;
+    document.getElementById("include_outer_planets").checked = false;
+    document.getElementById("out").innerHTML = "";
+    document.getElementById("vargas").innerHTML = "";
+    document.getElementById("msg").hidden = true;
+    document.getElementById("msg").textContent = "";
+    document.getElementById("saveMsg").hidden = true;
+    document.getElementById("saveMsg").textContent = "";
+    document.getElementById("geoStatus").hidden = true;
+    document.getElementById("geoStatus").textContent = "";
+    localStorage.removeItem(LS_USER);
+  }
+
   function loadDefaults() {
     document.getElementById("year").value = "1985";
     document.getElementById("month").value = "9";
@@ -283,6 +352,69 @@
     });
     table.appendChild(tbody);
     out.appendChild(table);
+  }
+
+  async function fetchUserFromDb() {
+    const msg = document.getElementById("msg");
+    const saveMsg = document.getElementById("saveMsg");
+    const btn = document.getElementById("btnFetchUser");
+    const userId = document.getElementById("user_id").value.trim();
+    msg.hidden = true;
+    msg.textContent = "";
+    saveMsg.hidden = true;
+    saveMsg.textContent = "";
+
+    if (!userId) {
+      msg.textContent = "Enter a User ID to fetch saved data.";
+      msg.hidden = false;
+      return;
+    }
+
+    const base = apiBase() || "";
+    let chartId = document.getElementById("chart_id").value.trim();
+
+    btn.disabled = true;
+    try {
+      if (!chartId) {
+        const listUrl = base + "/api/users/" + encodeURIComponent(userId) + "/charts";
+        const listRes = await fetch(listUrl);
+        const listText = await listRes.text();
+        let listData;
+        try { listData = JSON.parse(listText); }
+        catch (_) { throw new Error("Not JSON (HTTP " + listRes.status + "): " + listText.slice(0, 400)); }
+        if (!listRes.ok) {
+          const detail = listData.detail != null ? JSON.stringify(listData.detail) : listText;
+          throw new Error("HTTP " + listRes.status + ": " + detail);
+        }
+        if (!listData.charts || !listData.charts.length) {
+          throw new Error("No saved charts found for user " + userId + ".");
+        }
+        chartId = listData.charts[0].chart_id;
+        document.getElementById("chart_id").value = chartId;
+      }
+
+      const url = base + "/api/users/" + encodeURIComponent(userId) + "/charts/" + encodeURIComponent(chartId);
+      const res = await fetch(url);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) { throw new Error("Not JSON (HTTP " + res.status + "): " + text.slice(0, 400)); }
+      if (!res.ok) {
+        const detail = data.detail != null ? JSON.stringify(data.detail) : text;
+        throw new Error("HTTP " + res.status + ": " + detail);
+      }
+
+      fillFormFromSaved(data);
+      renderPayload(d1TableToRenderPayload(data.d1_table, data.meta));
+      document.dispatchEvent(new CustomEvent("pyjhora:render-vargas", { detail: data.divisional_charts }));
+      saveMsg.textContent = "Loaded chart " + data.chart_id + " for user " + data.user_id + ".";
+      saveMsg.hidden = false;
+    } catch (err) {
+      msg.textContent = String(err.message || err);
+      msg.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function fetchLocationCoords() {
@@ -376,6 +508,7 @@
         const detail = data.detail != null ? JSON.stringify(data.detail) : text;
         throw new Error("HTTP " + res.status + ": " + detail);
       }
+      document.getElementById("chart_id").value = data.chart_id;
       saveMsg.textContent = "Saved to DynamoDB. Chart ID: " + data.chart_id;
       saveMsg.hidden = false;
     } catch (err) {
@@ -387,6 +520,14 @@
   }
 
   document.getElementById("btnFetchLocation").addEventListener("click", fetchLocationCoords);
+  document.getElementById("btnFetchUser").addEventListener("click", fetchUserFromDb);
+  document.getElementById("btnClear").addEventListener("click", clearAllFields);
+  document.getElementById("user_id").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      fetchUserFromDb();
+    }
+  });
   document.getElementById("location_query").addEventListener("keydown", function (e) {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -588,11 +729,13 @@
   const form = document.getElementById("f");
   if (form) {
     form.addEventListener("submit", function (e) {
-      // Existing handler also handles preventDefault; we just kick off our fetch.
-      // Use a microtask so this runs after the existing handler bound earlier.
       setTimeout(fetchAndRender, 0);
     });
   }
+
+  document.addEventListener("pyjhora:render-vargas", function (e) {
+    if (e.detail) renderVargas(e.detail);
+  });
 })();
   </script>
 </body>
