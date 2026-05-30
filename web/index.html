@@ -15,8 +15,14 @@
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
     @media (max-width: 36rem) { .row2 { grid-template-columns: 1fr; } }
     button { font: inherit; padding: 0.5rem 1rem; cursor: pointer; border-radius: 6px; border: 1px solid #8886; background: #2a6; color: #fff; }
+    button.secondary { background: #456; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+    .inline-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .inline-actions input { flex: 1; min-width: 0; margin-bottom: 0; }
+    .inline-actions button { white-space: nowrap; margin-bottom: 0.65rem; }
     .err { color: #c22; white-space: pre-wrap; font-size: 0.9rem; margin: 0.75rem 0; }
+    .ok { color: #167; white-space: pre-wrap; font-size: 0.9rem; margin: 0.75rem 0; }
     .meta { white-space: pre-wrap; font-size: 0.85rem; background: #8881; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; overflow: auto; }
     table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; font-size: 0.9rem; }
     th, td { border: 1px solid #8885; padding: 0.35rem 0.45rem; text-align: left; }
@@ -27,13 +33,27 @@
 </head>
 <body>
   <h1>Sidereal birth chart</h1>
-  <p>Enter birth data, then <strong>Show chart</strong>. Uses your API at the URL below (same server as this page if left blank).</p>
+  <p>Enter birth data, fetch coordinates from a place name, then <strong>Show chart</strong>. Use <strong>Save to database</strong> only when you want to persist the chart in DynamoDB.</p>
 
   <form id="f" novalidate>
     <fieldset>
       <legend>API</legend>
       <label>Base URL (empty = this site)
         <input type="url" id="apiBase" placeholder="https://your-api.onrender.com" autocomplete="off"/>
+      </label>
+    </fieldset>
+    <fieldset>
+      <legend>User</legend>
+      <div class="row2">
+        <label>User ID
+          <input type="text" id="user_id" maxlength="80" placeholder="auto-generated if empty"/>
+        </label>
+        <label>Display name
+          <input type="text" id="display_name" required maxlength="120"/>
+        </label>
+      </div>
+      <label>Email (optional)
+        <input type="email" id="email" maxlength="254" autocomplete="email"/>
       </label>
     </fieldset>
     <fieldset>
@@ -49,6 +69,13 @@
     </fieldset>
     <fieldset>
       <legend>Place</legend>
+      <label>Location (city / town)
+        <div class="inline-actions">
+          <input type="text" id="location_query" maxlength="200" placeholder="Srirangam, Madurai, Kolkata, Delhi, Pune"/>
+          <button type="button" id="btnFetchLocation" class="secondary">Fetch lat/long</button>
+        </div>
+      </label>
+      <p id="geoStatus" class="hint" hidden></p>
       <label>Label
         <input type="text" id="place_label" maxlength="120"/>
       </label>
@@ -68,10 +95,14 @@
       <label><input type="checkbox" id="use_true_nodes"/> Use true nodes (needs full Swiss ephemeris on server)</label>
       <label><input type="checkbox" id="include_outer_planets"/> Include Uranus–Pluto</label>
     </fieldset>
-    <button type="submit" id="btn">Show chart</button>
+    <div class="btn-row">
+      <button type="submit" id="btn">Show chart</button>
+      <button type="button" id="btnSave" class="secondary">Save to database</button>
+    </div>
   </form>
 
   <p id="msg" class="err" hidden></p>
+  <p id="saveMsg" class="ok" hidden></p>
   <section id="out" aria-live="polite"></section>
 
   <!-- ===================================================================
@@ -155,12 +186,45 @@
   <script>
 (function () {
   const LS = "pyjhora_api_base";
+  const LS_USER = "pyjhora_user_id";
   const params = new URLSearchParams(location.search);
   const apiFromQuery = params.get("api");
 
   function apiBase() {
     const raw = (apiFromQuery || document.getElementById("apiBase").value || "").trim().replace(/\/$/, "");
     return raw;
+  }
+
+  function ensureUserId() {
+    const field = document.getElementById("user_id");
+    let id = field.value.trim();
+    if (!id) {
+      id = localStorage.getItem(LS_USER) || "";
+    }
+    if (!id) {
+      id = "user-" + (crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : String(Date.now()));
+    }
+    field.value = id;
+    localStorage.setItem(LS_USER, id);
+    return id;
+  }
+
+  function buildBirthInput() {
+    return {
+      year: Number(document.getElementById("year").value),
+      month: Number(document.getElementById("month").value),
+      day: Number(document.getElementById("day").value),
+      hour: Number(document.getElementById("hour").value),
+      minute: Number(document.getElementById("minute").value),
+      second: Number(document.getElementById("second").value),
+      place_label: document.getElementById("place_label").value || "Birth place",
+      latitude: Number(document.getElementById("latitude").value),
+      longitude: Number(document.getElementById("longitude").value),
+      timezone_offset_hours: Number(document.getElementById("timezone_offset_hours").value),
+      ayanamsa: document.getElementById("ayanamsa").value.trim() || null,
+      use_true_nodes: document.getElementById("use_true_nodes").checked,
+      include_outer_planets: document.getElementById("include_outer_planets").checked,
+    };
   }
 
   function loadDefaults() {
@@ -170,13 +234,17 @@
     document.getElementById("hour").value = "12";
     document.getElementById("minute").value = "35";
     document.getElementById("second").value = "0";
+    document.getElementById("location_query").value = "Dharmapuri";
     document.getElementById("place_label").value = "Dharmapuri";
     document.getElementById("latitude").value = "12.136";
     document.getElementById("longitude").value = "78.1432";
     document.getElementById("timezone_offset_hours").value = "5.5";
     document.getElementById("ayanamsa").value = "LAHIRI";
+    document.getElementById("display_name").value = "Demo user";
     const saved = apiFromQuery || localStorage.getItem(LS) || "";
     document.getElementById("apiBase").value = saved;
+    const savedUser = localStorage.getItem(LS_USER) || "";
+    if (savedUser) document.getElementById("user_id").value = savedUser;
   }
 
   function renderPayload(data) {
@@ -217,6 +285,116 @@
     out.appendChild(table);
   }
 
+  async function fetchLocationCoords() {
+    const msg = document.getElementById("msg");
+    const geoStatus = document.getElementById("geoStatus");
+    const btn = document.getElementById("btnFetchLocation");
+    const query = document.getElementById("location_query").value.trim();
+    msg.hidden = true;
+    msg.textContent = "";
+    geoStatus.hidden = true;
+    geoStatus.textContent = "";
+
+    if (!query) {
+      msg.textContent = "Enter a location (e.g. Srirangam, Madurai, Kolkata).";
+      msg.hidden = false;
+      return;
+    }
+
+    const url = (apiBase() || "") + "/api/geocode?location=" + encodeURIComponent(query);
+    btn.disabled = true;
+    try {
+      const res = await fetch(url);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) { throw new Error("Not JSON (HTTP " + res.status + "): " + text.slice(0, 400)); }
+      if (!res.ok) {
+        const detail = data.detail != null ? JSON.stringify(data.detail) : text;
+        throw new Error("HTTP " + res.status + ": " + detail);
+      }
+      document.getElementById("latitude").value = String(data.latitude);
+      document.getElementById("longitude").value = String(data.longitude);
+      document.getElementById("place_label").value = data.place_label || query;
+      if (data.timezone_offset_hours != null && !Number.isNaN(Number(data.timezone_offset_hours))) {
+        document.getElementById("timezone_offset_hours").value = String(data.timezone_offset_hours);
+      }
+      geoStatus.textContent =
+        "Resolved via " + data.provider + ": " + data.place_label +
+        " (" + data.latitude + ", " + data.longitude + ")";
+      geoStatus.hidden = false;
+    } catch (err) {
+      msg.textContent = String(err.message || err);
+      msg.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function saveChartToDb() {
+    const msg = document.getElementById("msg");
+    const saveMsg = document.getElementById("saveMsg");
+    const btn = document.getElementById("btnSave");
+    msg.hidden = true;
+    msg.textContent = "";
+    saveMsg.hidden = true;
+    saveMsg.textContent = "";
+
+    const displayName = document.getElementById("display_name").value.trim();
+    if (!displayName) {
+      msg.textContent = "Display name is required before saving.";
+      msg.hidden = false;
+      return;
+    }
+
+    const userId = ensureUserId();
+    const email = document.getElementById("email").value.trim();
+    const url = (apiBase() || "") + "/api/users/" + encodeURIComponent(userId) + "/charts";
+    const body = {
+      user_info: {
+        display_name: displayName,
+        email: email || null,
+        location_query: document.getElementById("location_query").value.trim() || null,
+      },
+      birth_input: buildBirthInput(),
+    };
+
+    if (!apiFromQuery) localStorage.setItem(LS, document.getElementById("apiBase").value.trim());
+
+    btn.disabled = true;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) { throw new Error("Not JSON (HTTP " + res.status + "): " + text.slice(0, 400)); }
+      if (!res.ok) {
+        const detail = data.detail != null ? JSON.stringify(data.detail) : text;
+        throw new Error("HTTP " + res.status + ": " + detail);
+      }
+      saveMsg.textContent = "Saved to DynamoDB. Chart ID: " + data.chart_id;
+      saveMsg.hidden = false;
+    } catch (err) {
+      msg.textContent = String(err.message || err);
+      msg.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById("btnFetchLocation").addEventListener("click", fetchLocationCoords);
+  document.getElementById("location_query").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      fetchLocationCoords();
+    }
+  });
+  document.getElementById("btnSave").addEventListener("click", saveChartToDb);
+
   document.getElementById("f").addEventListener("submit", async function (e) {
     e.preventDefault();
     const msg = document.getElementById("msg");
@@ -227,22 +405,8 @@
 
     const base = apiBase();
     const url = (base ? base : "") + "/api/birth-chart-table";
-    const body = {
-      year: Number(document.getElementById("year").value),
-      month: Number(document.getElementById("month").value),
-      day: Number(document.getElementById("day").value),
-      hour: Number(document.getElementById("hour").value),
-      minute: Number(document.getElementById("minute").value),
-      second: Number(document.getElementById("second").value),
-      place_label: document.getElementById("place_label").value || "Birth place",
-      latitude: Number(document.getElementById("latitude").value),
-      longitude: Number(document.getElementById("longitude").value),
-      timezone_offset_hours: Number(document.getElementById("timezone_offset_hours").value),
-      ayanamsa: document.getElementById("ayanamsa").value.trim() || null,
-      use_true_nodes: document.getElementById("use_true_nodes").checked,
-      include_outer_planets: document.getElementById("include_outer_planets").checked,
-      response_format: "json",
-    };
+    const body = buildBirthInput();
+    body.response_format = "json";
 
     if (!apiFromQuery) localStorage.setItem(LS, document.getElementById("apiBase").value.trim());
 

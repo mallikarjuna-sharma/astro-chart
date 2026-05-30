@@ -6,13 +6,15 @@ import math
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from botocore.exceptions import ClientError, NoCredentialsError
 
 from jhora import const, utils
 from jhora.horoscope.chart import charts as jhora_charts
@@ -20,7 +22,23 @@ from jhora.horoscope.match import compatibility
 from jhora.panchanga import drik
 from jhora.panchanga.drik import nakshatra_pada
 
+from api.db import repository as chart_repository
+from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
+from api.geocode import GeocodeError, geocode_location
 from api.jhora_bootstrap import init_jhora
+from api.schemas.chart import (
+    BirthChartBody,
+    BirthRequest,
+    DivisionalChart,
+    DivisionalChartsResponse,
+    HtmlDocumentJson,
+    TableResponse,
+)
+from api.schemas.storage import (
+    SavedChartListResponse,
+    SavedChartResponse,
+    SaveChartRequest,
+)
 
 _PLANET_NAMES = {
     0: "Sun",
@@ -133,61 +151,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-class BirthChartBody(BaseModel):
-    """Local civil date/time at `timezone_offset_hours` east of UTC (e.g. India 5.5)."""
-
-    year: int = Field(..., examples=[1990])
-    month: int = Field(..., ge=1, le=12, examples=[6])
-    day: int = Field(..., ge=1, le=31, examples=[15])
-    hour: int = Field(0, ge=0, le=23)
-    minute: int = Field(0, ge=0, le=59)
-    second: int = Field(0, ge=0, le=59)
-    place_label: str = Field("Birth place", description="Display name only")
-    latitude: float = Field(..., ge=-90, le=90, examples=[13.0827])
-    longitude: float = Field(..., ge=-180, le=180, examples=[80.2707])
-    timezone_offset_hours: float = Field(
-        ...,
-        description="Hours east of UTC (IST = 5.5; US Eastern = -5)",
-        examples=[5.5],
-    )
-    ayanamsa: str | None = Field(
-        None,
-        description="Swiss sidereal mode name, e.g. LAHIRI, TRUE_PUSHYA. Default: package default.",
-    )
-    use_true_nodes: bool = Field(
-        False,
-        description="If true, needs full Swiss ephemeris files (sepl*.se1) under jhora/data/ephe.",
-    )
-    include_outer_planets: bool = Field(
-        False,
-        description="Uranus/Neptune/Pluto in graha list (not shown in default Vedic nine-graha table).",
-    )
-
-
-class BirthRequest(BirthChartBody):
-    response_format: Literal["json", "html", "html_json"] = Field(
-        "json",
-        description=(
-            "`json` — table as JSON. "
-            "`html` — full HTML document as response body (`text/html`; open in browser or use as `srcdoc`). "
-            "`html_json` — JSON object `{ \"html\": \"<!DOCTYPE html>...\" }` for SPAs."
-        ),
-    )
-
-
-class TableResponse(BaseModel):
-    title: str
-    columns: list[str]
-    rows: list[list[Any]]
-    meta: dict[str, Any]
-
-
-class HtmlDocumentJson(BaseModel):
-    """Complete HTML page as one string (render in browser via iframe srcdoc or new tab)."""
-
-    html: str
 
 
 def _compute_birth_chart(body: BirthChartBody) -> TableResponse:
@@ -324,9 +287,30 @@ def _compute_birth_chart(body: BirthChartBody) -> TableResponse:
     )
 
 
+class GeocodeResponse(BaseModel):
+    query: str
+    place_label: str
+    latitude: float
+    longitude: float
+    timezone_offset_hours: float | None = None
+    provider: str
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/geocode", response_model=GeocodeResponse)
+def geocode_location_endpoint(
+    location: str = Query(..., min_length=1, max_length=200, examples=["Srirangam"]),
+) -> GeocodeResponse:
+    """Resolve a place name to latitude, longitude, and timezone offset."""
+    try:
+        result = geocode_location(location)
+    except GeocodeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return GeocodeResponse.model_validate(result)
 
 
 @app.post(
@@ -452,24 +436,6 @@ _DIVISION_NAMES = {
     8: "Ashtamsa (D8)",
     9: "Navamsa (D9)",
 }
-
-
-class DivisionalChart(BaseModel):
-    factor: int = Field(..., description="Divisional factor: 1..9")
-    name: str = Field(..., description="Human-readable chart name")
-    # 12 entries, indexed 0..11 (Aries..Pisces). Each item is a list of body short codes.
-    houses: list[dict[str, Any]] = Field(
-        ...,
-        description=(
-            "12 rasi houses (Aries..Pisces). Each item: "
-            "`{rasi: 0..11, rasi_name: str, bodies: ['La','Su',...]}`."
-        ),
-    )
-
-
-class DivisionalChartsResponse(BaseModel):
-    charts: list[DivisionalChart]
-    meta: dict[str, Any]
 
 
 def _compute_divisional_charts(
@@ -604,6 +570,86 @@ def divisional_charts_endpoint(body: BirthChartBody) -> DivisionalChartsResponse
     affect the existing JSON/HTML responses.
     """
     return _compute_divisional_charts(body, factors=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+
+def _dynamo_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, DynamoDBNotConfiguredError):
+        return HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, NoCredentialsError):
+        return HTTPException(
+            status_code=503,
+            detail=(
+                "AWS credentials not found. Run `aws configure` or set "
+                "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, then restart the server."
+            ),
+        )
+    if isinstance(exc, ClientError):
+        return HTTPException(status_code=502, detail=f"DynamoDB error: {dynamo_client_error(exc)}")
+    return HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/users/{user_id}/charts", response_model=SavedChartResponse)
+def create_saved_chart(user_id: str, body: SaveChartRequest) -> SavedChartResponse:
+    """Compute D1 table + D1..D9 charts and persist the snapshot in DynamoDB."""
+    user_id = user_id.strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    d1 = _compute_birth_chart(body.birth_input)
+    divisional = _compute_divisional_charts(body.birth_input, factors=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+    try:
+        item = chart_repository.save_birth_chart(
+            user_id,
+            body.user_info.model_dump(),
+            body.birth_input,
+            d1,
+            divisional,
+        )
+    except Exception as exc:
+        raise _dynamo_http_error(exc) from exc
+    return SavedChartResponse.model_validate(item)
+
+
+@app.get("/api/users/{user_id}/charts", response_model=SavedChartListResponse)
+def list_saved_charts(user_id: str) -> SavedChartListResponse:
+    user_id = user_id.strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    try:
+        charts = chart_repository.list_user_charts(user_id)
+    except Exception as exc:
+        raise _dynamo_http_error(exc) from exc
+    return SavedChartListResponse(charts=charts)
+
+
+@app.get("/api/users/{user_id}/charts/{chart_id}", response_model=SavedChartResponse)
+def get_saved_chart(user_id: str, chart_id: str) -> SavedChartResponse:
+    user_id = user_id.strip()
+    chart_id = chart_id.strip()
+    if not user_id or not chart_id:
+        raise HTTPException(status_code=400, detail="user_id and chart_id are required")
+    try:
+        item = chart_repository.get_birth_chart(user_id, chart_id)
+    except Exception as exc:
+        raise _dynamo_http_error(exc) from exc
+    if item is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return SavedChartResponse.model_validate(item)
+
+
+@app.delete("/api/users/{user_id}/charts/{chart_id}")
+def delete_saved_chart(user_id: str, chart_id: str) -> dict[str, str]:
+    user_id = user_id.strip()
+    chart_id = chart_id.strip()
+    if not user_id or not chart_id:
+        raise HTTPException(status_code=400, detail="user_id and chart_id are required")
+    try:
+        deleted = chart_repository.delete_birth_chart(user_id, chart_id)
+    except Exception as exc:
+        raise _dynamo_http_error(exc) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return {"status": "deleted", "chart_id": chart_id}
 
 
 _web_dir = Path(__file__).resolve().parent.parent / "web"

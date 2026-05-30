@@ -10,3 +10,13 @@ services:
     envVars:
       - key: CORS_ORIGINS
         value: "*"
+      - key: AWS_REGION
+        value: ap-south-1
+      - key: DYNAMODB_TABLE_NAME
+        value: PyJHoraBirthCharts
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
