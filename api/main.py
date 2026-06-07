@@ -22,6 +22,7 @@ from jhora.horoscope.match import compatibility
 from jhora.panchanga import drik
 from jhora.panchanga.drik import nakshatra_pada
 
+from api import extended
 from api.db import repository as chart_repository
 from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
 from api.geocode import GeocodeError, geocode_location, geocode_place_id, places_autocomplete
@@ -474,6 +475,11 @@ _DIVISION_NAMES = {
     7: "Saptamsa (D7)",
     8: "Ashtamsa (D8)",
     9: "Navamsa (D9)",
+    10: "Dasamsa (D10)",
+    16: "Shodasamsa (D16)",
+    24: "Siddhamsa (D24)",
+    60: "Shashtiamsa (D60)",
+    81: "Ashtottariamsa (D81)",
 }
 
 
@@ -600,15 +606,38 @@ def _compute_divisional_charts(
     return DivisionalChartsResponse(charts=out_charts, meta=meta)
 
 
+_ALLOWED_DIVISIONAL_FACTORS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 24, 60, 81}
+
+
 @app.post("/api/divisional-charts", response_model=DivisionalChartsResponse)
-def divisional_charts_endpoint(body: BirthChartBody) -> DivisionalChartsResponse:
-    """Return D1..D9 charts as 12-house buckets (Aries..Pisces) with body short codes.
+def divisional_charts_endpoint(
+    body: BirthChartBody,
+    factors: str | None = Query(
+        None,
+        description=(
+            "Comma-separated divisional factors (e.g. `10,16,24,60,81`). "
+            "Defaults to D1..D9. Allowed: 1-10,16,24,60,81."
+        ),
+    ),
+) -> DivisionalChartsResponse:
+    """Return divisional charts as 12-house buckets (Aries..Pisces) with body short codes.
 
     The frontend uses this to render the South-Indian style 4x4 chart grid for each
-    division. This endpoint is independent of `/api/birth-chart-table` and does not
-    affect the existing JSON/HTML responses.
+    division. By default returns D1..D9; pass `?factors=10,16,24,60,81` for the
+    extended (varga) set.
     """
-    return _compute_divisional_charts(body, factors=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+    if factors:
+        try:
+            requested = [int(f.strip()) for f in factors.split(",") if f.strip()]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid factors: {factors!r}") from exc
+        bad = [f for f in requested if f not in _ALLOWED_DIVISIONAL_FACTORS]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"Unsupported divisional factors: {bad}")
+        selected = requested
+    else:
+        selected = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    return _compute_divisional_charts(body, factors=selected)
 
 
 def _dynamo_http_error(exc: Exception) -> HTTPException:
@@ -689,6 +718,61 @@ def delete_saved_chart(user_id: str, chart_id: str) -> dict[str, str]:
     if not deleted:
         raise HTTPException(status_code=404, detail="Chart not found")
     return {"status": "deleted", "chart_id": chart_id}
+
+
+def _run_extended(label: str, fn, body: BirthChartBody) -> dict[str, Any]:
+    """Run a single extended computation, converting failures to HTTP 502 with a clear message."""
+    try:
+        return fn(body)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - surface library errors to the client
+        raise HTTPException(
+            status_code=502, detail=f"{label} computation failed: {exc}"
+        ) from exc
+
+
+@app.post("/api/panchanga")
+def panchanga_endpoint(body: BirthChartBody) -> dict[str, Any]:
+    """Tithi, Nakshatra (+pada), Yoga, Karana, Moon Rasi and Rasi lord at birth."""
+    return _run_extended("Panchanga", extended.compute_panchanga, body)
+
+
+@app.post("/api/ashtakavarga")
+def ashtakavarga_endpoint(body: BirthChartBody) -> dict[str, Any]:
+    """Sarvashtakavarga (SAV) per house + Bhinnashtakavarga (BAV) per contributor."""
+    return _run_extended("Ashtakavarga", extended.compute_ashtakavarga, body)
+
+
+@app.post("/api/shadbala")
+def shadbala_endpoint(body: BirthChartBody) -> dict[str, Any]:
+    """Shadbala strength per planet (Rupas + percentage of required strength)."""
+    return _run_extended("Shadbala", extended.compute_shadbala, body)
+
+
+@app.post("/api/jaimini")
+def jaimini_endpoint(body: BirthChartBody) -> dict[str, Any]:
+    """Jaimini chara karakas, karakamsa, Arudha/Upapada lagna and Chara dasha."""
+    return _run_extended("Jaimini", extended.compute_jaimini, body)
+
+
+@app.post("/api/vimshottari")
+def vimshottari_endpoint(body: BirthChartBody) -> dict[str, Any]:
+    """Vimshottari mahadasha periods plus current maha/antardasha."""
+    return _run_extended("Vimshottari", extended.compute_vimshottari, body)
+
+
+@app.post("/api/kp")
+def kp_endpoint(body: BirthChartBody) -> dict[str, Any]:
+    """KP system: sign lord, star (nakshatra) lord and sub lord for each body."""
+    return _run_extended("KP", extended.compute_kp, body)
+
+
+# NOTE: The planetary-transits feature (1960-2080) is intentionally decoupled
+# from the running app. The precomputed data is kept in git at
+# `api/data/transits_1960_2080.json` and can be regenerated via
+# `api.extended._compute_transits_uncached()`, but no route serves it and the
+# UI does not request it.
 
 
 _web_dir = Path(__file__).resolve().parent.parent / "web"

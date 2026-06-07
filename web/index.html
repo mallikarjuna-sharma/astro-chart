@@ -216,6 +216,45 @@
 
   <section id="vargas" class="vargas-wrap" aria-live="polite"></section>
 
+  <!-- ===================================================================
+       Extended analysis: panchanga, extra vargas, ashtakavarga, shadbala,
+       jaimini, vimshottari and KP. Loaded sequentially.
+       =================================================================== -->
+  <style>
+    .ext-wrap { margin-top: 1.75rem; max-width: none; }
+    .ext-block { border: 1px solid #8884; border-radius: 8px; margin: 0.85rem 0; overflow: hidden; }
+    .ext-block > h2 {
+      font-size: 1.05rem; margin: 0; padding: 0.6rem 0.85rem;
+      background: #f4f4f8; border-bottom: 1px solid #8883; display: flex; align-items: center; gap: 0.5rem;
+    }
+    @media (prefers-color-scheme: dark) { .ext-block > h2 { background: #242428; } }
+    .ext-body { padding: 0.75rem 0.85rem; }
+    .ext-status { font-size: 0.85rem; opacity: 0.8; }
+    .ext-status.err { color: #c22; opacity: 1; white-space: pre-wrap; }
+    .ext-spinner {
+      width: 0.95rem; height: 0.95rem; border: 2px solid #8886; border-top-color: #4a78d6;
+      border-radius: 50%; display: inline-block; animation: ext-spin 0.8s linear infinite; vertical-align: -2px;
+    }
+    @keyframes ext-spin { to { transform: rotate(360deg); } }
+    .ext-state-done h2 .ext-spinner { display: none; }
+    .ext-badge { font-size: 0.7rem; font-weight: 600; padding: 0.05rem 0.4rem; border-radius: 999px; background: #4a78d633; color: #2c63d6; }
+    .ext-table { border-collapse: collapse; width: 100%; max-width: 48rem; font-size: 0.85rem; }
+    .ext-table th, .ext-table td { border: 1px solid #8884; padding: 0.3rem 0.5rem; text-align: left; }
+    .ext-table th { background: #8881; }
+    .ext-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.4rem 1.25rem; }
+    .ext-kv .row { display: flex; justify-content: space-between; border-bottom: 1px dotted #8884; padding: 0.2rem 0; gap: 1rem; }
+    .ext-kv .row .k { opacity: 0.75; }
+    .ext-kv .row .v { font-weight: 600; text-align: right; }
+    .ext-note { font-size: 0.8rem; opacity: 0.8; margin: 0.4rem 0 0; }
+    .ext-sub { font-weight: 600; margin: 0.85rem 0 0.4rem; font-size: 0.9rem; }
+    .ext-wrap details { margin: 0.4rem 0; }
+    .ext-wrap details > summary { cursor: pointer; font-weight: 600; padding: 0.25rem 0; }
+    .ext-scroll { max-height: 22rem; overflow: auto; border: 1px solid #8883; border-radius: 6px; }
+    .pill-strong { color: #1a9d4b; font-weight: 700; }
+    .pill-weak { color: #c2442b; font-weight: 700; }
+  </style>
+  <section id="extended" class="ext-wrap" aria-live="polite"></section>
+
   <p class="hint">Deploy the FastAPI app (e.g. <a href="https://render.com">Render</a>): root <code>requirements.txt</code>, start <code>uvicorn api.main:app --host 0.0.0.0 --port $PORT</code>. Set env <code>CORS_ORIGINS</code> if the UI is on another host. Optional: <code>?api=https://your-api.onrender.com</code> to point at another API.</p>
 
   <script>
@@ -836,6 +875,255 @@
   document.addEventListener("pyjhora:render-vargas", function (e) {
     if (e.detail) renderVargas(e.detail);
   });
+})();
+  </script>
+
+  <!-- ===================================================================
+       Extended analysis loader — independent IIFE. Loads each section
+       sequentially (top → bottom) with its own spinner and error message.
+       =================================================================== -->
+  <script>
+(function () {
+  const SI_CELL_RASI = [11, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  function extApiBase() {
+    const params = new URLSearchParams(location.search);
+    const apiFromQuery = params.get("api");
+    const fromInput = document.getElementById("apiBase");
+    return (apiFromQuery || (fromInput && fromInput.value) || "").trim().replace(/\/$/, "");
+  }
+
+  function buildBody() {
+    return {
+      year: Number(document.getElementById("year").value),
+      month: Number(document.getElementById("month").value),
+      day: Number(document.getElementById("day").value),
+      hour: Number(document.getElementById("hour").value),
+      minute: Number(document.getElementById("minute").value),
+      second: Number(document.getElementById("second").value),
+      place_label: document.getElementById("place_label").value || "Birth place",
+      latitude: Number(document.getElementById("latitude").value),
+      longitude: Number(document.getElementById("longitude").value),
+      timezone_offset_hours: Number(document.getElementById("timezone_offset_hours").value),
+      ayanamsa: document.getElementById("ayanamsa").value.trim() || null,
+      use_true_nodes: document.getElementById("use_true_nodes").checked,
+      include_outer_planets: document.getElementById("include_outer_planets").checked,
+    };
+  }
+
+  function el(tag, props, children) {
+    const node = document.createElement(tag);
+    if (props) Object.keys(props).forEach(function (k) {
+      if (k === "class") node.className = props[k];
+      else if (k === "text") node.textContent = props[k];
+      else if (k === "html") node.innerHTML = props[k];
+      else node.setAttribute(k, props[k]);
+    });
+    (children || []).forEach(function (c) { if (c) node.appendChild(c); });
+    return node;
+  }
+
+  function tableEl(headers, rows) {
+    const thead = el("tr", null, headers.map(function (h) { return el("th", { text: String(h) }); }));
+    const body = rows.map(function (r) {
+      return el("tr", null, r.map(function (cell) {
+        if (cell && typeof cell === "object") return el("td", { text: String(cell.text), class: cell.class || "" });
+        return el("td", { text: cell == null ? "" : String(cell) });
+      }));
+    });
+    return el("table", { class: "ext-table" }, [el("thead", null, [thead]), el("tbody", null, body)]);
+  }
+
+  function kvEl(pairs) {
+    return el("div", { class: "ext-kv" }, pairs.map(function (p) {
+      return el("div", { class: "row" }, [
+        el("span", { class: "k", text: p[0] }),
+        el("span", { class: "v", text: p[1] == null || p[1] === "" ? "—" : String(p[1]) }),
+      ]);
+    }));
+  }
+
+  async function callJSON(method, path, body) {
+    const res = await fetch(extApiBase() + path, {
+      method: method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (_) { throw new Error("Not JSON (HTTP " + res.status + "): " + text.slice(0, 300)); }
+    if (!res.ok) throw new Error("HTTP " + res.status + ": " + (data && data.detail != null ? JSON.stringify(data.detail) : text.slice(0, 300)));
+    return data;
+  }
+
+  // ---- per-section renderers (each returns a DOM node) ----------------
+  function renderPanchanga(d) {
+    return kvEl((d.items || []).map(function (i) { return [i.label, i.value]; }));
+  }
+
+  function buildGrid(chart, meta) {
+    const byRasi = {};
+    (chart.houses || []).forEach(function (h) { byRasi[h.rasi] = h; });
+    const grid = el("div", { class: "vc-grid" });
+    SI_CELL_RASI.forEach(function (r) {
+      const h = byRasi[r] || { rasi: r, rasi_name: "", bodies: [] };
+      const cell = el("div", { class: "vc-cell vc-r" + r });
+      cell.appendChild(el("div", { class: "rname", text: h.rasi_name || ("R" + r) }));
+      const bodies = el("div", { class: "bodies" });
+      (h.bodies || []).forEach(function (b) { bodies.appendChild(el("span", { class: "b", text: b })); });
+      cell.appendChild(bodies);
+      grid.appendChild(cell);
+    });
+    const centre = el("div", { class: "vc-center" });
+    centre.appendChild(el("div", { class: "ctitle", text: chart.name }));
+    grid.appendChild(centre);
+    return grid;
+  }
+
+  function renderVargasExt(d) {
+    const grid = el("div", { class: "vargas-grid" });
+    (d.charts || []).forEach(function (chart) {
+      const card = el("div", { class: "varga-chart" });
+      card.appendChild(el("div", { class: "vc-title", text: chart.name }));
+      card.appendChild(buildGrid(chart, d.meta));
+      grid.appendChild(card);
+    });
+    return grid;
+  }
+
+  function renderAshtakavarga(d) {
+    const wrap = el("div", null, []);
+    wrap.appendChild(el("div", { class: "ext-sub", text: "Sarvashtakavarga (SAV) — points per house" }));
+    const savRows = (d.sav || []).map(function (s) { return [s.house, s.rasi, s.points]; });
+    savRows.push([{ text: "Total", class: "" }, "", { text: String(d.sav_total), class: "" }]);
+    wrap.appendChild(tableEl(["House", "Rasi", "Points"], savRows));
+
+    wrap.appendChild(el("div", { class: "ext-sub", text: "Bhinnashtakavarga (BAV) — per contributor" }));
+    const headers = ["Contributor"].concat(["H1","H2","H3","H4","H5","H6","H7","H8","H9","H10","H11","H12"]).concat(["Total"]);
+    const bavRows = (d.bav || []).map(function (b) {
+      return [b.contributor].concat((b.houses || []).map(String)).concat([{ text: String(b.total) }]);
+    });
+    wrap.appendChild(el("div", { class: "ext-scroll" }, [tableEl(headers, bavRows)]));
+    return wrap;
+  }
+
+  function renderShadbala(d) {
+    const wrap = el("div", null, []);
+    const rows = (d.rows || []).map(function (r) {
+      let cls = "";
+      if (r.planet === d.strongest) cls = "pill-strong";
+      else if (r.planet === d.weakest) cls = "pill-weak";
+      return [{ text: r.planet, class: cls }, r.rupas, { text: r.percentage + "%", class: cls }];
+    });
+    wrap.appendChild(tableEl(["Planet", "Rupas", "Strength %"], rows));
+    wrap.appendChild(el("p", { class: "ext-note",
+      text: "Strongest: " + (d.strongest || "—") + " · Weakest: " + (d.weakest || "—") +
+            ". 100% = minimum required strength." }));
+    return wrap;
+  }
+
+  function renderJaimini(d) {
+    const wrap = el("div", null, []);
+    wrap.appendChild(el("div", { class: "ext-sub", text: "Chara Karakas" }));
+    wrap.appendChild(kvEl((d.karakas || []).map(function (k) { return [k.karaka, k.planet]; })));
+    wrap.appendChild(el("div", { class: "ext-sub", text: "Special points" }));
+    wrap.appendChild(kvEl([
+      ["Karakamsa", d.karakamsa],
+      ["Arudha Lagna (AL)", d.arudha_lagna],
+      ["Upapada Lagna (UL)", d.upapada_lagna],
+    ]));
+    wrap.appendChild(el("div", { class: "ext-sub", text: "Chara Dasha (rasi maha periods)" }));
+    if ((d.chara_dasha || []).length) {
+      const rows = d.chara_dasha.map(function (c) {
+        return [c.rasi, c.start_year, c.end_year, c.years + "y"];
+      });
+      wrap.appendChild(tableEl(["Rasi", "Start", "End", "Duration"], rows));
+    } else {
+      wrap.appendChild(el("p", { class: "ext-status err", text: "Chara dasha unavailable" + (d.chara_dasha_error ? ": " + d.chara_dasha_error : "") }));
+    }
+    return wrap;
+  }
+
+  function renderVimshottari(d) {
+    const wrap = el("div", null, []);
+    wrap.appendChild(kvEl([
+      ["Current Mahadasha", d.current_mahadasha],
+      ["Current Antardasha", d.current_antardasha],
+    ]));
+    wrap.appendChild(el("div", { class: "ext-sub", text: "Mahadasha periods" }));
+    const rows = (d.periods || []).map(function (p) { return [p.planet, p.start, p.end || "—"]; });
+    wrap.appendChild(tableEl(["Mahadasha", "Start", "End"], rows));
+    return wrap;
+  }
+
+  function renderKp(d) {
+    const rows = (d.rows || []).map(function (r) {
+      return [r.body, r.rasi, r.kp_number, r.sign_lord, r.star_lord, r.sub_lord, r.sub_sub_lord];
+    });
+    return el("div", { class: "ext-scroll" }, [
+      tableEl(["Body", "Rasi", "KP #", "Sign lord", "Star lord", "Sub lord", "Sub-sub lord"], rows),
+    ]);
+  }
+
+  // ---- sequence definition --------------------------------------------
+  const SECTIONS = [
+    { id: "panchanga", title: "Panchanga at birth", run: function () { return callJSON("POST", "/api/panchanga", buildBody()).then(renderPanchanga); } },
+    { id: "vargas-ext", title: "Divisional charts (D10, D16, D24, D60, D81)", run: function () { return callJSON("POST", "/api/divisional-charts?factors=10,16,24,60,81", buildBody()).then(renderVargasExt); } },
+    { id: "ashtakavarga", title: "Ashtakavarga (SAV + BAV)", run: function () { return callJSON("POST", "/api/ashtakavarga", buildBody()).then(renderAshtakavarga); } },
+    { id: "shadbala", title: "Shadbala (planetary strength)", run: function () { return callJSON("POST", "/api/shadbala", buildBody()).then(renderShadbala); } },
+    { id: "jaimini", title: "Jaimini (karakas + chara dasha)", run: function () { return callJSON("POST", "/api/jaimini", buildBody()).then(renderJaimini); } },
+    { id: "vimshottari", title: "Vimshottari Dasha", run: function () { return callJSON("POST", "/api/vimshottari", buildBody()).then(renderVimshottari); } },
+    { id: "kp", title: "KP system (lords, sub lords)", run: function () { return callJSON("POST", "/api/kp", buildBody()).then(renderKp); } },
+  ];
+
+  function buildShells() {
+    const root = document.getElementById("extended");
+    root.innerHTML = "";
+    root.appendChild(el("h2", { text: "Extended analysis", style: "font-size:1.15rem;margin:0.5rem 0;" }));
+    const blocks = {};
+    SECTIONS.forEach(function (s) {
+      const head = el("h2", null, [
+        el("span", { class: "ext-spinner" }),
+        el("span", { text: s.title }),
+      ]);
+      const body = el("div", { class: "ext-body" }, [
+        el("span", { class: "ext-status", text: "Queued…" }),
+      ]);
+      const block = el("div", { class: "ext-block", id: "extblk-" + s.id }, [head, body]);
+      root.appendChild(block);
+      blocks[s.id] = { block: block, body: body };
+    });
+    return blocks;
+  }
+
+  let runToken = 0;
+  async function runSequence() {
+    const token = ++runToken;
+    const blocks = buildShells();
+    for (let i = 0; i < SECTIONS.length; i++) {
+      if (token !== runToken) return; // a newer run superseded this one
+      const s = SECTIONS[i];
+      const b = blocks[s.id];
+      b.body.innerHTML = "";
+      b.body.appendChild(el("span", { class: "ext-status", html: "<span class='ext-spinner'></span> Loading…" }));
+      try {
+        const node = await s.run();
+        if (token !== runToken) return;
+        b.body.innerHTML = "";
+        b.body.appendChild(node);
+        b.block.classList.add("ext-state-done");
+      } catch (err) {
+        if (token !== runToken) return;
+        b.body.innerHTML = "";
+        b.body.appendChild(el("p", { class: "ext-status err", text: "Could not load: " + (err && err.message ? err.message : err) }));
+        b.block.classList.add("ext-state-done");
+      }
+    }
+  }
+
+  const form = document.getElementById("f");
+  if (form) form.addEventListener("submit", function () { setTimeout(runSequence, 0); });
 })();
   </script>
 </body>
