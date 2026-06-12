@@ -515,3 +515,276 @@ def compute_transits() -> dict[str, Any]:
                 pass
         _transit_cache = _compute_transits_uncached()
         return _transit_cache
+
+
+# ---------------------------------------------------------------------------
+# Consolidated KP-oriented export JSON (single object, copy-friendly).
+# Forces the configuration declared in `system_config`: KP (Krishnamurti)
+# ayanamsa, True nodes, 7-karaka (KN Rao) Jaimini scheme.
+# ---------------------------------------------------------------------------
+# swisseph ids for the nine grahas (Rahu/Ketu resolved at runtime per node mode).
+_SWE_ID = {0: swe.SUN, 1: swe.MOON, 2: swe.MARS, 3: swe.MERCURY,
+           4: swe.JUPITER, 5: swe.VENUS, 6: swe.SATURN}
+# Sign rulerships (0=Aries .. 11=Pisces) -> owning planet, and the inverse.
+_SIGN_LORD = [2, 5, 3, 1, 0, 3, 5, 2, 4, 6, 6, 4]
+_OWNED_SIGNS = {0: [4], 1: [3], 2: [0, 7], 3: [2, 5], 4: [8, 11], 5: [1, 6], 6: [9, 10]}
+# 7-karaka (KN Rao) labels in descending-longitude order.
+_KARAKA7 = ["AK", "AmK", "BK", "MK", "PK", "GK", "DK"]
+
+
+def _prepare_kp(body: BirthChartBody) -> dict[str, Any]:
+    """Like `_prepare` but pinned to KP ayanamsa + true nodes for the export payload."""
+    init_jhora()
+    const.set_node_mode(True)  # node_type "True"
+    place = drik.Place(body.place_label, body.latitude, body.longitude, body.timezone_offset_hours)
+    jd = utils.julian_day_number(
+        (body.year, body.month, body.day), (body.hour, body.minute, body.second)
+    )
+    drik.set_ayanamsa_mode("KP")
+    pp = charts.rasi_chart(jd, place)
+    return {"jd": jd, "place": place, "pp": pp}
+
+
+def _sign_and_deg(rasi_idx: int, lon_in_rasi: float) -> tuple[str, float]:
+    return _rasi_name(int(rasi_idx)), round(float(lon_in_rasi), 4)
+
+
+def _planet_full_lon(pp: list, pid: int) -> float:
+    for p, (h, lon) in pp:
+        if p == pid:
+            return int(h) * 30.0 + float(lon)
+    return 0.0
+
+
+def _house_num(sign0: int, lagna_sign0: int) -> int:
+    return ((int(sign0) - int(lagna_sign0)) % 12) + 1
+
+
+def _divisional_signs(jd: float, place: Any, factor: int) -> dict[str, str]:
+    positions = charts.divisional_chart(jd, place, divisional_chart_factor=factor)
+    out: dict[str, str] = {}
+    for pid, (rasi_idx, _lon) in positions:
+        key = "Lagna" if pid == "L" else _PLANET_NAMES.get(pid)
+        if key:
+            out[key] = _rasi_name(int(rasi_idx))
+    return out
+
+
+def _decimal_year(jd: float) -> float:
+    y, m, d = _jd_to_date(jd)
+    year_start = utils.julian_day_number((y, 1, 1), (0, 0, 0))
+    return round(y + (jd - year_start) / 365.25, 2)
+
+
+def _chara_karakas_7(pp: list) -> dict[str, str]:
+    """KN Rao 7-karaka scheme: Sun..Saturn sorted by longitude-in-sign (desc)."""
+    rows = []
+    for pid in range(0, 7):
+        for p, (h, lon) in pp:
+            if p == pid:
+                rows.append((pid, float(lon)))
+                break
+    rows.sort(key=lambda r: r[1], reverse=True)
+    return {_KARAKA7[i]: _PLANET_NAMES[pid] for i, (pid, _l) in enumerate(rows) if i < 7}
+
+
+def _kp_significators(pp: list, kp: dict, bhava_houses: dict, lagna_sign0: int) -> dict[str, dict]:
+    """Standard KP 4-level planet->house significators.
+
+    L1: house occupied by the planet's star (nakshatra) lord.
+    L2: house occupied by the planet itself.
+    L3: houses owned by the planet's star lord.
+    L4: houses owned by the planet itself.
+    (Rahu/Ketu own no sign, so L4 uses the lord of the sign they occupy.)
+    """
+    def occ_house(pid: int) -> list[int]:
+        h = bhava_houses.get(pid)
+        return [int(h)] if h is not None else []
+
+    def owned_houses(pid: int) -> list[int]:
+        signs = _OWNED_SIGNS.get(pid, [])
+        return sorted({_house_num(s, lagna_sign0) for s in signs})
+
+    # planet -> occupied sign (for node dispositor)
+    occ_sign = {p: int(h) for p, (h, _l) in pp if isinstance(p, int)}
+
+    out: dict[str, dict] = {}
+    for pid in range(0, 9):
+        info = kp.get(pid)
+        star_lord = int(info[1]) if info and len(info) > 1 else None
+        l1 = occ_house(star_lord) if star_lord is not None else []
+        l2 = occ_house(pid)
+        l3 = owned_houses(star_lord) if star_lord is not None else []
+        if pid in (7, 8):  # nodes: own no sign -> use dispositor of occupied sign
+            disp = _SIGN_LORD[occ_sign.get(pid, 0)]
+            l4 = owned_houses(disp)
+        else:
+            l4 = owned_houses(pid)
+        out[_PLANET_NAMES[pid]] = {
+            "level_1": l1, "level_2": l2, "level_3": l3, "level_4": l4,
+        }
+    return out
+
+
+def compute_consolidated(body: BirthChartBody, student_context: dict | None = None) -> dict[str, Any]:
+    ctx = _prepare_kp(body)
+    jd, place, pp = ctx["jd"], ctx["place"], ctx["pp"]
+    sc = student_context or {}
+    pref = sc.get("student_preference") or {}
+
+    lagna_rasi = next((int(h) for p, (h, _l) in pp if p == "L"), 0)
+    lagna_deg = next((float(l) for p, (h, l) in pp if p == "L"), 0.0)
+
+    # planets_d1
+    retro = set(int(x) for x in drik.planets_in_retrograde(jd, place))
+    sb = strength.shad_bala(jd, place)
+    virupas = sb[6]  # total shadbala in virupas (shashtiamsa), per planet Sun..Saturn
+    jd_ut = jd - place.timezone / 24.0
+    node_for_ketu = swe.TRUE_NODE
+    planets_d1: dict[str, Any] = {}
+    for pid in range(0, 9):
+        sign = None
+        for p, (h, lon) in pp:
+            if p == pid:
+                sign, deg = _sign_and_deg(h, lon)
+                break
+        if sign is None:
+            continue
+        if pid <= 6:
+            swe_id, off = _SWE_ID[pid], 0.0
+        elif pid == 7:
+            swe_id, off = swe.TRUE_NODE, 0.0
+        else:
+            swe_id, off = node_for_ketu, 180.0
+        try:
+            res = swe.calc_ut(jd_ut, swe_id)[0]
+            lat = round(float(res[1]), 4)  # nodes lie on the ecliptic (~0)
+        except Exception:
+            lat = 0.0
+        entry: dict[str, Any] = {
+            "sign": sign,
+            "degree": deg,
+            "is_retrograde": pid in retro,
+            "latitude": lat,
+        }
+        if pid <= 6:
+            entry["shadbala_virupas"] = round(float(virupas[pid]), 2)
+        planets_d1[_PLANET_NAMES[pid]] = entry
+
+    # divisional charts
+    divisional = {
+        "D9_navamsha": _divisional_signs(jd, place, 9),
+        "D10_dashamsha": _divisional_signs(jd, place, 10),
+        "D24_siddhamsam": _divisional_signs(jd, place, 24),
+    }
+
+    # KP cusp data (H1..H12 in bhava order)
+    bhava = charts.bhava_chart(jd, place)
+    kp_cusp: dict[str, Any] = {}
+    for i, entry in enumerate(bhava, start=1):
+        rasi_idx = int(entry[0])
+        cusp_lon = float(entry[1][1])  # bhava madhya
+        lords = utils.kp_lords_for_longitude(0, cusp_lon).get(0, [])
+        kp_cusp[f"H{i}"] = {
+            "sign": _rasi_name(rasi_idx),
+            "degree": round(cusp_lon % 30.0, 4),
+            "sign_lord": _PLANET_NAMES.get(int(_SIGN_LORD[rasi_idx]), ""),
+            "star_lord": _PLANET_NAMES.get(int(lords[1]), "") if len(lords) > 1 else "",
+            "sub_lord": _PLANET_NAMES.get(int(lords[2]), "") if len(lords) > 2 else "",
+            "sub_sub_lord": _PLANET_NAMES.get(int(lords[3]), "") if len(lords) > 3 else "",
+        }
+
+    # KP planetary significators
+    kp_planet = charts.get_KP_lords_from_planet_positions(pp)
+    bhava_houses = charts.bhava_houses(jd, place)
+    significators = _kp_significators(pp, kp_planet, bhava_houses, lagna_rasi)
+
+    # Jaimini (7-karaka), karakamsa, upapada, special lords
+    karakas7 = _chara_karakas_7(pp)
+    ak_name = karakas7.get("AK")
+    ak_pid = next((k for k, v in _PLANET_NAMES.items() if v == ak_name), 0)
+    d9 = charts.divisional_chart(jd, place, divisional_chart_factor=9)
+    karakamsha_sign = next((_rasi_name(int(r)) for p, (r, _l) in d9 if p == ak_pid), "")
+    try:
+        from jhora.horoscope.chart import arudhas
+        ba = arudhas.bhava_arudhas_from_planet_positions(pp)
+        upapada_sign = _rasi_name(int(ba[11]))
+    except Exception:
+        upapada_sign = ""
+    try:
+        brahma_pid = int(house.brahma(pp))
+    except Exception:
+        brahma_pid = None
+    try:
+        mahesh_pid = int(house.maheshwara_from_planet_positions(pp))
+    except Exception:
+        mahesh_pid = None
+    try:
+        rudra_res = house.rudra(pp)
+        rudra_pid = int(rudra_res[0]) if isinstance(rudra_res, (list, tuple)) else int(rudra_res)
+    except Exception:
+        rudra_pid = None
+
+    # Ashtakavarga SAV by house (rotated from lagna)
+    h2p = utils.get_house_planet_list_from_planet_positions(pp)
+    sav_by_rasi = ashtakavarga.get_ashtaka_varga(h2p)[1]
+    sav = {f"H{n}": int(sav_by_rasi[(lagna_rasi + n - 1) % 12]) for n in range(1, 13)}
+
+    # Vimshottari maha sequence with decimal years + ages
+    maha = vimsottari.vimsottari_mahadasa(jd, place)
+    items = sorted(maha.items(), key=lambda kv: kv[1])
+    dasha_seq = []
+    for i, (pid, start_jd) in enumerate(items):
+        end_jd = items[i + 1][1] if i + 1 < len(items) else start_jd + 0.0
+        dasha_seq.append({
+            "md_planet": _PLANET_NAMES.get(int(pid), str(pid)),
+            "start_year": _decimal_year(start_jd),
+            "end_year": _decimal_year(end_jd) if i + 1 < len(items) else None,
+            "age_start": round((start_jd - jd) / 365.25, 1),
+            "age_end": round((end_jd - jd) / 365.25, 1) if i + 1 < len(items) else None,
+        })
+
+    return {
+        "system_config": {
+            "ayanamsa": "KP_Krishnamurti",
+            "node_type": "True",
+            "karaka_system": 7,
+            "birth_time_uncertainty_minutes": 0.0,
+            "current_date": date.today().isoformat(),
+        },
+        "student_context": {
+            "dob": f"{body.year:04d}-{body.month:02d}-{body.day:02d}",
+            "tob": f"{body.hour:02d}:{body.minute:02d}:{body.second:02d}",
+            "pob": sc.get("pob") or body.place_label,
+            "lat": round(float(body.latitude), 4),
+            "lon": round(float(body.longitude), 4),
+            "gender": sc.get("gender") or "O",
+            "education_system": sc.get("education_system") or "India_CBSE",
+            "student_preference": {
+                "interested_in": pref.get("interested_in") or [],
+                "already_excel_at": pref.get("already_excel_at") or [],
+                "financial_constraints": bool(pref.get("financial_constraints", False)),
+                "risk_appetite": pref.get("risk_appetite") or "MODERATE",
+            },
+        },
+        "pyhora_calculations": {
+            "d1_lagna": _rasi_name(lagna_rasi),
+            "d1_lagna_degree": round(lagna_deg, 4),
+            "planets_d1": planets_d1,
+            "divisional_charts": divisional,
+            "kp_cusp_data": kp_cusp,
+            "kp_planetary_significators": significators,
+            "kn_rao_jaimini_data": {
+                "chara_karakas": karakas7,
+                "karakamsha_sign": karakamsha_sign,
+                "upapada_lagna_sign": upapada_sign,
+                "jaimini_special_lords": {
+                    "brahma": _PLANET_NAMES.get(brahma_pid, "") if brahma_pid is not None else "",
+                    "maheshwara": _PLANET_NAMES.get(mahesh_pid, "") if mahesh_pid is not None else "",
+                    "rudra": _PLANET_NAMES.get(rudra_pid, "") if rudra_pid is not None else "",
+                },
+            },
+            "ashtakavarga_sav": sav,
+            "vimshottari_dasha_sequence": dasha_seq,
+        },
+    }

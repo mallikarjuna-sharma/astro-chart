@@ -76,3 +76,24 @@ class DivisionalChart(BaseModel):
 class DivisionalChartsResponse(BaseModel):
     charts: list[DivisionalChart]
     meta: dict[str, Any]
+
+
+class StudentPreference(BaseModel):
+    interested_in: list[str] = Field(default_factory=list)
+    already_excel_at: list[str] = Field(default_factory=list)
+    financial_constraints: bool = False
+    risk_appetite: str = "MODERATE"
+
+
+class StudentContext(BaseModel):
+    pob: str | None = None
+    gender: str = "O"
+    education_system: str = "India_CBSE"
+    student_preference: StudentPreference = Field(default_factory=StudentPreference)
+
+
+class ConsolidatedRequest(BaseModel):
+    """Birth data plus optional student metadata for the consolidated export JSON."""
+
+    birth_input: BirthChartBody
+    student_context: StudentContext | None = None

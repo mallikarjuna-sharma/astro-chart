@@ -30,6 +30,7 @@ from api.jhora_bootstrap import init_jhora
 from api.schemas.chart import (
     BirthChartBody,
     BirthRequest,
+    ConsolidatedRequest,
     DivisionalChart,
     DivisionalChartsResponse,
     HtmlDocumentJson,
@@ -766,6 +767,23 @@ def vimshottari_endpoint(body: BirthChartBody) -> dict[str, Any]:
 def kp_endpoint(body: BirthChartBody) -> dict[str, Any]:
     """KP system: sign lord, star (nakshatra) lord and sub lord for each body."""
     return _run_extended("KP", extended.compute_kp, body)
+
+
+@app.post("/api/consolidated")
+def consolidated_endpoint(req: ConsolidatedRequest) -> dict[str, Any]:
+    """Single consolidated KP-oriented JSON (KP ayanamsa, true nodes, 7-karaka).
+
+    Bundles system config, student context, D1 planets (with retrograde/latitude/
+    shadbala), D9/D10/D24 signs, KP cusps + significators, Jaimini (KN Rao), SAV
+    and the Vimshottari maha sequence into one copy-friendly object.
+    """
+    sc = req.student_context.model_dump() if req.student_context else None
+    try:
+        return extended.compute_consolidated(req.birth_input, sc)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Consolidated export failed: {exc}") from exc
 
 
 # NOTE: The planetary-transits feature (1960-2080) is intentionally decoupled

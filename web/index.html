@@ -14,6 +14,8 @@
     input, select { font: inherit; padding: 0.35rem 0.5rem; max-width: 100%; box-sizing: border-box; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
     @media (max-width: 36rem) { .row2 { grid-template-columns: 1fr; } }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+    @media (max-width: 36rem) { .grid-3 { grid-template-columns: 1fr; } }
     button { font: inherit; padding: 0.5rem 1rem; cursor: pointer; border-radius: 6px; border: 1px solid #8886; background: #2a6; color: #fff; }
     button.secondary { background: #456; }
     button.muted { background: #666; }
@@ -129,6 +131,31 @@
       <legend>Options</legend>
       <label><input type="checkbox" id="use_true_nodes"/> Use true nodes (needs full Swiss ephemeris on server)</label>
       <label><input type="checkbox" id="include_outer_planets"/> Include Uranus–Pluto</label>
+    </fieldset>
+    <fieldset>
+      <legend>Student context <span class="hint" style="font-weight:400">(only used in the consolidated JSON export)</span></legend>
+      <div class="grid-3">
+        <label>Gender
+          <select id="sc_gender">
+            <option value="M">M</option>
+            <option value="F">F</option>
+            <option value="O" selected>O</option>
+          </select>
+        </label>
+        <label>Education system
+          <input type="text" id="sc_education" maxlength="40" value="India_CBSE"/>
+        </label>
+        <label>Risk appetite
+          <select id="sc_risk">
+            <option value="LOW">LOW</option>
+            <option value="MODERATE" selected>MODERATE</option>
+            <option value="HIGH">HIGH</option>
+          </select>
+        </label>
+      </div>
+      <label>Interested in <input type="text" id="sc_interested" maxlength="200" placeholder="comma separated, e.g. CS, Mathematics"/></label>
+      <label>Already excels at <input type="text" id="sc_excel" maxlength="200" placeholder="comma separated, e.g. Physics, Drawing"/></label>
+      <label><input type="checkbox" id="sc_financial"/> Financial constraints</label>
     </fieldset>
     <div class="btn-row">
       <button type="submit" id="btn">Show chart</button>
@@ -255,6 +282,37 @@
   </style>
   <section id="extended" class="ext-wrap" aria-live="polite"></section>
 
+  <!-- ===================================================================
+       Consolidated KP export JSON — rendered last. Copy button (top-right)
+       and a collapse/expand ("contract") toggle.
+       =================================================================== -->
+  <style>
+    .cj-wrap { margin-top: 1.75rem; max-width: none; }
+    .cj-card { border: 1px solid #8884; border-radius: 8px; overflow: hidden; }
+    .cj-head {
+      display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.85rem;
+      background: #f4f4f8; border-bottom: 1px solid #8883;
+    }
+    @media (prefers-color-scheme: dark) { .cj-head { background: #242428; } }
+    .cj-head h2 { font-size: 1.05rem; margin: 0; flex: 1; }
+    .cj-head .cj-spinner { width: 0.9rem; height: 0.9rem; border: 2px solid #8886; border-top-color: #4a78d6; border-radius: 50%; display: none; animation: ext-spin 0.8s linear infinite; }
+    .cj-wrap.is-loading .cj-spinner { display: inline-block; }
+    .cj-btn { font: inherit; font-size: 0.8rem; padding: 0.3rem 0.7rem; border: 1px solid #8886; border-radius: 6px; background: #fff; cursor: pointer; }
+    @media (prefers-color-scheme: dark) { .cj-btn { background: #1c1c1c; color: #eaeaea; } }
+    .cj-btn:hover { border-color: #4a78d6; }
+    .cj-btn.copied { background: #1a9d4b; color: #fff; border-color: #1a9d4b; }
+    .cj-body { margin: 0; padding: 0.85rem; overflow: auto; max-height: 32rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; line-height: 1.45; white-space: pre; background: #0f1117; color: #e6e6e6; }
+    .cj-wrap.is-collapsed .cj-body { display: none; }
+    .cj-status { font-size: 0.85rem; padding: 0.85rem; }
+    .cj-status.err { color: #c22; white-space: pre-wrap; }
+    .cj-json-key { color: #79b8ff; }
+    .cj-json-str { color: #9ecbff; }
+    .cj-json-num { color: #f8c555; }
+    .cj-json-bool { color: #f97583; }
+    .cj-json-null { color: #b392f0; }
+  </style>
+  <section id="consolidated" class="cj-wrap" aria-live="polite"></section>
+
   <p class="hint">Deploy the FastAPI app (e.g. <a href="https://render.com">Render</a>): root <code>requirements.txt</code>, start <code>uvicorn api.main:app --host 0.0.0.0 --port $PORT</code>. Set env <code>CORS_ORIGINS</code> if the UI is on another host. Optional: <code>?api=https://your-api.onrender.com</code> to point at another API.</p>
 
   <script>
@@ -363,16 +421,16 @@
   }
 
   function loadDefaults() {
-    document.getElementById("year").value = "1985";
-    document.getElementById("month").value = "9";
-    document.getElementById("day").value = "29";
-    document.getElementById("hour").value = "12";
-    document.getElementById("minute").value = "35";
+    document.getElementById("year").value = "2014";
+    document.getElementById("month").value = "10";
+    document.getElementById("day").value = "8";
+    document.getElementById("hour").value = "13";
+    document.getElementById("minute").value = "0";
     document.getElementById("second").value = "0";
-    document.getElementById("location_query").value = "Dharmapuri";
-    document.getElementById("place_label").value = "Dharmapuri";
-    document.getElementById("latitude").value = "12.136";
-    document.getElementById("longitude").value = "78.1432";
+    document.getElementById("location_query").value = "srirangam";
+    document.getElementById("place_label").value = "Srirangam, Tiruchirappalli, Tamil Nadu, India";
+    document.getElementById("latitude").value = "10.8627";
+    document.getElementById("longitude").value = "78.6928";
     document.getElementById("timezone_offset_hours").value = "5.5";
     document.getElementById("ayanamsa").value = "LAHIRI";
     document.getElementById("display_name").value = "Demo user";
@@ -1124,6 +1182,165 @@
 
   const form = document.getElementById("f");
   if (form) form.addEventListener("submit", function () { setTimeout(runSequence, 0); });
+})();
+  </script>
+
+  <!-- ===================================================================
+       Consolidated KP export JSON — independent IIFE.
+       =================================================================== -->
+  <script>
+(function () {
+  let rawJson = "";
+
+  function cjApiBase() {
+    const params = new URLSearchParams(location.search);
+    const apiFromQuery = params.get("api");
+    const fromInput = document.getElementById("apiBase");
+    return (apiFromQuery || (fromInput && fromInput.value) || "").trim().replace(/\/$/, "");
+  }
+
+  function splitList(id) {
+    const v = (document.getElementById(id).value || "").trim();
+    if (!v) return [];
+    return v.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function buildRequest() {
+    return {
+      birth_input: {
+        year: Number(document.getElementById("year").value),
+        month: Number(document.getElementById("month").value),
+        day: Number(document.getElementById("day").value),
+        hour: Number(document.getElementById("hour").value),
+        minute: Number(document.getElementById("minute").value),
+        second: Number(document.getElementById("second").value),
+        place_label: document.getElementById("place_label").value || "Birth place",
+        latitude: Number(document.getElementById("latitude").value),
+        longitude: Number(document.getElementById("longitude").value),
+        timezone_offset_hours: Number(document.getElementById("timezone_offset_hours").value),
+        ayanamsa: document.getElementById("ayanamsa").value.trim() || null,
+        use_true_nodes: document.getElementById("use_true_nodes").checked,
+        include_outer_planets: document.getElementById("include_outer_planets").checked,
+      },
+      student_context: {
+        pob: document.getElementById("place_label").value || null,
+        gender: document.getElementById("sc_gender").value,
+        education_system: document.getElementById("sc_education").value.trim() || "India_CBSE",
+        student_preference: {
+          interested_in: splitList("sc_interested"),
+          already_excel_at: splitList("sc_excel"),
+          financial_constraints: document.getElementById("sc_financial").checked,
+          risk_appetite: document.getElementById("sc_risk").value,
+        },
+      },
+    };
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // Pretty-print + lightweight syntax highlight of a JSON string.
+  function highlight(jsonStr) {
+    const esc = escapeHtml(jsonStr);
+    return esc.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g,
+      function (match) {
+        let cls = "cj-json-num";
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? "cj-json-key" : "cj-json-str";
+        } else if (/true|false/.test(match)) {
+          cls = "cj-json-bool";
+        } else if (/null/.test(match)) {
+          cls = "cj-json-null";
+        }
+        return '<span class="' + cls + '">' + match + "</span>";
+      }
+    );
+  }
+
+  function buildCard() {
+    const root = document.getElementById("consolidated");
+    root.className = "cj-wrap is-loading";
+    root.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "cj-head";
+    head.innerHTML =
+      '<h2>Consolidated export (JSON)</h2>' +
+      '<span class="cj-spinner"></span>' +
+      '<button type="button" class="cj-btn" id="cjCollapse">Collapse</button>' +
+      '<button type="button" class="cj-btn" id="cjCopy">Copy</button>';
+    const body = document.createElement("pre");
+    body.className = "cj-body";
+    body.id = "cjBody";
+    const status = document.createElement("div");
+    status.className = "cj-status";
+    status.id = "cjStatus";
+    status.textContent = "Loading…";
+    const card = document.createElement("div");
+    card.className = "cj-card";
+    card.appendChild(head);
+    card.appendChild(status);
+    card.appendChild(body);
+    root.appendChild(card);
+
+    document.getElementById("cjCopy").addEventListener("click", function () {
+      if (!rawJson) return;
+      const btn = this;
+      const done = function () {
+        btn.classList.add("copied");
+        const prev = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(function () { btn.classList.remove("copied"); btn.textContent = prev; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(rawJson).then(done, function () { fallbackCopy(rawJson); done(); });
+      } else { fallbackCopy(rawJson); done(); }
+    });
+    document.getElementById("cjCollapse").addEventListener("click", function () {
+      const collapsed = root.classList.toggle("is-collapsed");
+      this.textContent = collapsed ? "Expand" : "Collapse";
+    });
+    return { root: root, body: body, status: status };
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+
+  async function run() {
+    const ui = buildCard();
+    try {
+      const res = await fetch(cjApiBase() + "/api/consolidated", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRequest()),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) { throw new Error("Not JSON (HTTP " + res.status + "): " + text.slice(0, 300)); }
+      if (!res.ok) throw new Error("HTTP " + res.status + ": " + (data && data.detail != null ? JSON.stringify(data.detail) : text.slice(0, 300)));
+      rawJson = JSON.stringify(data, null, 2);
+      ui.status.textContent = "";
+      ui.status.style.display = "none";
+      ui.body.innerHTML = highlight(rawJson);
+    } catch (err) {
+      rawJson = "";
+      ui.status.className = "cj-status err";
+      ui.status.textContent = "Could not build consolidated export: " + (err && err.message ? err.message : err);
+      ui.body.innerHTML = "";
+    } finally {
+      ui.root.classList.remove("is-loading");
+    }
+  }
+
+  const form = document.getElementById("f");
+  if (form) form.addEventListener("submit", function () { setTimeout(run, 0); });
 })();
   </script>
 </body>
