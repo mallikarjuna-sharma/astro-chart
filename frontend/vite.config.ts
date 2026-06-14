@@ -7,9 +7,10 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  tanstackStart: {
-    router: { entry: "./router.tsx" },
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    server: { entry: "./server.ts" },
+  vite: {
+    preview: {
+      // Required when serving via `npm start` (vite preview) on Render.
+      allowedHosts: [".onrender.com", "astro-chart-web.onrender.com"],
+    },
   },
 });
