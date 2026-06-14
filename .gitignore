@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.Python
+.env
+.env.local
+
+# Frontend (frontend/)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.tanstack/
+frontend/.output/
+frontend/.vinxi/
+frontend/.nitro/
