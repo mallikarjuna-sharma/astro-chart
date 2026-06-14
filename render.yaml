@@ -1,4 +1,5 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
+# Monorepo: Python API at repo root, JyotishAI web app in frontend/
 services:
   - type: web
     name: pyjhora-api
@@ -22,3 +23,17 @@ services:
         sync: false
       - key: GOOGLE_PLACES_API_KEY
         sync: false
+
+  - type: web
+    name: jyotishai-web
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22.21.1"
+      - key: VITE_PYJHORA_API_BASE
+        value: https://pyjhora-api-8ni1.onrender.com
