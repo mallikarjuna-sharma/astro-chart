@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { BirthChartTable } from "@/components/charts/BirthChartTable";
 import { ChartLegend, SouthIndianChart } from "@/components/charts/SouthIndianChart";
-import { loadChartSession } from "@/lib/pyjhora/session";
+import { useChartSession } from "@/hooks/use-chart-session";
 import type { DivisionalChart } from "@/lib/pyjhora/types";
 import { useMemo } from "react";
 
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/charts")({
 });
 
 function ChartsPage() {
-  const session = useMemo(() => loadChartSession(), []);
+  const session = useChartSession();
 
   const allCharts = useMemo(() => {
     const basic = session?.divisionalBasic?.charts ?? [];

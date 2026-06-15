@@ -1,5 +1,6 @@
 import type { BirthInput, ChartSession, StudentContext, UserInfo } from "./types";
 import { isDynamoUnavailableError, pyjhora } from "./client";
+import { normalizeTableResponse } from "./normalize";
 import { saveChartSession } from "./session";
 
 export interface GenerateChartsOptions {
@@ -90,7 +91,7 @@ export async function saveAndGenerateCharts(opts: GenerateChartsOptions): Promis
     chartId = saved.chart_id;
     sessionUserInfo = saved.user_info;
     sessionBirthInput = saved.birth_input;
-    d1Table = saved.d1_table;
+    d1Table = normalizeTableResponse(saved.d1_table, saved.meta);
     divisionalBasic = saved.divisional_charts;
     extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress);
   } catch (err) {

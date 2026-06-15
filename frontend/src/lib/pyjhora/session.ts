@@ -1,6 +1,8 @@
 import type { BirthInput, ChartSession, StudentContext, UserInfo } from "./types";
+import { normalizeTableResponse } from "./normalize";
 
 export const CHART_SESSION_KEY = "jyotish:chartSession";
+export const CHART_SESSION_EVENT = "jyotish:chartSession";
 
 export function defaultStudentContext(): StudentContext {
   return {
@@ -17,9 +19,15 @@ export function defaultStudentContext(): StudentContext {
 }
 
 export function loadChartSession(): ChartSession | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = sessionStorage.getItem(CHART_SESSION_KEY);
-    return raw ? (JSON.parse(raw) as ChartSession) : null;
+    if (!raw) return null;
+    const session = JSON.parse(raw) as ChartSession;
+    if (session.d1Table) {
+      session.d1Table = normalizeTableResponse(session.d1Table);
+    }
+    return session;
   } catch {
     return null;
   }
@@ -27,6 +35,9 @@ export function loadChartSession(): ChartSession | null {
 
 export function saveChartSession(session: ChartSession): void {
   sessionStorage.setItem(CHART_SESSION_KEY, JSON.stringify(session));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(CHART_SESSION_EVENT));
+  }
 }
 
 export function patchChartSession(patch: Partial<ChartSession>): ChartSession | null {
