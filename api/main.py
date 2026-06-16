@@ -8,6 +8,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
+# override=True so project .env wins over a stale GEMINI_API_KEY in the shell.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -27,6 +32,8 @@ from api.db import repository as chart_repository
 from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
 from api.geocode import GeocodeError, geocode_location, geocode_place_id, places_autocomplete
 from api.jhora_bootstrap import init_jhora
+from api.education_analysis import EducationAnalysisError, run_education_analysis
+from api.schemas.education_analysis import EducationAnalysisRequest, EducationAnalysisResponse
 from api.schemas.chart import (
     BirthChartBody,
     BirthRequest,
@@ -767,6 +774,26 @@ def vimshottari_endpoint(body: BirthChartBody) -> dict[str, Any]:
 def kp_endpoint(body: BirthChartBody) -> dict[str, Any]:
     """KP system: sign lord, star (nakshatra) lord and sub lord for each body."""
     return _run_extended("KP", extended.compute_kp, body)
+
+
+@app.post("/api/education-analysis", response_model=EducationAnalysisResponse)
+def education_analysis_endpoint(body: EducationAnalysisRequest) -> EducationAnalysisResponse:
+    """Run the JyotishAI career engine on consolidated chart JSON.
+
+    Returns ranked field recommendations and a structured ``report`` JSON sufficient
+    to render the parent/astrologer HTML report on the client.
+
+    Requires ``GEMINI_API_KEY`` (or another supported LLM key) in the environment.
+    """
+    try:
+        result = run_education_analysis(body.user_json)
+    except EducationAnalysisError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502, detail=f"Education analysis failed: {exc}"
+        ) from exc
+    return EducationAnalysisResponse.model_validate(result)
 
 
 @app.post("/api/consolidated")
