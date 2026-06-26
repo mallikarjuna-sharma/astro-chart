@@ -7,9 +7,10 @@ interface SouthIndianChartProps {
   chart: DivisionalChart;
   meta?: Record<string, unknown>;
   compact?: boolean;
+  size?: "default" | "large";
 }
 
-export function SouthIndianChart({ chart, meta, compact }: SouthIndianChartProps) {
+export function SouthIndianChart({ chart, meta, compact, size = "default" }: SouthIndianChartProps) {
   const byRasi = Object.fromEntries((chart.houses ?? []).map((h) => [h.rasi, h]));
 
   const metaLines = meta
@@ -18,11 +19,22 @@ export function SouthIndianChart({ chart, meta, compact }: SouthIndianChartProps
         .join(" · ")
     : "";
 
+  const widthClass = compact
+    ? "w-full max-w-xs"
+    : size === "large"
+      ? "w-full max-w-[min(100%,22rem)] sm:max-w-md md:max-w-lg lg:max-w-2xl mx-auto"
+      : "w-full max-w-sm";
+
+  const textClass = size === "large" ? "text-xs sm:text-sm" : "text-[10px] sm:text-xs";
+  const labelClass = size === "large" ? "text-[10px] sm:text-xs" : "text-[9px]";
+
   return (
-    <div className={compact ? "w-full max-w-xs" : "w-full max-w-sm"}>
-      <div className="text-center font-semibold text-sm mb-2">{chart.name}</div>
+    <div className={widthClass}>
+      <div className={`text-center font-semibold ${size === "large" ? "text-base sm:text-lg" : "text-sm"} mb-2`}>
+        {chart.name}
+      </div>
       <div
-        className="grid grid-cols-4 grid-rows-4 aspect-square gap-px border border-border rounded-md overflow-hidden text-[10px] sm:text-xs"
+        className={`grid grid-cols-4 grid-rows-4 aspect-square gap-px border border-border rounded-md overflow-hidden ${textClass}`}
         style={{
           gridTemplateAreas: `
             "r11 r0  r1  r2"
@@ -40,7 +52,7 @@ export function SouthIndianChart({ chart, meta, compact }: SouthIndianChartProps
               className="bg-card border border-border/60 p-1 flex flex-col gap-0.5 min-h-0 overflow-hidden"
               style={{ gridArea: `r${r}` }}
             >
-              <span className="text-[9px] text-muted-foreground leading-none truncate">
+              <span className={`${labelClass} text-muted-foreground leading-none truncate`}>
                 {h.rasi_name || `R${r}`}
               </span>
               <div className="flex flex-wrap gap-0.5 font-semibold text-gold">
@@ -57,9 +69,9 @@ export function SouthIndianChart({ chart, meta, compact }: SouthIndianChartProps
           className="bg-secondary/50 flex flex-col items-center justify-center p-1 text-center font-bold border border-border/60"
           style={{ gridArea: "ce" }}
         >
-          <span className="text-xs">{chart.name}</span>
+          <span className={size === "large" ? "text-sm sm:text-base" : "text-xs"}>{chart.name}</span>
           {metaLines && (
-            <span className="text-[9px] font-normal text-muted-foreground mt-0.5 leading-tight">
+            <span className={`${labelClass} font-normal text-muted-foreground mt-0.5 leading-tight`}>
               {String(metaLines)}
             </span>
           )}

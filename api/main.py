@@ -364,6 +364,7 @@ def places_resolve_endpoint(
 @app.post(
     "/api/birth-chart-table",
     response_model=None,
+    deprecated=True,
     responses={
         200: {
             "content": {
@@ -375,6 +376,8 @@ def places_resolve_endpoint(
 )
 def birth_chart_table(body: BirthRequest) -> TableResponse | HTMLResponse | HtmlDocumentJson:
     """
+    **Deprecated.** The web app no longer calls this endpoint; use divisional chart APIs instead.
+
     Returns sidereal D1 graha positions + Lagna.
 
     - `response_format`: `"json"` (default) → `columns` / `rows` / `meta`.

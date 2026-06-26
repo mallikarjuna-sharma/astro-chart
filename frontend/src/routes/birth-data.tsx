@@ -134,7 +134,7 @@ function BirthDataPage() {
             "DynamoDB not configured on API — charts computed but not persisted. Set DYNAMODB_TABLE_NAME on Render to enable save.",
         });
       }
-      nav({ to: "/education-analysis" });
+      nav({ to: "/charts" });
     } catch (err: unknown) {
       toast.error("Pipeline failed", { description: String((err as Error)?.message ?? err) });
     } finally {

@@ -77,15 +77,12 @@ async function computeAllCharts(
   studentContext: StudentContext,
   onProgress?: (step: string) => void,
 ) {
-  onProgress?.("Computing D1 table…");
-  const d1Table = await pyjhora.birthChartTable(birthInput);
-
   onProgress?.("Loading divisional charts (D1–D9)…");
   const divisionalBasic = await pyjhora.divisionalCharts(birthInput);
 
   const extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress);
 
-  return { d1Table, divisionalBasic, ...extended };
+  return { divisionalBasic, ...extended };
 }
 
 /**
@@ -103,7 +100,7 @@ export async function saveAndGenerateCharts(opts: GenerateChartsOptions): Promis
   let chartId: string | undefined;
   let sessionUserInfo = userInfo;
   let sessionBirthInput = birthInput;
-  let d1Table;
+  let d1Table: ChartSession["d1Table"];
   let divisionalBasic;
   let extended;
 
@@ -111,7 +108,6 @@ export async function saveAndGenerateCharts(opts: GenerateChartsOptions): Promis
     onProgress?.("Computing charts locally (DynamoDB save skipped)…");
     chartId = `local-${Date.now()}`;
     const all = await computeAllCharts(birthInput, studentContext, onProgress);
-    d1Table = all.d1Table;
     divisionalBasic = all.divisionalBasic;
     extended = all;
   } else {
@@ -130,7 +126,6 @@ export async function saveAndGenerateCharts(opts: GenerateChartsOptions): Promis
       onProgress?.("Database unavailable — computing charts locally…");
       chartId = `local-${Date.now()}`;
       const all = await computeAllCharts(birthInput, studentContext, onProgress);
-      d1Table = all.d1Table;
       divisionalBasic = all.divisionalBasic;
       extended = all;
     }

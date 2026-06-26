@@ -13,15 +13,15 @@ interface NavItem { to: string; label: string; icon: any; group: string; }
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: Sparkles, group: "Overview" },
   { to: "/birth-data", label: "Birth Data", icon: User2, group: "Overview" },
-  { to: "/charts", label: "Charts (D1–D24)", icon: Star, group: "Overview" },
   { to: "/panchanga", label: "Panchanga", icon: Sun, group: "Overview" },
 
+  { to: "/charts", label: "Charts (D1–D81)", icon: Star, group: "Systems" },
   { to: "/kp", label: "KP Analysis", icon: Compass, group: "Systems" },
-  { to: "/education-analysis", label: "Career & Education", icon: GraduationCap, group: "Systems" },
   { to: "/kn-rao", label: "KN Rao / Jaimini", icon: BookOpen, group: "Systems" },
   { to: "/parashari", label: "Parashari Strength", icon: ClipboardList, group: "Systems" },
   { to: "/prashna", label: "Prashna (Horary)", icon: MessageCircleQuestion, group: "Systems" },
 
+  { to: "/education-analysis", label: "Education Analysis", icon: GraduationCap, group: "Intelligence" },
   { to: "/confidence", label: "Four-System Score", icon: Star, group: "Intelligence" },
   { to: "/student", label: "Student / Field", icon: GraduationCap, group: "Intelligence" },
   { to: "/career-timeline", label: "Career Timeline", icon: LineChart, group: "Intelligence" },

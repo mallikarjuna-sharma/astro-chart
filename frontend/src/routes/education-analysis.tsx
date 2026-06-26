@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useChartSession } from "@/hooks/use-chart-session";
 
 export const Route = createFileRoute("/education-analysis")({
-  head: () => ({ meta: [{ title: "Career & Education — JyotishAI" }] }),
+  head: () => ({ meta: [{ title: "Education Analysis — JyotishAI" }] }),
   component: EducationAnalysisPage,
 });
 
@@ -30,7 +30,7 @@ function EducationAnalysisPage() {
     return (
       <div>
         <PageHeader
-          title="Career & Education Analysis"
+          title="Education Analysis"
           subtitle="JyotishAI deterministic engine + Gemini field selection."
         />
         <EmptyState />
@@ -41,7 +41,7 @@ function EducationAnalysisPage() {
   return (
     <div>
       <PageHeader
-        title="Career & Education Analysis"
+        title="Education Analysis"
         subtitle="Ranked career fields from consolidated chart JSON · parent & astrologer views."
       />
       <EducationAnalysisSection />
