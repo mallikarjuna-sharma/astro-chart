@@ -26,7 +26,21 @@ _PLANET_MIN_SHADBALA: Dict[str, float] = {
     "Sun":390.0,"Moon":360.0,"Mars":300.0,"Mercury":420.0,  # FIX-1: classical standard 390
     "Jupiter":390.0,"Venus":330.0,"Saturn":300.0,"Rahu":300.0,"Ketu":300.0,
 }
-
+# K.N. Rao / Jaimini Rasi Drishti (Sign Aspects)
+_JAIMINI_RASI_DRISHTI = {
+    "Aries":       ["Leo", "Scorpio", "Aquarius"],
+    "Taurus":      ["Cancer", "Libra", "Capricorn"],
+    "Gemini":      ["Virgo", "Sagittarius", "Pisces"],
+    "Cancer":      ["Scorpio", "Aquarius", "Taurus"],
+    "Leo":         ["Libra", "Capricorn", "Aries"],
+    "Virgo":       ["Gemini", "Sagittarius", "Pisces"],
+    "Libra":       ["Aquarius", "Taurus", "Leo"],
+    "Scorpio":     ["Capricorn", "Aries", "Cancer"],
+    "Sagittarius": ["Gemini", "Virgo", "Pisces"],
+    "Capricorn":   ["Taurus", "Leo", "Scorpio"],
+    "Aquarius":    ["Aries", "Cancer", "Libra"],
+    "Pisces":      ["Gemini", "Virgo", "Sagittarius"]
+}
 _NAKSHATRA_LORD: Dict[str, str] = {
     "Ashwini":"Ketu","Bharani":"Venus","Krittika":"Sun","Rohini":"Moon",
     "Mrigashira":"Mars","Ardra":"Rahu","Punarvasu":"Jupiter","Pushya":"Saturn",
@@ -164,3 +178,80 @@ _STREAM_MAP = {
     "agriculture":       "PCB (Biology, Chemistry) or PCM",
     "interdisciplinary": "Liberal Arts / PCM or PCB depending on chosen focus",
 }
+
+# ── Career Timeline Constants ──────────────────────────────────────────────────
+
+# Vimshottari Dasha: planet → total years in the 120-yr cycle
+_VIMSHOTTARI_YEARS: Dict[str, int] = {
+    "Ketu":7, "Venus":20, "Sun":6, "Moon":10, "Mars":7,
+    "Rahu":18, "Jupiter":16, "Saturn":19, "Mercury":17,
+}
+# Classical sequence (which nakshatra starts which MD — full cycle order)
+_VIMSHOTTARI_ORDER = ["Ketu","Venus","Sun","Moon","Mars","Rahu","Jupiter","Saturn","Mercury"]
+
+# Functional nature per lagna: 2=Yogakaraka, 1=Benefic, 0=Neutral, -1=Malefic
+# Rahu uses Saturn as proxy (classical: Rahu co-lords Aquarius, Saturn-like in function).
+# Ketu uses Mars as proxy (classical: Ketu co-lords Scorpio, Mars-like in function).
+# At runtime in _score_period, if Rahu/Ketu are the dasha lords, this value is OVERRIDDEN
+# using the actual sign lord of the sign they occupy in the natal chart (more accurate).
+# The table entries serve as the fallback when planet_signs data is unavailable.
+_FUNCTIONAL_NATURE: Dict[str, Dict[str, int]] = {
+    #              Sun   Moon  Mars  Merc  Jup   Venus Sat   Rahu  Ketu
+    "Aries":       {"Sun":1,  "Moon":0,  "Mars":1,  "Mercury":-1, "Jupiter":1,  "Venus":0,  "Saturn":0,  "Rahu":0,  "Ketu":1},
+    "Taurus":      {"Sun":0,  "Moon":0,  "Mars":-1, "Mercury":1,  "Jupiter":-1, "Venus":1,  "Saturn":2,  "Rahu":2,  "Ketu":-1},
+    "Gemini":      {"Sun":0,  "Moon":0,  "Mars":-1, "Mercury":1,  "Jupiter":0,  "Venus":1,  "Saturn":0,  "Rahu":0,  "Ketu":-1},
+    "Cancer":      {"Sun":0,  "Moon":1,  "Mars":2,  "Mercury":-1, "Jupiter":1,  "Venus":0,  "Saturn":-1, "Rahu":-1, "Ketu":2},
+    "Leo":         {"Sun":1,  "Moon":-1, "Mars":2,  "Mercury":0,  "Jupiter":1,  "Venus":0,  "Saturn":-1, "Rahu":-1, "Ketu":2},
+    "Virgo":       {"Sun":-1, "Moon":0,  "Mars":-1, "Mercury":1,  "Jupiter":0,  "Venus":1,  "Saturn":1,  "Rahu":1,  "Ketu":-1},
+    "Libra":       {"Sun":0,  "Moon":0,  "Mars":-1, "Mercury":1,  "Jupiter":-1, "Venus":1,  "Saturn":2,  "Rahu":2,  "Ketu":-1},
+    "Scorpio":     {"Sun":0,  "Moon":1,  "Mars":1,  "Mercury":-1, "Jupiter":1,  "Venus":-1, "Saturn":0,  "Rahu":0,  "Ketu":1},
+    "Sagittarius": {"Sun":1,  "Moon":-1, "Mars":1,  "Mercury":0,  "Jupiter":1,  "Venus":-1, "Saturn":0,  "Rahu":0,  "Ketu":1},
+    "Capricorn":   {"Sun":-1, "Moon":-1, "Mars":0,  "Mercury":1,  "Jupiter":-1, "Venus":2,  "Saturn":1,  "Rahu":1,  "Ketu":0},
+    "Aquarius":    {"Sun":-1, "Moon":-1, "Mars":0,  "Mercury":1,  "Jupiter":0,  "Venus":2,  "Saturn":1,  "Rahu":1,  "Ketu":0},
+    "Pisces":      {"Sun":-1, "Moon":1,  "Mars":1,  "Mercury":0,  "Jupiter":1,  "Venus":-1, "Saturn":-1, "Rahu":-1, "Ketu":1},
+}
+
+# Planet weights per company type (for scoring career-activation by employer context)
+_JOB_KARAKA_WEIGHTS: Dict[str, Dict[str, float]] = {
+    "government":  {"Sun":0.40, "Saturn":0.35, "Jupiter":0.15, "Mars":0.10},
+    "psu":         {"Saturn":0.40, "Sun":0.30, "Jupiter":0.20, "Mars":0.10},
+    "mnc":         {"Rahu":0.35, "Mercury":0.30, "Saturn":0.20, "Venus":0.15},
+    "startup":     {"Rahu":0.40, "Mars":0.30, "Mercury":0.20, "Sun":0.10},
+    "private_sme": {"Saturn":0.35, "Mercury":0.30, "Mars":0.20, "Sun":0.15},
+    "ngo":         {"Jupiter":0.40, "Moon":0.30, "Venus":0.20, "Mercury":0.10},
+    "default":     {"Saturn":0.35, "Mercury":0.25, "Sun":0.20, "Jupiter":0.20},
+}
+
+# House roles for job-career timeline (H7 explicitly excluded — business house)
+_JOB_HOUSE_ROLE: Dict[int, str] = {
+    6:  "service",          # primary: employment, daily work
+    10: "career",           # primary: designation, status
+    2:  "salary",           # primary: fixed income
+    11: "income_gain",      # primary: hike, bonus
+    3:  "skills",           # secondary: effort, communication
+    1:  "self",             # secondary: initiative, brand
+    9:  "senior_mentor",    # secondary: overseas company, mentor, luck
+    12: "exit_or_foreign",  # secondary: exit current role, foreign posting
+    4:  "stability",        # secondary: comfort, WFH
+    5:  "recognition",      # secondary: creative output, appreciation
+    8:  "disruption",       # adverse: restructuring, sudden change
+}
+
+# Designation levels in seniority order (for gate checks)
+_DESIGNATION_LEVELS = ["junior","mid","senior","lead","manager","director","csuite"]
+
+# Employment status values that are ALLOWED (all others → hard block)
+_ALLOWED_EMPLOYMENT_STATUS = frozenset([
+    "employed",
+    "on_notice_period",
+    "unemployed",
+    "self_employed",
+    "business_owner",
+    "freelancer",
+])
+
+# Desired outcome values
+_DESIRED_OUTCOMES = frozenset([
+    "promotion","job_change","salary_hike","foreign_posting",
+    "leadership_role","stability","return_after_gap",
+])

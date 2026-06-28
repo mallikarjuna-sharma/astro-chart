@@ -20,38 +20,38 @@
       "technology": 8
     },
     "institution_types": [
-      "IIT — 23 campuses (JEE Advanced / JoSAA)",
-      "NIT — 31 campuses (JEE Main / JoSAA)",
-      "IISER — 7 campuses (IAT)",
-      "NISER — Bhubaneswar (NEST)",
-      "IISE / UM-DAE CEBS — Mumbai (NEST)",
-      "ISI — 5 centres (ISI Admission Test)",
-      "BITS Pilani — 4 campuses (BITSAT)",
-      "IIITs — 25 NIT-equivalent (JEE Main)",
-      "Liberal Arts Private — Ashoka, OP Jindal Global, FLAME, Krea, Shiv Nadar, Azim Premji",
-      "Central Universities — 48 incl. JNU, DU, BHU, AMU, JMI, UoH (CUET)",
-      "State Universities — all state engineering, science, arts, law, agricultural colleges",
-      "Deemed Private Universities — Amrita, VIT, Manipal, Symbiosis, NMIMS etc.",
-      "Professional Bodies — ICAI (CA), ICMAI (CMA), ICSI (CS), IMU (Marine), NCHMCT (Hotels)"
+      "IIT \u2014 23 campuses (JEE Advanced / JoSAA)",
+      "NIT \u2014 31 campuses (JEE Main / JoSAA)",
+      "IISER \u2014 7 campuses (IAT)",
+      "NISER \u2014 Bhubaneswar (NEST)",
+      "IISE / UM-DAE CEBS \u2014 Mumbai (NEST)",
+      "ISI \u2014 5 centres (ISI Admission Test)",
+      "BITS Pilani \u2014 4 campuses (BITSAT)",
+      "IIITs \u2014 25 NIT-equivalent (JEE Main)",
+      "Liberal Arts Private \u2014 Ashoka, OP Jindal Global, FLAME, Krea, Shiv Nadar, Azim Premji",
+      "Central Universities \u2014 48 incl. JNU, DU, BHU, AMU, JMI, UoH (CUET)",
+      "State Universities \u2014 all state engineering, science, arts, law, agricultural colleges",
+      "Deemed Private Universities \u2014 Amrita, VIT, Manipal, Symbiosis, NMIMS etc.",
+      "Professional Bodies \u2014 ICAI (CA), ICMAI (CMA), ICSI (CS), IMU (Marine), NCHMCT (Hotels)"
     ],
     "admission_exam_legend": {
-      "JEE_Advanced": "Joint Entrance Examination Advanced — IITs",
-      "JEE_Main": "Joint Entrance Examination Mains — NITs, IIITs, GFTIs",
+      "JEE_Advanced": "Joint Entrance Examination Advanced \u2014 IITs",
+      "JEE_Main": "Joint Entrance Examination Mains \u2014 NITs, IIITs, GFTIs",
       "BITSAT": "BITS Pilani Aptitude Test",
       "IAT": "IISER Aptitude Test",
       "NEST": "NISER + UM-DAE CEBS entrance",
       "ISI_Exam": "ISI Admission Test",
       "NEET_UG": "National Eligibility cum Entrance Test UG",
-      "CLAT": "Common Law Admission Test — NLUs",
-      "AILET": "All India Law Entrance Test — NLU Delhi",
+      "CLAT": "Common Law Admission Test \u2014 NLUs",
+      "AILET": "All India Law Entrance Test \u2014 NLU Delhi",
       "LSAT_India": "Law School Admission Test India",
       "CUET": "Common University Entrance Test",
       "IIT_JAM": "Joint Admission Test for M.Sc",
       "GATE": "Graduate Aptitude Test in Engineering",
-      "CSIR_NET": "CSIR National Eligibility Test — science JRF",
-      "UGC_NET": "UGC National Eligibility Test — humanities JRF",
-      "JEST": "Joint Entrance Screening Test — Physics research",
-      "ICAR_AIEEA": "ICAR All India Entrance Exam — Agriculture",
+      "CSIR_NET": "CSIR National Eligibility Test \u2014 science JRF",
+      "UGC_NET": "UGC National Eligibility Test \u2014 humanities JRF",
+      "JEST": "Joint Entrance Screening Test \u2014 Physics research",
+      "ICAR_AIEEA": "ICAR All India Entrance Exam \u2014 Agriculture",
       "UPSC_CSE": "Union Public Service Commission Civil Services Exam",
       "NDA_NA": "National Defence Academy Exam",
       "CDS": "Combined Defence Services Exam",
@@ -70,8 +70,8 @@
       "State_BEd_Entrance": "State B.Ed entrance",
       "State_Ag_Entrance": "State agriculture entrance",
       "TISS_NET": "Tata Institute of Social Sciences Entrance",
-      "IPM_Entrance": "Integrated Programme in Management — IIMs",
-      "CAT": "Common Admission Test — IIMs",
+      "IPM_Entrance": "Integrated Programme in Management \u2014 IIMs",
+      "CAT": "Common Admission Test \u2014 IIMs",
       "XAT": "Xavier Aptitude Test",
       "DSE_Entrance": "Delhi School of Economics M.A. entrance",
       "IIMC_Entrance": "Indian Institute of Mass Communication entrance",
@@ -1483,7 +1483,7 @@
       "track": "Mathematics and Computing",
       "specialization": "Math + CS Hybrid",
       "niche": "Combinatorics / Cryptography / ML Theory / Computational Math",
-      "description": "Combined mathematics and computing — algorithms, cryptography, computational science",
+      "description": "Combined mathematics and computing \u2014 algorithms, cryptography, computational science",
       "degree_types": [
         "BTech",
         "BS+MS_Dual"
@@ -3250,11 +3250,11 @@
     "biotechnology_bsc": {
       "label": "Biotechnology (BSc / BSc+MSc)",
       "domain": "science",
-      "field": "Biotechnology — Pure Science",
+      "field": "Biotechnology \u2014 Pure Science",
       "track": "Biotechnology",
       "specialization": "Biotechnology BSc",
       "niche": "Recombinant DNA / Cell Culture / PCR / Bioinformatics / Gene Therapy",
-      "description": "Pure-science biotechnology degree — central university / IISER route (not engineering)",
+      "description": "Pure-science biotechnology degree \u2014 central university / IISER route (not engineering)",
       "degree_types": [
         "BSc",
         "BSc+MSc_Int",
@@ -3662,7 +3662,7 @@
       "track": "Microbiology",
       "specialization": "Microbiology",
       "niche": "Bacteriology / Virology / Mycology / Medical Microbiology / Environmental Microbiology",
-      "description": "Study of microorganisms: bacteria, viruses, fungi — medical, industrial and environmental applications",
+      "description": "Study of microorganisms: bacteria, viruses, fungi \u2014 medical, industrial and environmental applications",
       "degree_types": [
         "BSc",
         "MSc"
@@ -3979,7 +3979,7 @@
       "track": "Medical Doctor (MBBS)",
       "specialization": "MBBS",
       "niche": "General Medicine / Surgery / Paediatrics / Gynaecology / Psychiatry",
-      "description": "Allopathic medical degree — foundation for clinical practice and specialisation",
+      "description": "Allopathic medical degree \u2014 foundation for clinical practice and specialisation",
       "degree_types": [
         "MBBS"
       ],
@@ -4011,15 +4011,15 @@
       "tier_map": {
         "UG": {
           "spec": "MBBS",
-          "niche": "Clinical Rotations — Medicine / Surgery / OBG / Paeds"
+          "niche": "Clinical Rotations \u2014 Medicine / Surgery / OBG / Paeds"
         },
         "PG": {
-          "spec": "MD / MS — various specialisations",
+          "spec": "MD / MS \u2014 various specialisations",
           "niche": "Internal Medicine / Surgery / Radiology / Anaesthesia"
         },
         "PhD": {
           "spec": "DM / MCh / PhD Medicine",
-          "niche": "Superspeciality — Cardiology / Neuro / Oncology"
+          "niche": "Superspeciality \u2014 Cardiology / Neuro / Oncology"
         }
       },
       "career_signature": [
@@ -4041,7 +4041,7 @@
       "domain": "medicine",
       "field": "Dental Medicine",
       "track": "Dentistry",
-      "specialization": "BDS — Dentistry",
+      "specialization": "BDS \u2014 Dentistry",
       "niche": "Orthodontics / Oral Surgery / Periodontics / Prosthodontics / Endodontics",
       "description": "Dental medicine: diagnosis and treatment of oral health, orthodontics, oral surgery",
       "degree_types": [
@@ -4073,7 +4073,7 @@
           "niche": "Clinical Dentistry / Oral Diagnosis / Radiology"
         },
         "PG": {
-          "spec": "MDS — Orthodontics / Oral Surgery / Periodontics",
+          "spec": "MDS \u2014 Orthodontics / Oral Surgery / Periodontics",
           "niche": "Implantology / Cosmetic Dentistry / Maxillofacial Surgery"
         },
         "PhD": {
@@ -4098,11 +4098,11 @@
     "homeopathy": {
       "label": "Homeopathy (BHMS)",
       "domain": "medicine",
-      "field": "Alternative Medicine — Homeopathy",
+      "field": "Alternative Medicine \u2014 Homeopathy",
       "track": "Homeopathic Medicine",
       "specialization": "BHMS",
       "niche": "Materia Medica / Homeopathic Pharmacy / Chronic Disease Management",
-      "description": "Homeopathic medicine and surgery — holistic approach to healing chronic conditions",
+      "description": "Homeopathic medicine and surgery \u2014 holistic approach to healing chronic conditions",
       "degree_types": [
         "BHMS"
       ],
@@ -4128,11 +4128,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "BHMS — Bachelor of Homeopathic Medicine & Surgery",
+          "spec": "BHMS \u2014 Bachelor of Homeopathic Medicine & Surgery",
           "niche": "Organon / Materia Medica / Homeopathic Pharmacy"
         },
         "PG": {
-          "spec": "MD (Hom) — Homeopathic Medicine",
+          "spec": "MD (Hom) \u2014 Homeopathic Medicine",
           "niche": "Repertory / Practice of Medicine / Homeopathic Pharmacy"
         },
         "PhD": {
@@ -4156,9 +4156,9 @@
     "ayurveda": {
       "label": "Ayurveda (BAMS)",
       "domain": "medicine",
-      "field": "Traditional Medicine — Ayurveda",
+      "field": "Traditional Medicine \u2014 Ayurveda",
       "track": "Ayurvedic Medicine",
-      "specialization": "BAMS — Ayurvedic Medicine & Surgery",
+      "specialization": "BAMS \u2014 Ayurvedic Medicine & Surgery",
       "niche": "Panchakarma / Dravyaguna / Kayachikitsa / Rasayana",
       "description": "Traditional Indian medicine: herbal formulations, Panchakarma, classical Ayurveda",
       "degree_types": [
@@ -4192,7 +4192,7 @@
           "niche": "Dravyaguna / Panchakarma / Kayachikitsa / Shalya"
         },
         "PG": {
-          "spec": "MD Ayurveda — various specialisations",
+          "spec": "MD Ayurveda \u2014 various specialisations",
           "niche": "Panchakarma / Neonatal Ayurveda / Rasayana"
         },
         "PhD": {
@@ -4389,11 +4389,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.O.T — Occupational Therapy",
+          "spec": "B.O.T \u2014 Occupational Therapy",
           "niche": "Neuro Rehab / Paed OT / Mental Health OT"
         },
         "PG": {
-          "spec": "M.O.T — Occupational Therapy",
+          "spec": "M.O.T \u2014 Occupational Therapy",
           "niche": "Ergonomics / Sensory Integration / Hand Therapy"
         },
         "PhD": {
@@ -4453,7 +4453,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.Optom — Optometry",
+          "spec": "B.Optom \u2014 Optometry",
           "niche": "Refraction / Contact Lens / Low Vision / Amblyopia"
         },
         "PG": {
@@ -4518,11 +4518,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.P.T — Bachelor of Physiotherapy",
+          "spec": "B.P.T \u2014 Bachelor of Physiotherapy",
           "niche": "Ortho / Neuro / Cardio / Sports Physiotherapy"
         },
         "PG": {
-          "spec": "M.P.T — Physiotherapy",
+          "spec": "M.P.T \u2014 Physiotherapy",
           "niche": "Sports Rehab / Geriatric Physio / Neuro Physiotherapy"
         },
         "PhD": {
@@ -4588,7 +4588,7 @@
           "niche": "Animal Medicine / Surgery / Livestock / Poultry"
         },
         "PG": {
-          "spec": "M.V.Sc — various specialisations",
+          "spec": "M.V.Sc \u2014 various specialisations",
           "niche": "Veterinary Pathology / Epidemiology / Wildlife Health"
         },
         "PhD": {
@@ -4614,11 +4614,11 @@
     "unani_medicine": {
       "label": "Unani Medicine (BUMS)",
       "domain": "medicine",
-      "field": "Traditional Medicine — Unani",
+      "field": "Traditional Medicine \u2014 Unani",
       "track": "Unani Medicine",
       "specialization": "BUMS",
       "niche": "Ilaj-bil-Dawa / Ilaj-bil-Tadbir / Unani Pharmacopoeia / Temperament Theory",
-      "description": "Greco-Arabic traditional medicine system — herbal, dietary, regimenal therapy",
+      "description": "Greco-Arabic traditional medicine system \u2014 herbal, dietary, regimenal therapy",
       "degree_types": [
         "BUMS"
       ],
@@ -4679,7 +4679,7 @@
       "domain": "law",
       "field": "General Law Practice",
       "track": "Legal Studies",
-      "specialization": "Law — General / Constitutional / Civil / Criminal",
+      "specialization": "Law \u2014 General / Constitutional / Civil / Criminal",
       "niche": "Constitutional / Civil / Criminal / Contract / Family Law",
       "description": "General legal education covering constitutional, civil, criminal and commercial law",
       "degree_types": [
@@ -4725,7 +4725,7 @@
           "niche": "Constitutional / Contract / Torts / Property Law"
         },
         "PG": {
-          "spec": "LLM — various specialisations",
+          "spec": "LLM \u2014 various specialisations",
           "niche": "IPR / Corporate / International / Criminal"
         },
         "PhD": {
@@ -5090,7 +5090,7 @@
           "niche": "Management Fundamentals / Marketing / Strategy / Analytics"
         },
         "PG": {
-          "spec": "MBA — IIMs / Top B-Schools",
+          "spec": "MBA \u2014 IIMs / Top B-Schools",
           "niche": "Strategy / Finance / Marketing / Operations / Consulting"
         },
         "PhD": {
@@ -5121,7 +5121,7 @@
       "track": "CA / CMA / CS",
       "specialization": "Chartered Accountancy / Cost Accounting / Secretarial Practice",
       "niche": "Audit / Taxation / IFRS / MCA Compliance / GST / Transfer Pricing",
-      "description": "Professional qualifications: CA (ICAI), CMA (ICMAI), CS (ICSI) — audit, tax, compliance",
+      "description": "Professional qualifications: CA (ICAI), CMA (ICMAI), CS (ICSI) \u2014 audit, tax, compliance",
       "degree_types": [
         "CA_Foundation",
         "CA_Intermediate",
@@ -5162,7 +5162,7 @@
           "niche": "Cost Audit / Transfer Pricing / SEBI Compliance / IFRS"
         },
         "PhD": {
-          "spec": "N/A — Professional Track",
+          "spec": "N/A \u2014 Professional Track",
           "niche": "N/A"
         }
       },
@@ -6385,11 +6385,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.S.W — Bachelor of Social Work",
+          "spec": "B.S.W \u2014 Bachelor of Social Work",
           "niche": "Community Organisation / Child Welfare / Field Practicum"
         },
         "PG": {
-          "spec": "M.S.W — Master of Social Work",
+          "spec": "M.S.W \u2014 Master of Social Work",
           "niche": "Psychiatric SW / Rural Development / Tribal Welfare"
         },
         "PhD": {
@@ -6643,7 +6643,7 @@
       }
     },
     "design_ux_product": {
-      "label": "Design — UX / Product / Industrial",
+      "label": "Design \u2014 UX / Product / Industrial",
       "domain": "arts",
       "field": "Design Studies",
       "track": "UX / Product / Industrial Design",
@@ -6914,7 +6914,7 @@
           "niche": "Studio Practice / Art History / Art Critique"
         },
         "PG": {
-          "spec": "MFA — Fine Arts / Painting / Sculpture",
+          "spec": "MFA \u2014 Fine Arts / Painting / Sculpture",
           "niche": "Contemporary Art / Installation / Performance Art"
         },
         "PhD": {
@@ -7010,7 +7010,7 @@
       }
     },
     "performing_arts": {
-      "label": "Performing Arts — Music / Dance / Theatre",
+      "label": "Performing Arts \u2014 Music / Dance / Theatre",
       "domain": "arts",
       "field": "Performing Arts",
       "track": "Music / Dance / Theatre",
@@ -7293,7 +7293,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "N/A — begins at PhD level",
+          "spec": "N/A \u2014 begins at PhD level",
           "niche": "N/A"
         },
         "PG": {
@@ -7301,7 +7301,7 @@
           "niche": "Research Methodology / Scientific Writing / Conference Publication"
         },
         "PhD": {
-          "spec": "Post-Doc → Assistant Professor → Professor",
+          "spec": "Post-Doc \u2192 Assistant Professor \u2192 Professor",
           "niche": "Discipline-specific research / Grant PI / Academic Leadership"
         }
       },
@@ -7362,7 +7362,7 @@
           "niche": "IFoS / IRS / State PCS Mains"
         },
         "PhD": {
-          "spec": "N/A — exam route",
+          "spec": "N/A \u2014 exam route",
           "niche": "N/A"
         }
       },
@@ -7391,7 +7391,7 @@
       "track": "Defence Services",
       "specialization": "Indian Army / Navy / Air Force",
       "niche": "Combat Arms / Technical Services / Signal / Engineers Corps / Aviation",
-      "description": "Military service: Army, Navy, Air Force — officer entry through NDA/CDS/AFCAT/TES",
+      "description": "Military service: Army, Navy, Air Force \u2014 officer entry through NDA/CDS/AFCAT/TES",
       "degree_types": [
         "NDA_Grad",
         "BTech_AFA",
@@ -7425,7 +7425,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "NDA → B.Sc (Defence Studies) / B.Tech (Technical)",
+          "spec": "NDA \u2192 B.Sc (Defence Studies) / B.Tech (Technical)",
           "niche": "Military Science / Combat Training / Technical Stream"
         },
         "PG": {
@@ -8032,11 +8032,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.F.Sc — Bachelor of Fisheries Science",
+          "spec": "B.F.Sc \u2014 Bachelor of Fisheries Science",
           "niche": "Aquaculture / Inland Fisheries / Marine Fisheries / Fish Processing"
         },
         "PG": {
-          "spec": "M.F.Sc — Master of Fisheries Science",
+          "spec": "M.F.Sc \u2014 Master of Fisheries Science",
           "niche": "Aquatic Pathology / Genetics / Deep Sea Fishing / GIS in Fisheries"
         },
         "PhD": {
@@ -8411,7 +8411,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "BNYS — Bachelor of Naturopathy & Yogic Sciences",
+          "spec": "BNYS \u2014 Bachelor of Naturopathy & Yogic Sciences",
           "niche": "Yoga Asana / Pranayama / Naturopathic Diagnosis / Diet Therapy"
         },
         "PG": {
@@ -9274,7 +9274,7 @@
     },
     "computational_finance": {
       "label": "Computational Finance & Financial Engineering",
-      "domain": "technology",
+      "domain": "interdisciplinary",
       "description": "Quantitative modelling, derivatives pricing, risk analytics. IITs, IIMs, ISI Kolkata.",
       "institutions": [
         "IIT Kanpur",
@@ -13690,8 +13690,40 @@
         "Mercury": 0.25,
         "Moon": 0.15
       }
+    },
+    "medical_research": {
+      "label": "Medical Research",
+      "domain": "medicine",
+      "field": "Medicine & Health Sciences",
+      "track": "Research Track",
+      "specialization": "Medical Research / Biomedical Sciences",
+      "niche": "Clinical trials / Drug development / Pathology / Lab medicine",
+      "description": "Biomedical and clinical research, translational medicine, lab-based disease investigation",
+      "career_signature": [
+        "ICMR",
+        "DBT labs",
+        "pharma R&D",
+        "hospital research wings",
+        "NIH-funded programmes"
+      ]
+    },
+    "public_health": {
+      "label": "Public Health",
+      "domain": "medicine",
+      "field": "Medicine & Health Sciences",
+      "track": "Community Health Track",
+      "specialization": "Public Health / Epidemiology / Health Policy",
+      "niche": "Epidemiology / Biostatistics / Health system management / Global health",
+      "description": "Population-level health interventions, disease surveillance, policy and community medicine",
+      "career_signature": [
+        "WHO",
+        "UNICEF",
+        "State Health Departments",
+        "NGOs",
+        "AIIMS community medicine"
+      ]
     }
   },
   "version": "v5.1_deep_validated_fixed",
-  "total_branches": 188
+  "total_branches": 190
 }

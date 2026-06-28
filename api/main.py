@@ -33,7 +33,9 @@ from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
 from api.geocode import GeocodeError, geocode_location, geocode_place_id, places_autocomplete
 from api.jhora_bootstrap import init_jhora
 from api.education_analysis import EducationAnalysisError, run_education_analysis
+from api.career_timeline import CareerTimelineError, run_career_timeline
 from api.schemas.education_analysis import EducationAnalysisRequest, EducationAnalysisResponse
+from api.schemas.career_timeline import CareerTimelineRequest, CareerTimelineResponse
 from api.schemas.chart import (
     BirthChartBody,
     BirthRequest,
@@ -797,6 +799,37 @@ def education_analysis_endpoint(body: EducationAnalysisRequest) -> EducationAnal
             status_code=502, detail=f"Education analysis failed: {exc}"
         ) from exc
     return EducationAnalysisResponse.model_validate(result)
+
+
+@app.post("/api/career-timeline", response_model=CareerTimelineResponse)
+async def career_timeline_endpoint(body: CareerTimelineRequest) -> CareerTimelineResponse:
+    """Build the JyotishAI Career Timeline for a chart with career_context.
+
+    Returns the deterministic Antardasha blocks plus aggregated outcome, trajectory,
+    annual calendar, MD-arc narratives, foreign opportunity windows, and the
+    micro-timing dashboard (negotiation heatmap, stakeholder radar, what-if
+    scenarios, weekly hora plan).
+
+    When ``enrich_llm=true`` (default) and an LLM key is configured, each AD block
+    is enriched with an HTML narrative (Executive Summary / Astrological Dynamics
+    / Strategic Action Plan). LLM enrichment adds 20-60s; pass ``enrich_llm=false``
+    to skip and return only the deterministic output.
+    """
+    from fastapi.concurrency import run_in_threadpool
+    try:
+        result = await run_in_threadpool(
+            run_career_timeline,
+            body.user_json,
+            body.career_context,
+            body.enrich_llm,
+        )
+    except CareerTimelineError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502, detail=f"Career timeline analysis failed: {exc}"
+        ) from exc
+    return CareerTimelineResponse.model_validate(result)
 
 
 @app.post("/api/consolidated")

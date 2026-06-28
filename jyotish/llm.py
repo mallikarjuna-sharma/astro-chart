@@ -1,219 +1,267 @@
+import logging
 """JyotishAI — LLM prompt template, chart summary, provider calls, parser."""
-import json, os
+import json, os,logging
 from typing import Dict, List, Tuple, Set, Any, Optional
 
 from .payload import NatalPayloadV2, ENGINE_VERSION, logger
-from .astro import _get_active_dasha_lord
+from .astro import _get_active_dasha_lord, _get_planetary_aspects
 
 
 from .engine_io import _load_course_registry
 _COURSE_REGISTRY: dict = _load_course_registry()
 
+logger = logging.getLogger(__name__)
 
-_LLM_FIELD_PROMPT_TEMPLATE = """You are an expert Jyotish career analyst. Using the birth chart below, select exactly 20 courses ranked by astrological fit.
 
-{chart_summary}
+# =============================================================================
+# 1. DECOUPLED PROMPTS (Reasoning vs. Generation)
+# =============================================================================
+
+"""
+#_SELECTOR_SYSTEM_PROMPT = You are an expert Jyotish career analyst. 
+Your ONLY job is to select the top 20 most astrologically suitable career fields from a provided list of 35 candidates.
 
 ━━━ JYOTISH CAREER DECISION REFERENCE ━━━
+STEP 1 — IDENTIFY CAREER DRIVERS:
+1. AK (Atmakaraka) & Karakamsha → Broad INDUSTRY/DOMAIN.
+2. AmK (Amatyakaraka) → ACTUAL DAILY WORK.
+3. H10 Lord & D10 Occupants → Career environment and success.
+4. Yogas & Stelliums → Specialized clusters.
 
-STEP 1 — IDENTIFY CAREER DRIVERS (in priority order):
-1. AK (Atmakaraka) & Karakamsha → The soul's ultimate desire. This sets the broad INDUSTRY or DOMAIN. The Karakamsha sign reveals innate talents.
-2. AmK (Amatyakaraka) → The Executive Minister. This defines the ACTUAL DAILY WORK or functional role.
-3. H10 Lord & D10 (Dashamsha) Occupants → Karma-bhava. H10 defines public impact. Planets in the 10th house of the D10 chart show the specific career environment.
-4. Active Mahadasha / Antardasha Lords → The current period activates those planets' domains for the timing of education/career entry.
-5. Strongest planet by effective strength → Amplifies domains of #1–4 when aligned.
+STEP 2 — ELIMINATE FATAL FLAWS:
+- Do not select fields ruled by severely combust or debilitated planets (without Neecha Bhanga).
+- Do not select structural engineering/surgery if Mars/Saturn are afflicted.
 
-STEP 2 — HOUSE MODIFIERS (The Karmic Application):
-Evaluate the House Placement of the primary career drivers (AK, AmK, H10 Lord, Dasha Lord). The house dictates HOW and WHERE the planet's domain is applied:
-* H1: Independent execution, entrepreneurship, sports, medicine, and leadership.
-* H2: Resource management, finance, accounting, banking, data analytics, and consultancy.
-* H3: Hands-on skills, IT/software, journalism, media, design, telecommunications, and arts.
-* H4: Infrastructure, environment, civil/architectural engineering, real estate, teaching, agriculture.
-* H5: Advisory, AI, computer science, data science, mathematics, academia, and creative design.
-* H6: Solving problems, medicine, nursing, law, cybersecurity, defense, and backend analytics.
-* H7: Business dealings, commerce, international relations, management, and supply chain.
-* H8: Deep tech, surgery, mining, backend IT, cybersecurity, forensics, and occult/psychology.
-* H9: Guiding principles, law, university-level research, theology, diplomacy, and higher education.
-* H10: Executive power, civil services, corporate management, core engineering, and high-visibility roles. [KETU IN H10 EXCEPTION: When Ketu occupies H10, the career becomes research-oriented, unconventional, or spiritually driven — elevate materials science, space sciences, research academia, ayurveda, and archaeology over conventional management/corporate fields.]
-* H11: Large group dynamics, systems engineering, public policy, large-scale commerce, and sociology.
-* H12: Behind-the-scenes, hospital medicine, pure research, foreign trade, and alternative healing.
-
-STEP 3 — DIGNITY & STRUCTURAL MODIFIERS:
-* Exalted / Own Sign / Vargottama: Planet operates with peak clarity. Heavily favor its domains.
-* Retrograde (Vakri): Highly driven internal effort. Elevate disruptive, highly technical, or deep-research variants of its domains.
-* Neecha Bhanga: Powerful, late-blooming career driver. 
-* Debilitated: Exclude its primary domains from the top ranks.
-* Enemy Sign: Moderate penalty — slightly reduce priority but DO NOT exclude. CRITICAL: if this planet is the AK (Atmakaraka), its soul-direction fields must remain in the top ranks despite the dignity challenge. The soul is still directed toward those domains, it just faces obstacles.
-* Combust: Deprioritize its fields, with TWO EXCEPTIONS:
-  1. Mercury Combust + BudhaAditya Yoga: IMMUNE to penalties. Actively elevate Computer Science, Data, AI, and Math fields.
-  2. High Shadbala (>= 1.30x): Strength overrides the combustion.
-
-STEP 4 — YOGA BOOSTS:
-* BudhaAditya → Elevates data, analytics, IT, computer science, math, and administrative fields.
-* GajaKesari → Elevates teaching, law, management, finance, and advisory fields.
-* Ruchaka → Elevates defense, engineering, surgery, mechanical, sports, and technical fields.
-* Hamsa → Elevates law, education, philosophy, economics, and advisory fields.
-* Malavya → Elevates arts, design, media, architecture, and luxury management fields.
-* Shasha → Elevates heavy engineering, infrastructure, mining, agriculture, and real estate fields.
-* Bhadra → Elevates data science, communication, commerce, IT, and statistical fields.
-* Saraswati → Elevates research, academia, literature, fine arts, and bioinformatics fields.
-* ChandraMangala → Elevates commerce, entrepreneurship, finance, and logistics fields.
-* Raja Yoga → Elevates civil services, governance, corporate management, and elite professional fields.
-* Rahu-Ketu Axis in Career Houses → Rahu in H10/H11/H3 elevates emerging tech, cyber, and disruptive innovation. Ketu in H10/H12 elevates research, pure science, materials science, advanced engineering, ayurveda, yoga, and archaeology (moksha-oriented, unconventional careers).
-
-STEP 5 — KP (KRISHNAMURTI PADDHATI) CUSP ANALYSIS:
-In KP astrology, the sub-lord of each house cusp is the FINAL ARBITER of that house's fructification. Apply these rules AFTER Steps 1–4, and use them to break ties or confirm rankings.
-
-H10 Sub-lord (primary career determinant):
-The career MUST align with the sub-lord's planet domain. This overrides weaker dignity or house signals.
-  • Jupiter sub-lord → philosophy, law, education, management, research, finance, advisory
-  • Mercury sub-lord → IT, data analytics, mathematics, communication, commerce
-  • Mars sub-lord    → engineering, surgery, defence, metallurgy, construction
-  • Venus sub-lord   → arts, design, media, hospitality, life sciences, commerce
-  • Saturn sub-lord  → civil services, heavy engineering, mining, agriculture, materials science, infrastructure
-  • Sun sub-lord     → administration, government, physics, energy, leadership roles
-  • Moon sub-lord    → nursing, food science, marine, psychology, public service
-  • Rahu sub-lord    → emerging tech, AI, pharma, aviation, foreign trade, unconventional fields
-  • Ketu sub-lord    → research, occult, ayurveda, space science, electronics, materials science
-
-H10 Star-lord (secondary career medium/context):
-The star-lord defines HOW and WHERE the career manifests (the day-to-day environment). Cross-reference with H10 sub-lord domains for strongest alignment.
-
-H5 Sub-lord (education stream):
-Determines the primary academic discipline the student is naturally drawn to. Apply the same planet-domain mapping as H10 sub-lord above.
-
-H9 Sub-lord (higher education / philosophy of learning):
-Governs the higher education path and guiding philosophy. Align with H10 sub-lord for a cohesive academic-career trajectory.
-
-KP H10 Significators — Elevation Rule:
-  • L1/L2 (primary): If a field's top-weight karaka planet appears as a primary H10 significator (L1/L2), ELEVATE that field — this is the strongest KP career confirmation signal.
-  • L3/L4 (secondary): Mild supporting signal. Use to break ties between similarly-scored fields.
-
-KP Convergence Rule (highest priority career signal):
-When the H10 sub-lord + H10 star-lord + active Mahadasha lord ALL point to the SAME domain → that domain has the strongest possible KP validation. Elevate ALL fields in that domain regardless of other factors, subject only to the cluster limit.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PRE-SCORED TOP-35 FIELDS (Python deterministic scores — highest first):
-{top_35_fields}
-
-━━━ YOUR TASK: DEEP ANALYSIS — SELECT 5 MATCH + 1 SOUL ━━━
-
-You must return exactly TWO groups:
-
-GROUP A — TOP 5 STRONG MATCH FIELDS
-Select the 5 best fields from the list above that show the strongest overall fit for THIS chart.
-Consider: AK dignity + yogas, AmK functional role, H10 lord placement, active dasha activation, domain convergence.
-Respect deterministic Python ranks — do not drop a top-ranked field unless you identify a genuine karmic mismatch.
-
-GROUP B — SOUL-ALIGNED JUSTIFICATION (FIELD IS PRE-DETERMINED)
-The soul-aligned field for this chart has been deterministically pre-selected by the engine:
-  field_id : {soul_field_id}
-  label    : {soul_field_label}
-  domain   : {soul_field_domain}
-
-Write the soul-level justification for THIS field ONLY — do NOT select a different field.
-The field_id in "soul_aligned" MUST be exactly "{soul_field_id}" (verbatim, no changes).
-Base the justification on the AK planet dignity/placement, Karakamsha sign, and soul-karaka significations.
-
-For EACH of the 6 fields (5 match + 1 soul), write:
-1. A full-paragraph ASTROLOGICAL JUSTIFICATION (4-6 sentences, 80-120 words) for astrologers:
-   — Name the specific planets, houses, dignities, yogas, and dasha lords from THIS chart.
-   — Explain the karmic logic: why does THIS combination of factors make this field the right choice?
-   — Reference AK, AmK, H10 lord, active dasha, and any relevant yogas explicitly.
-2. A full-paragraph PARENT EXPLANATION (3-5 sentences, 60-90 words) in plain English:
-   — No astrology terms whatsoever (no planet names, no 'lagna', 'dasha', 'karaka', 'exalted', 'yoga').
-   — Describe the child's natural personality strengths, thinking style, and WHY this career fits them.
-   — Mention real-world outcomes: what kind of work they'll do, where they'll work, what impact they'll have.
-
-Also write:
-- A global ASTROLOGICAL OVERVIEW (4-5 sentences) for astrologers summarising the chart's career signature.
-- A global PARENT OVERVIEW (3-4 sentences) in plain English for parents about their child's overall direction.
-
-Return ONLY valid JSON (no markdown fences, no prose outside JSON):
-{{
-  "astrologer_overview": "4-5 sentence astrological summary of this chart's career signature: AK + dignity + yogas + dasha + domain convergence.",
-  "parent_overview": "3-4 plain-English sentences for parents. NO astrology jargon. Child's personality, strengths, and broad career direction.",
-  "top_5_match": [
-    {{
-      "field_id": "exact_field_id_from_pre_scored_list",
-      "rank": 1,
-      "astrologer_justification": "Full paragraph (80-120 words) for astrologers: specific planets, dignities, yogas, houses, dasha from THIS chart.",
-      "parent_explanation": "Full paragraph (60-90 words) for parents: plain English, personality-driven, outcome-focused. Zero jargon."
-    }}
-  ],
-  "soul_aligned": {{
-    "field_id": "{soul_field_id}",
-    "astrologer_justification": "Full paragraph (80-120 words) explaining the soul-level fit of {soul_field_label}: AK planet, Karakamsha, soul-karaka significations from THIS chart.",
-    "parent_explanation": "Full paragraph (60-90 words) in plain English: what makes {soul_field_label} the deepest calling for this child."
-  }}
-}}
-
-Output rules:
-1. Exactly 5 items in top_5_match (rank 1 to 5).
-2. Exactly 1 item in soul_aligned.
-3. Every field_id must appear VERBATIM from the pre-scored list — do not invent field_ids.
-4. astrologer_justification must cite THIS chart's specific data — no generic significations.
-5. parent_explanation and parent_overview must be completely jargon-free.
-6. No planet_affinity needed — computed in Python.
+Rank your 20 selections from strongest to weakest fit based on the chart. Return ONLY the JSON array of field_ids.
 """
 
-from .constants import _VALID_DOMAINS
+_SELECTOR_SYSTEM_PROMPT = """You are an expert Jyotish career analyst. Select and rank the top 20 career fields from the 35 candidates provided.
 
-# AK → preferred soul domains (mirrors web_report._AK_SOUL — kept in sync here
-# to avoid circular imports; both dicts must stay identical)
-_AK_SOUL_DOMAINS: Dict[str, list] = {
-    "Moon":    ["arts", "medicine", "humanities"],
-    "Venus":   ["arts", "humanities"],
-    "Jupiter": ["humanities", "law", "medicine"],
-    "Mercury": ["technology", "science"],
-    "Saturn":  ["engineering", "science", "interdisciplinary"],
-    "Sun":     ["law", "interdisciplinary"],
-    "Mars":    ["engineering", "science"],
-    "Rahu":    ["technology", "interdisciplinary"],
-    "Ketu":    ["science", "interdisciplinary"],
+Each candidate includes: field_id, field_label, domain, engine_rank (1=highest Python score), engine_score, kp_score, jaimini_score, and ruling_planets.
+
+━━━ SELECTION METHODOLOGY ━━━
+
+━━━ STEP WEIGHTS (use when signals conflict) ━━━
+LP4: Step 1 AK=30% | Step 2 AmK+Karakamsha=20% | Step 3 Peak Dasha=20% |
+     Step 4 Yogas=10% | Step 5 KP Convergence=8% | Step 6 D10=7% | Step 7 Engine Score=5%
+TIEBREAK ORDER: When two fields score equally across weighted steps →
+  1. Higher engine_score wins  2. Higher kp_score  3. Higher jaimini_score
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1 — CAREER DRIVERS (priority order):
+1. AK (Atmakaraka) → soul domain. Fields whose ruling_planets include the AK get top priority.
+2. AmK (Amatyakaraka) → daily work karaka. Fields whose ruling_planets include the AmK are strongly favoured.
+3. H10 Lord → career environment. Fields whose ruling_planets include the H10 Lord confirm the fit.
+4. Peak Dasha Planet → timing activator. The engine has calculated the definitive active dasha lord for the current career window. Elevate fields aligned with this Peak Dasha Planet's domain.
+5. KP H10 sub-lord → final KP arbiter. Strongly favour fields whose domain matches the H10 sub-lord.
+
+STEP 2 — HOUSE PLACEMENTS OF KEY PLANETS:
+The house each career driver occupies (AK, AmK, H10 Lord, Peak Dasha Planet) shapes HOW the domain is applied. Use semantic similarity to match the candidate's 'domain' and 'field_label' to these house themes if an exact keyword match is not present:
+H1: self-driven, entrepreneurship, medicine, sports, leadership
+H2: finance, data, resource management, banking, consultancy
+H3: IT, media, communications, design, hands-on skills, telecom
+H4: civil/architectural engineering, real estate, environment, agriculture, teaching
+H5: CS, AI, data science, mathematics, advisory, creative design, academia
+H6: problem-solving, medicine, law, cybersecurity, defense, backend analytics
+H7: commerce, business, international relations, management, supply chain
+H8: deep research, surgery, mining, backend IT, cybersecurity, forensics, psychology
+H9: law, higher research, theology, diplomacy, philosophy
+H10: executive roles, core engineering, corporate management, civil services
+H11: systems engineering, policy, large-scale commerce, sociology
+H12: hospital medicine, pure research, foreign trade, alternative healing
+
+DRISHTI (ASPECTS) RULE — apply after house placement analysis:
+Use the 'Planets aspecting H10' and 'Planets aspecting AmK' data from the chart summary.
+  • Benefic planets (Jupiter, Venus, Mercury, strong Moon) aspecting H10 or the AmK: ELEVATE fields associated with those benefics — they smooth the career path in those domains.
+  • Malefic planets (Saturn, Mars) aspecting H10 or the AmK: ADD technical/engineering/combative elements to the career — elevate engineering, law, defense, construction, and surgery fields.
+  • If aspect data is 'not available', skip this sub-rule.
+
+STEP 3 — DIGNITY & STRUCTURAL MODIFIERS:
+- Exalted / Own / Vargottama: peak strength — heavily favour its domains
+- Retrograde: elevate disruptive, deep-research, or technically intensive variants
+- Debilitated: exclude its primary domains from top ranks (unless Neecha Bhanga present)
+- Combust: deprioritise its fields. EXCEPTION: Mercury combust + BudhaAditya Yoga → IMMUNE, elevate IT/data/CS/math
+- Neecha Bhanga: powerful latent driver — treat as strong career signal
+
+PLANETARY STRENGTH CHECK (Pre-calculated by Engine):
+Use the Engine-Determined Strengths provided in the chart summary.
+  Application: when two fields are equally matched on AK/AmK/dignity criteria, break ties by preferring the field whose primary ruling planet is classified as STRONG by the engine. Demote fields ruled by WEAK planets unless backed by strong yogas or Neecha Bhanga.
+
+D-9 NAVAMSHA CHECK (always verify for hidden strength or weakness):
+  A planet DEBILITATED in D-1 but EXALTED/OWN in D-9 → treat as a high-tier career driver (hidden strength revealed).
+  A planet EXALTED in D-1 but DEBILITATED in D-9 → downgrade one tier (surface strength, deep weakness).
+  Vargottama (same sign D-1 and D-9) = double confirmation: maximum career manifestation power.
+  If D-9 data is 'not available', rely solely on D-1 dignity.
+
+STEP 4 — YOGA BOOSTERS:
+BudhaAditya → IT, data, CS, math, analytics, administration
+GajaKesari → law, teaching, finance, advisory, management
+Ruchaka → engineering, defense, surgery, technical, mechanical
+Shasha → heavy engineering, infrastructure, mining, agriculture, real estate
+Hamsa → law, education, philosophy, economics, advisory
+Malavya → arts, design, media, architecture, luxury management
+Saraswati → research, academia, bioinformatics, fine arts, literature
+Bhadra → data science, communication, commerce, IT, statistics
+Rahu in H10/H11/H3 → emerging tech, cyber, disruptive innovation, aviation
+Ketu in H10/H12 → research, pure science, advanced engineering, materials science, archaeology
+
+STEP 5 — KP CONVERGENCE (mandatory inclusion rule):
+When H10 sub-lord + H10 star-lord + Peak Dasha Planet ALL point to the SAME domain → include ALL fields from that domain regardless of other factors.
+
+STEP 6 — D-10 DASHAMSHA FILTER (microscopic career environment):
+Examine D-10 Lagna and D-10 dignity highlights (provided in the chart summary).
+  • Planets STRONG (EXALTED/OWN) in D-10 act as final confirmers: elevate their career fields.
+  • Planets DEBILITATED in D-10 are downgraded even if strong in D-1: reduce their fields by one tier.
+  • The D-10 Lagna lord defines the dominant work environment — favour fields aligned with that planet's domain.
+  • If D-10 data is 'not available', skip this step entirely.
+
+STEP 7 — ENGINE SCORE SIGNAL:
+Use engine_rank and engine_score as a starting signal, not a binding constraint. The scores already encode KP, Jaimini, and Parashara signals. A high-scoring field can be dropped only when the chart's AK/AmK/dasha-lord hierarchy clearly contradicts it.
+
+FATAL ELIMINATIONS:
+- FATAL ELIMINATIONS OVERRIDE ALL OTHER RULES, including Step 5 KP Convergence. A fatally eliminated field can NEVER be included in the final 20.
+- Discard any field whose primary ruling planet is severely debilitated AND lacks Neecha Bhanga.
+- Combustion of an AK or AmK does NOT eliminate its domain — it only adds obstacles. Keep those fields.
+
+MISSING DATA RULE (apply before evaluating each step):
+If any data point in the chart summary is marked "not available", "none retrieved", or "not determined":
+- Skip that specific sub-rule entirely. Do not attempt to evaluate it, do not note the absence, do not penalise any field for it.
+- Immediately re-weight the remaining available drivers proportionally and continue.
+- Examples: if "D10 H10 occupants: not available" → skip Step 2 D10 sub-point; if "KP H10 primary significators: none retrieved" → skip Step 5 KP convergence check; if "Peak Dasha Planet: not determined" → skip Dasha lord weighting in Steps 1 and 4.
+- Never fabricate data. Only reason from what is explicitly present.
+
+OUTPUT FORMAT:
+Return a single JSON object with exactly two keys:
+  "analytical_breakdown": a string with your step-by-step reasoning (cite specific planets, houses, and yogas from the chart data provided).
+  "selected_field_ids": an array of exactly 20 field_id strings, ordered strongest (1) to weakest (20).
+Do not add any text outside the JSON object.
+
+LP2 CRITICAL CONSTRAINT: Every field_id in selected_field_ids MUST appear verbatim in the
+Candidate Fields array provided in the user message. Any field_id not in that array is invalid
+and will cause the entire response to be rejected and retried. Never invent or modify field_ids."""
+
+_GENERATOR_SYSTEM_PROMPT = """You are an empathetic Jyotish career counselor. You have been given a list of 20 pre-selected career fields and chart context. Write two things for each field:
+
+1. astrological_reason (max 20 words): Cite the specific planet, house placement, dignity, or yoga from THIS chart that justifies this field. Be concrete.
+   — Relevant chart signals to draw from: AK (Atmakaraka), AmK (Amatyakaraka), Peak Dasha Planet, Engine-Determined Strengths (STRONG/MODERATE/WEAK), Neecha Bhanga, Vargottama, active yogas, KP sub-lord, D10 H10 occupants.
+   — "Peak Dasha Planet" is the engine-identified planet whose dasha best activates career energy for the current life period; reference it by its planet name, not as "Mahadasha lord."
+
+2. parent_friendly_explanation (two paragraphs, ~50 words each):
+   Paragraph 1: Describe what this field involves as a career — the day-to-day work, skills used, and types of problems solved.
+   Paragraph 2: Explain why THIS student is well-suited — their natural strengths, thinking style, and how these align with what the field demands.
+
+LP5 RANKING NOTE: The field ranking (position 1 through 20) was determined by a separate
+rigorous astrological analysis and is FINAL. Do not imply any field should rank higher or
+lower than its assigned position. Simply explain why each field is an excellent fit.
+
+CRITICAL RULE: parent_friendly_explanation MUST NOT contain any astrological terms whatsoever.
+Forbidden: planet names (Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu, Ketu), house numbers (H1, H2...H12, 1st house etc.), yoga names (GajaKesari, BudhaAditya etc.), nakshatra names, dasha, karaka, lagna, rashi, AK, AmK, dignity terms (exalted, combust, debilitated), or any Jyotish/Vedic terminology.
+Write in plain English that a parent with zero astrology knowledge can fully understand.
+"""
+
+# =============================================================================
+# 2. STRICT JSON SCHEMAS
+# =============================================================================
+
+_STEP1_RESPONSE_SCHEMA = {
+    "name": "career_fields_selector",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "analytical_breakdown": {
+                "type": "string",
+                "description": "Chain-of-thought calculation explicitly matching candidates to AK, AmK, and H10 rules."
+            },
+            "selected_field_ids": {
+                "type": "array",
+                "description": "Exactly 20 selected field_ids, ranked from strongest to weakest fit.",
+                "items": {"type": "string"}
+            }
+        },
+        "required": ["analytical_breakdown", "selected_field_ids"],
+        "additionalProperties": False
+    },
+    "strict": True
 }
 
+_STEP2_RESPONSE_SCHEMA = {
+    "name": "career_fields_generator",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "selected_fields": {
+                "type": "array",
+                "description": "Explanations for the 20 pre-selected career fields.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "field_id": {"type": "string"},
+                        "astrological_reason": {"type": "string"},
+                        "parent_friendly_explanation": {"type": "string"}
+                    },
+                    "required": ["field_id", "astrological_reason", "parent_friendly_explanation"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        "required": ["selected_fields"],
+        "additionalProperties": False
+    },
+    "strict": True
+}
 
-def _pick_soul_from_top35(
-    top_35_fields: List[Dict], ak: str
-) -> tuple:
-    """Deterministically pre-select the soul-aligned field from the pre-scored top-35.
-
-    Rules:
-      1. Take the top-5 by python_score as the approximate "match" set (these will
-         be shown as career recommendations; the soul field should ideally differ).
-      2. Among the remaining fields, find the highest-scoring one whose domain is in
-         the AK's preferred soul domains (_AK_SOUL_DOMAINS).
-      3. If none found in preferred domains, take the 6th-highest-scoring field overall.
-      4. Returns (field_id, field_label, domain) or ("", "", "") if list is empty.
-
-    This function is called BEFORE the LLM — it makes the soul field deterministic
-    for the same chart regardless of how many times the LLM is invoked.
+def _maybe_load_dotenv() -> None:
     """
-    if not top_35_fields:
-        return "", "", ""
-    sorted_f = sorted(top_35_fields, key=lambda x: -x.get("python_score", 0))
-    top5_ids = {r["field_id"] for r in sorted_f[:5]}
-    preferred = _AK_SOUL_DOMAINS.get(ak, ["interdisciplinary", "arts"])
-    # Search preferred domains first (in priority order)
-    for domain in preferred:
-        for r in sorted_f:
-            if r["field_id"] not in top5_ids and r.get("domain") == domain:
-                label = r.get("field_label", r["field_id"].replace("_", " ").title())
-                return r["field_id"], label, domain
-    # Fallback: 6th best field overall (regardless of domain)
-    for r in sorted_f:
-        if r["field_id"] not in top5_ids:
-            label = r.get("field_label", r["field_id"].replace("_", " ").title())
-            return r["field_id"], label, r.get("domain", "interdisciplinary")
-    # Last resort: position 6 if it exists
-    if len(sorted_f) > 5:
-        r = sorted_f[5]
-        label = r.get("field_label", r["field_id"].replace("_", " ").title())
-        return r["field_id"], label, r.get("domain", "interdisciplinary")
-    return "", "", ""
+    Load .env lazily (called only when about to make an LLM API call).
+    Tries python-dotenv first, falls back to robust regex standard library parser.
+    """
+    import os, pathlib, re
+    env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    
+    # Attempt 1: Try python-dotenv if available
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(env_path, override=False)
+        return
+    except ImportError:
+        pass # Fallback to standard library
 
+    # Attempt 2: Zero-dependency regex fallback
+    if env_path.exists():
+        _env_regex = re.compile(r'^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(["\']?)(.*?)\2\s*(?:#.*)?$')
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            match = _env_regex.match(line)
+            if match:
+                k, _, v = match.groups()
+                if k not in os.environ:
+                    os.environ[k] = v
+
+
+
+from .constants import _VALID_DOMAINS
 from .engine_io import _load_course_registry
+
+
+def _format_yogas_categorised(yogas_all: list) -> str:
+    """LP3 fix: categorise yogas to prevent truncation of career-critical signals."""
+    if not yogas_all: return "none"
+    _MAHAPURUSHA = {"Ruchaka","Shasha","Hamsa","Malavya","Bhadra"}
+    _RAJA = {"GajaKesari","BudhaAditya","Saraswati","DharmaKarmadhipati","VasumathiYoga"}
+    _PARIVARTANA_KW = "Parivartana"
+    _JAIMINI_KW     = {"RajaYoga","Jaimini"}
+    mahapurusha = [y for y in yogas_all if y in _MAHAPURUSHA]
+    raja        = [y for y in yogas_all if y in _RAJA]
+    parivartana = sum(1 for y in yogas_all if _PARIVARTANA_KW in y)
+    jaimini     = [y for y in yogas_all if any(k in y for k in _JAIMINI_KW)]
+    other       = [y for y in yogas_all if y not in _MAHAPURUSHA and y not in _RAJA
+                   and _PARIVARTANA_KW not in y and not any(k in y for k in _JAIMINI_KW)]
+    parts = []
+    if mahapurusha: parts.append(f"Pancha-Mahapurusha: {', '.join(mahapurusha)}")
+    if raja:        parts.append(f"Raja: {', '.join(raja)}")
+    if parivartana: parts.append(f"Parivartana: {parivartana} pair(s)")
+    if jaimini:     parts.append(f"Jaimini: {', '.join(jaimini[:3])}")
+    if other:       parts.append(f"Other: {', '.join(other[:4])}")
+    return " | ".join(parts) or "none"
 
 
 def _build_chart_summary_for_llm(
@@ -281,9 +329,10 @@ def _build_chart_summary_for_llm(
             nak_entries.append(f"{p}:{n}")
     nak_str = ", ".join(nak_entries) or "not available"
 
-    # D10 (Dashamsha) H10 occupants — already computed by engine_io.parse_json_payload
-    # and stored in payload.d10_house_occupancy as {house_str: [planets]}
-    d10_h10 = getattr(payload, "d10_house_occupancy", {}).get("10", [])
+    # D10 (Dashamsha) H10 occupants — career divisional chart
+    d10 = getattr(payload, "divisional_charts", {}).get("D10_dashamsha", {})
+    d10_h10 = [p for p, info in d10.items()
+               if isinstance(info, dict) and info.get("house") == 10] if d10 else []
 
     # Neecha Bhanga planets
     nb = list(getattr(payload, "neecha_bhanga_planets", []) or [])
@@ -294,10 +343,17 @@ def _build_chart_summary_for_llm(
         f"AK  (soul karaka):   {payload.atmakaraka}",
         f"AmK (career karaka): {payload.amatyakaraka}",
         f"Karakamsha sign: {payload.karakamsha or 'not available'}",
-        f"Active Mahadasha: {active_lord or 'not determined'}"
-        + (f" | Antardasha: {antardasha_lord}" if antardasha_lord else ""),
-        f"House lords: H2={hl.get('2','')} H4={hl.get('4','')} H5={hl.get('5','')} "
-        f"H9={hl.get('9','')} H10={hl.get('10','')}",
+        # AC1 fix: peak_dasha_lord is the engine-scored best career dasha
+        # (multi-factor: eff × dignity × AK/AmK role × dusthana modifier).
+        # active_lord is the simple current-period lord (shown separately).
+        f"Peak Dasha Planet: {getattr(payload, 'peak_dasha_lord', None) or active_lord or 'not determined'}"
+        + (f"  [Current MD: {active_lord}" + (f" | AD: {antardasha_lord}" if antardasha_lord else "") + "]"
+           if active_lord else ""),
+        # LP7 fix: include H1 lagna lord house placement
+        f"House lords: H1={hl.get('1','')}(H{ph.get(hl.get('1',''),0)}) "
+        f"H2={hl.get('2','')} H4={hl.get('4','')} H5={hl.get('5','')} "
+        f"H9={hl.get('9','')} H10={hl.get('10','')} "
+        f"{'[Rajayoga: LL in H10]' if ph.get(hl.get('1',''),0)==10 else ''}",
         f"Planet positions: " + " ".join(f"{p}:H{h}" for p, h in sorted(ph.items())),
         f"Effective strengths (desc): {planet_eff_str}",
         f"Dignity highlights: {dig_str}",
@@ -307,11 +363,39 @@ def _build_chart_summary_for_llm(
         f"Neecha Bhanga planets: {', '.join(nb) or 'none'}",
         f"Combust planets: {', '.join(combust) or 'none'}",
         f"D10 H10 occupants: {', '.join(d10_h10) or 'not available'}",
-        f"Active yogas: {', '.join(yogas_all[:10]) or 'none'}",
+        # LP3 fix: categorised yoga summary prevents truncation of career-critical yogas
+        f"Active yogas: {_format_yogas_categorised(yogas_all)}",
         f"Student interests: {', '.join(getattr(payload,'interested_in',[])[:5]) or 'none'}",
         f"Already excels at: {', '.join(getattr(payload,'already_excel_at',[])[:3]) or 'none'}",
         f"Current age: {age:.1f}",
     ]
+
+    # ── AC3 fix: Jaimini Chara Dasha active sign + lord ──────────────────────
+    try:
+        from .astro import _get_active_chara_dasha_sign as _gcds
+        from .constants import _SIGN_LORD as _SL
+        _pl_d1 = getattr(payload, "planets_d1", {})
+        _chara_sign = _gcds(getattr(payload, "lagna_sign", ""), age, _pl_d1) or ""
+        _chara_lord = _SL.get(_chara_sign, "") if _chara_sign else ""
+        lines += [f"Jaimini Chara Dasha: active sign={_chara_sign or 'not available'}"
+                  + (f" | lord={_chara_lord}" if _chara_lord else "")]
+    except Exception:
+        lines += ["Jaimini Chara Dasha: not available"]
+
+    # ── AC4 fix: Karakamsha occupants ─────────────────────────────────────────
+    _kara_occ = list(getattr(payload, "karakamsha_occupants", []) or [])
+    lines += [f"Karakamsha occupants (D9 soul domain): {', '.join(_kara_occ) or 'none'}"]
+
+    # ── AC5 fix: Brahma lord + Maheshwara lord ────────────────────────────────
+    _brahma    = getattr(payload, "brahma_lord", "") or ""
+    _maheshwar = getattr(payload, "maheshwara_lord", "") or ""
+    lines += [f"Brahma lord: {_brahma or 'not available'} | Maheshwara lord: {_maheshwar or 'not available'}"]
+
+    # ── AC6: A10 — Arudha Pada of H10 (career public image, Jaimini) ─────────
+    _a10 = getattr(payload, "arudha_pada_h10", "") or ""
+    lines += [f"Arudha Pada H10 (A10 — career image sign): {_a10 or 'not available'}"]
+    _a1 = getattr(payload, 'arudha_lagna', '') or ''
+    lines += [f"Arudha Lagna A1 (public identity sign): {_a1 or 'not available'}"]
 
     # ── KP (Krishnamurti Paddhati) cusp data ─────────────────────────────────
     kp_cusps_raw = getattr(payload, "kp_cusps", {})
@@ -322,7 +406,8 @@ def _build_chart_summary_for_llm(
         sl  = c.get("sign_lord",  "?")
         stl = c.get("star_lord",  "?")
         sub = c.get("sub_lord",   "?")
-        return f"sign={sl} star={stl} sub={sub}"
+        # LP5 fix: explicit named labels for LLM readability
+        return f"sign_lord={sl} | star_lord={stl} | sub_lord={sub}"
 
     # Planets that signify H10 at L1 (occupant) or L2 (sign lord) — strongest KP career signal
     h10_primary_sigs = [
@@ -341,6 +426,8 @@ def _build_chart_summary_for_llm(
     lines += [
         "",
         "── KP CUSPAL DATA ──",
+        # LP9 fix: D10 H1/H5/H9 occupants (identity, creativity, dharma in career chart)
+        f"D10 H1 occ={[p for p,i in d10.items() if isinstance(i,dict) and i.get('house')==1] or []} H5={[p for p,i in d10.items() if isinstance(i,dict) and i.get('house')==5] or []} H9={[p for p,i in d10.items() if isinstance(i,dict) and i.get('house')==9] or []}",
         f"KP H10 cusp (career):    {_kp_cusp_str('H10')}",
         f"KP H5  cusp (education): {_kp_cusp_str('H5')}",
         f"KP H9  cusp (higher ed): {_kp_cusp_str('H9')}",
@@ -348,46 +435,86 @@ def _build_chart_summary_for_llm(
         f"KP H10 secondary significators(L3/L4): {', '.join(h10_secondary_sigs) or 'none retrieved'}",
     ]
 
+
+    # LP1 fix: categorise using raw shadbala / min_shadbala ratio (pre-dignity).
+    # eff_strengths bakes in the dignity multiplier, which can make a debilitated
+    # planet with high shadbala appear STRONG — misleading for the LLM selector.
+    # Using the raw ratio keeps strength independent from dignity (which the LLM
+    # already processes from "Dignity highlights").
+    from .constants import _PLANET_MIN_SHADBALA as _MIN_SB
+    sdb_raw_llm = getattr(payload, "shadbala", {}) or {}
+    _sdb_norm: Dict[str, float] = {}
+    for _p, _v in sdb_raw_llm.items():
+        _raw = float(_v.get("shadbala_virupas", _v.get("total", 0.0)) if isinstance(_v, dict) else _v)
+        _min = _MIN_SB.get(_p, 300.0)
+        _sdb_norm[_p] = round(_raw / _min, 3) if _min else 1.0
+    if not _sdb_norm:
+        # Fallback: if no shadbala data, derive from eff_strengths (best available)
+        _sdb_norm = {p: v for p, v in eff_strengths.items()}
+    _str_strong   = [p for p, v in sorted(_sdb_norm.items(), key=lambda x: -x[1]) if v >= 1.10]
+    _str_moderate = [p for p, v in sorted(_sdb_norm.items(), key=lambda x: -x[1]) if 0.90 <= v < 1.10]
+    _str_weak     = [p for p, v in sorted(_sdb_norm.items(), key=lambda x: -x[1]) if v < 0.90]
+    lines += [
+        "",
+        "── ENGINE-DETERMINED STRENGTHS [Raw Shadbala ratio, pre-dignity] (LP8) ──",
+        f"  STRONG   (≥1.10×): {', '.join(_str_strong)   or '(none)'}",
+        f"  MODERATE (0.90–1.10×): {', '.join(_str_moderate) or '(none)'}",
+        f"  WEAK     (<0.90×): {', '.join(_str_weak)     or '(none)'}",
+        "  [LP8 note: when raw Shadbala and Effective Strength conflict, Effective Strength takes precedence for career activation]",
+    ]
+
+    # D-9 Navamsha dignities
+    _div = getattr(payload, "divisional_charts", {}) or {}
+    _d9c  = _div.get("D9_navamsha", {})
+    _d10c = _div.get("D10_dashamsha", {})
+    _d9pd = dict(getattr(payload, "d9_planet_dignities", {}) or {})
+    if not _d9pd and _d9c:
+        try:
+            from .astro import compute_dignity as _cd
+            _d9pd = {_p: _cd(_p, _s) for _p, _s in _d9c.items() if _p != "Lagna"}
+        except Exception: pass
+    if _d9pd:
+        _d9n = [(p,d) for p,d in _d9pd.items() if d in ("EXALTED","OWN","DEBILITATED","NEECHA_BHANGA")]
+        _d9ds = ", ".join(f"{p}:{d}" for p,d in _d9n) if _d9n else "all neutral"
+        _d9lg = getattr(payload, "d9_lagna_sign", "") or _d9c.get("Lagna", "")
+        lines += ["", "── D-9 NAVAMSHA ──", f"D-9 Lagna: {_d9lg or 'not available'}", f"D-9 dignity highlights: {_d9ds}"]
+    else:
+        lines += ["", "── D-9 NAVAMSHA ──", "D-9 data: not available"]
+
+    # D-10 Dashamsha dignities + Lagna
+    if _d10c:
+        _d10lg = _d10c.get("Lagna", "not available")
+        try:
+            from .astro import compute_dignity as _cd
+            _d10dg = {_p: _cd(_p, _s) for _p, _s in _d10c.items() if _p != "Lagna"}
+        except Exception: _d10dg = {}
+        _d10n = [(p,d) for p,d in _d10dg.items() if d in ("EXALTED","OWN","DEBILITATED","NEECHA_BHANGA")]
+        _d10ds = ", ".join(f"{p}:{d}" for p,d in _d10n) if _d10n else "all neutral"
+        lines += ["", "── D-10 DASHAMSHA ──", f"D-10 Lagna: {_d10lg}", f"D-10 dignity highlights: {_d10ds}"]
+    else:
+        lines += ["", "── D-10 DASHAMSHA ──", "D-10 data: not available"]
+
+    # Drishti (Aspects) on H10 and AmK
+    try:
+        _asp = _get_planetary_aspects(ph)
+        _ap = getattr(payload, "amatyakaraka", "")
+        _ah = ph.get(_ap, 0)
+        _bns = {"Jupiter","Venus","Mercury","Moon"}
+        _mls = {"Saturn","Mars","Rahu","Ketu","Sun"}
+        _h10a = [p for p,hs in _asp.items() if 10 in hs and ph.get(p)!=10]
+        _h10b = [p for p in _h10a if p in _bns]
+        _h10m = [p for p in _h10a if p in _mls]
+        _amka = [p for p,hs in _asp.items() if _ah and _ah in hs and ph.get(p)!=_ah]
+        lines += [
+            "", "── DRISHTI (ASPECTS) ──",
+            "Planets aspecting H10: benefic=" + (", ".join(_h10b) or "none") + " | malefic=" + (", ".join(_h10m) or "none"),
+            "Planets aspecting AmK (" + (_ap or "unknown") + ") in H" + str(_ah or "?") + ": " + (", ".join(_amka) or "none"),
+        ]
+    except Exception:
+        lines += ["", "── DRISHTI (ASPECTS) ──", "Aspect data: not available"]
+
     return "\n".join(lines)
 
-def _strip_llm_fences(raw: str) -> str:
-    """Strip markdown code fences and extract the JSON object from LLM output.
-
-    Handles three common LLM response shapes:
-      1. Raw JSON (already clean — Gemini with response_mime_type=application/json)
-      2. ```json ... ``` fenced block
-      3. JSON object embedded inside prose (extracted by brace-matching)
-    """
-    raw = raw.strip()
-
-    # ── Case 2: fenced block ──────────────────────────────────────────────────
-    if raw.startswith("```"):
-        end = raw.rfind("```")
-        inner = raw[3:end] if end > 3 else raw[3:]
-        if inner.lstrip().startswith("json"):
-            inner = inner.lstrip()[4:]
-        return inner.strip()
-
-    # ── Case 1: already starts with { ────────────────────────────────────────
-    if raw.startswith("{"):
-        return raw
-
-    # ── Case 3: JSON object embedded in prose — find outermost { } ───────────
-    start = raw.find("{")
-    if start != -1:
-        depth, end = 0, -1
-        for i, ch in enumerate(raw[start:], start):
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    end = i
-                    break
-        if end != -1:
-            return raw[start:end + 1]
-
-    return raw
 
 def _call_anthropic(prompt: str, api_key: str, model: str) -> str:
     """Call Anthropic Claude and return raw response text."""
@@ -407,7 +534,7 @@ def _call_openai(prompt: str, api_key: str, model: str) -> str:
     response = client.chat.completions.create(
         model=model, max_completion_tokens=8192,
         temperature=0,   # deterministic
-        seed=0,          # reproducible sampling
+        seed=108,          # reproducible sampling
         response_format={"type": "json_object"},  # guaranteed clean JSON — no fence-stripping needed
         messages=[{"role": "user", "content": prompt}],
     )
@@ -454,363 +581,390 @@ _LLM_PROVIDERS: Dict[str, tuple] = {
     "gemini":    ("GEMINI_API_KEY",    "gemini-2.5-flash",          _call_gemini),
 }
 
-def call_llm_for_fields(
-    payload: "NatalPayloadV2",
-    eff_strengths: Dict[str, float],
-    top_35_fields: List[Dict] = None,
-    api_key: str = "",
-    model: str = "",
-    provider: str = "",
-) -> List[Dict]:
-    """Call an LLM to select final 20 from pre-scored top-35 fields.
+# =============================================================================
+# 2. MAIN LLM CALL WITH SELF-CORRECTING RETRY LOOP
+# =============================================================================
+# =============================================================================
+# 3. HELPER: RETRY LOOP ENGINE
+# =============================================================================
 
-    Pipeline-inversion (Task#3): Python has already scored all 188 fields;
-    this function receives the pre-ranked top-35 and asks the LLM to:
-      1. Select the best 20 using astrological synthesis
-      2. Write a 100-word selection rationale
-      3. Provide a <=20-word astrological reason per field (no planet_affinity — that
-         comes from BRANCH_PLANET_AFFINITY in Python).
+# LP6 fix: provider-agnostic retry wrapper for Anthropic/Gemini
+class _ProviderClientWrapper:
+    """Wraps non-OpenAI providers so _run_llm_with_retry works uniformly."""
+    def __init__(self, call_fn, api_key: str, model: str):
+        self._call_fn = call_fn
+        self._api_key = api_key
+        self._model   = model
+    def call(self, messages: list, schema: dict) -> str:
+        # Build a single-string prompt from messages for non-OpenAI providers
+        parts = []
+        for m in messages:
+            if m.get('role') == 'system': parts.append(f"[SYSTEM]\n{m['content']}")
+            elif m.get('role') == 'user': parts.append(f"[USER]\n{m['content']}")
+        prompt = "\n\n".join(parts) + "\n\nRespond with valid JSON only."
+        return self._call_fn(prompt, self._api_key, self._model)
 
-    Provider selection (first match wins):
-      1. ``provider`` param if given  ("anthropic" | "openai" | "gemini")
-      2. ``LLM_PROVIDER`` environment variable
-      3. Auto-detect: whichever of ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY
-         is set first (checked in that order)
 
-    Returns
-    -------
-    List of up to 20 dicts: [{field_id, astrological_reason, llm_selection_rationale}, ...]
-    Falls back to top-20 of top_35_fields (by python_score) on any error.
-    """
-    # 1. Resolve provider
-    _prov = (provider or os.environ.get("LLM_PROVIDER", "")).strip().lower()
-    if _prov and _prov not in _LLM_PROVIDERS:
-        logger.warning(f"Unknown LLM provider '{_prov}' — auto-detecting.")
-        _prov = ""
-    if not _prov:
-        for name, (env_var, _, _fn) in _LLM_PROVIDERS.items():
-            if os.environ.get(env_var, ""):
-                _prov = name
-                break
-    if not _prov:
-        logger.warning(
-            "No LLM provider detected. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or "
-            "GEMINI_API_KEY (and optionally LLM_PROVIDER) — using fallback field set."
-        )
-        return _llm_fallback_from_top35(top_35_fields)
-
-    env_var, default_model, caller_fn = _LLM_PROVIDERS[_prov]
-
-    # 2. Resolve API key
-    _key = api_key or os.environ.get(env_var, "")
-    if not _key:
-        logger.warning(f"{env_var} not set for provider '{_prov}' — using fallback.")
-        return _llm_fallback_from_top35(top_35_fields)
-
-    # 3. Resolve model
-    _model = model or default_model
-
-    # 4. Build prompt — pass pre-scored top-35 so LLM selects from known-good fields
-    chart_summary = _build_chart_summary_for_llm(payload, eff_strengths)
-    _top35_text = ""
-    if top_35_fields:
-        lines = []
-        for row in top_35_fields:
-            karakas = ", ".join(row.get("top_karakas", []))
-            lines.append(
-                f"  {row['rank']:2d}. {row['field_id']:<45} score={row['python_score']:5.1f}"
-                f"  [{row['domain']}]  karakas: {karakas}"
-            )
-        _top35_text = "\n".join(lines)
-    else:
-        logger.warning(
-            "top_35_fields is empty — course registry may not have loaded. "
-            "Injecting full registry field_id list so LLM has valid IDs to choose from."
-        )
-        if _COURSE_REGISTRY:
-            reg_lines = [f"  {fid}" for fid in sorted(_COURSE_REGISTRY.keys())]
-            _top35_text = (
-                "(pre-scored list not available — select from the following valid field_ids ONLY)\n"
-                + "\n".join(reg_lines)
-            )
-        else:
-            _top35_text = "(pre-scored list not available — select from full registry)"
-    # Pre-select soul field deterministically — before LLM call
-    ak = getattr(payload, "atmakaraka", "") or ""
-    _pre_soul_fid, _pre_soul_label, _pre_soul_domain = _pick_soul_from_top35(top_35_fields, ak)
-    if not _pre_soul_fid:
-        logger.warning("_pick_soul_from_top35 returned empty — will rely on LLM soul selection.")
-        _pre_soul_fid    = ""
-        _pre_soul_label  = "not determined"
-        _pre_soul_domain = "interdisciplinary"
-    else:
-        logger.info(f"Pre-selected soul field (deterministic): '{_pre_soul_fid}' "
-                    f"(label='{_pre_soul_label}', domain='{_pre_soul_domain}', ak='{ak}')")
-
-    prompt = _LLM_FIELD_PROMPT_TEMPLATE.format(
-        chart_summary=chart_summary,
-        top_35_fields=_top35_text,
-        soul_field_id=_pre_soul_fid or "see_top35_list",
-        soul_field_label=_pre_soul_label,
-        soul_field_domain=_pre_soul_domain,
-    )
-
-    logger.info(f"Calling LLM provider='{_prov}' model='{_model}'")
-    logger.debug(
-        f"\n{'='*60}\nLLM INPUT PROMPT ({_prov}/{_model})\n{'='*60}\n"
-        f"{prompt}\n{'='*60}"
-    )
-    try:
-        raw_text = caller_fn(prompt, _key, _model)
-        logger.debug(
-            f"\n{'='*60}\nLLM RAW OUTPUT ({_prov}/{_model})\n{'='*60}\n"
-            f"{raw_text}\n{'='*60}"
-        )
-        cleaned = _strip_llm_fences(raw_text)
+def _run_llm_with_retry(client, messages: List[Dict], schema: Dict, validation_fn, max_retries: int = 3) -> Optional[Dict]:
+    """Generic self-correcting retry loop for Structured Outputs."""
+    for attempt in range(1, max_retries + 1):
         try:
-            data = json.loads(cleaned)
-        except json.JSONDecodeError as je:
-            logger.error(
-                f"JSON parse failed ({_prov}): {je}\n"
-                f"--- raw response (first 500 chars) ---\n{raw_text[:500]}\n"
-                f"--- after fence-strip (first 500 chars) ---\n{cleaned[:500]}"
+            logger.info(f"LLM Call Attempt {attempt}/{max_retries}...")
+            response = client.chat.completions.create(
+                model="gpt-5.4-mini",
+                temperature=0.0,  # CRITICAL: 0.0 removes all token randomness
+                seed=108,         # CRITICAL: Forces backend deterministic sampling
+                messages=messages,
+                response_format={"type": "json_schema", "json_schema": schema}
             )
-            return _llm_fallback_from_top35(top_35_fields)
+            content = response.choices[0].message.content
+            parsed_data = json.loads(content)
+            
+            # Run the stage-specific validation gate
+            validation_fn(parsed_data)
+            return parsed_data
 
-        # ── New format: top_5_match + soul_aligned ───────────────────────────
-        astro_overview  = data.get("astrologer_overview", data.get("selection_rationale", ""))
-        parent_overview = data.get("parent_overview",     data.get("parent_summary", ""))
-
-        top5_raw    = data.get("top_5_match", [])
-        soul_raw    = data.get("soul_aligned", {})
-
-        # Also handle legacy format (selected_fields) as fallback
-        legacy_raw  = data.get("selected_fields", data.get("fields", []))
-
-        if top5_raw or soul_raw:
-            # New format path
-            result_fields: List[Dict] = []
-            for entry in top5_raw:
-                result_fields.append({
-                    "field_id":              str(entry.get("field_id","")).strip().lower().replace(" ","_"),
-                    "astrological_reason":   entry.get("astrologer_justification", entry.get("astrological_reason","")),
-                    "parent_reason":         entry.get("parent_explanation", entry.get("parent_reason","")),
-                    "llm_rank":              entry.get("rank", len(result_fields)+1),
-                    "llm_group":             "match",
-                    "llm_selection_rationale": astro_overview,
-                    "llm_parent_summary":      parent_overview,
-                })
-            if soul_raw or _pre_soul_fid:
-                # Enforce the deterministically pre-selected field_id.
-                # The LLM provides justification text; we override its field choice.
-                llm_soul_fid = str(soul_raw.get("field_id","")).strip().lower().replace(" ","_") if soul_raw else ""
-                enforced_fid = _pre_soul_fid if _pre_soul_fid else llm_soul_fid
-                if llm_soul_fid and llm_soul_fid != enforced_fid:
-                    logger.warning(
-                        f"LLM chose soul field '{llm_soul_fid}' but pre-selected is "
-                        f"'{enforced_fid}' — overriding to keep deterministic soul selection."
-                    )
-                result_fields.append({
-                    "field_id":              enforced_fid,
-                    "astrological_reason":   (soul_raw or {}).get("astrologer_justification",
-                                              (soul_raw or {}).get("astrological_reason", "")),
-                    "parent_reason":         (soul_raw or {}).get("parent_explanation",
-                                              (soul_raw or {}).get("parent_reason", "")),
-                    "llm_rank":              6,
-                    "llm_group":             "soul",
-                    "llm_selection_rationale": astro_overview,
-                    "llm_parent_summary":      parent_overview,
-                })
-        else:
-            # Legacy format fallback
-            result_fields = []
-            for i, entry in enumerate(legacy_raw):
-                result_fields.append({
-                    "field_id":              str(entry.get("field_id","")).strip().lower().replace(" ","_"),
-                    "astrological_reason":   entry.get("astrological_reason",""),
-                    "parent_reason":         entry.get("parent_reason",""),
-                    "llm_rank":              i+1,
-                    "llm_group":             "match" if i < 5 else "extended",
-                    "llm_selection_rationale": astro_overview,
-                    "llm_parent_summary":      parent_overview,
-                })
-
-        logger.info(f"LLM returned {len(result_fields)} field selections (new format).")
-        validated = _validate_llm_fields(result_fields, top_35_fields=top_35_fields)
-
-        # ── Defensive re-apply: _validate_llm_fields may run from a stale .pyc
-        # that strips llm_group / parent_reason.  Re-stamp directly from raw JSON.
-        # Defensive re-apply: use _pre_soul_fid (deterministic) not LLM's field choice.
-        _soul_stamp_fid = _pre_soul_fid if _pre_soul_fid else (
-            str(soul_raw.get("field_id","")).strip().lower().replace(" ","_") if soul_raw else ""
-        )
-        if _soul_stamp_fid:
-            for r in validated:
-                if r["field_id"] == _soul_stamp_fid:
-                    r["llm_group"]           = "soul"
-                    r["llm_rank"]            = 6
-                    r["parent_reason"]       = (soul_raw or {}).get("parent_explanation",
-                                                (soul_raw or {}).get("parent_reason", r.get("parent_reason","")))
-                    r["astrological_reason"] = (soul_raw or {}).get("astrologer_justification",
-                                                (soul_raw or {}).get("astrological_reason", r.get("astrological_reason","")))
-                    r["llm_selection_rationale"] = astro_overview
-                    r["llm_parent_summary"]      = parent_overview
-                    break
-        for entry in top5_raw:
-            fid = str(entry.get("field_id","")).strip().lower().replace(" ","_")
-            pr  = entry.get("parent_explanation", entry.get("parent_reason",""))
-            ar  = entry.get("astrologer_justification", entry.get("astrological_reason",""))
-            for r in validated:
-                if r["field_id"] == fid and r.get("llm_group","match") != "soul":
-                    if pr: r["parent_reason"]       = pr
-                    if ar: r["astrological_reason"] = ar
-                    r["llm_selection_rationale"] = astro_overview
-                    r["llm_parent_summary"]      = parent_overview
-                    break
-
-        return validated
-    except Exception as exc:
-        logger.error(f"LLM call failed ({_prov}/{_model}): {exc}. Using fallback.")
-        return _llm_fallback_from_top35(top_35_fields)
-
-
-def _fuzzy_match_field_id(fid: str) -> Optional[str]:
-    """Try to find the closest registry key for a hallucinated field_id.
-
-    Strategy (in order):
-      1. Exact match (already tried by caller — included for completeness).
-      2. Registry key starts-with or ends-with all tokens from fid.
-      3. Token overlap: fraction of fid tokens present in registry key tokens.
-         Accept if overlap >= 0.6 AND the matched key shares at least 2 tokens.
-    Returns canonical field_id string or None.
-    """
-    if not _COURSE_REGISTRY:
-        return None
-    if fid in _COURSE_REGISTRY:
-        return fid
-    fid_tokens = set(fid.split("_"))
-    best_key: Optional[str] = None
-    best_score = 0.0
-    for key in _COURSE_REGISTRY:
-        key_tokens = set(key.split("_"))
-        common = fid_tokens & key_tokens
-        if len(common) < 2:
-            continue
-        score = len(common) / max(len(fid_tokens), len(key_tokens))
-        if score > best_score:
-            best_score = score
-            best_key   = key
-    if best_key and best_score >= 0.6:
-        return best_key
+        except ValueError as ve:
+            logger.warning(f"Validation Error on attempt {attempt}: {ve}")
+            messages.append({"role": "assistant", "content": content if 'content' in locals() and content else "{}"})
+            messages.append({"role": "user", "content": f"Validation Error: {str(ve)}. Correct this and try again."})
+            
+        except json.JSONDecodeError as je:
+            logger.error(f"JSON Parse Error: {je}")
+            messages.append({"role": "assistant", "content": content if 'content' in locals() and content else ""})
+            messages.append({"role": "user", "content": "Output was not valid JSON. Return only structured JSON."})
+            
+        except Exception as e:
+            logger.error(f"Unexpected LLM failure: {e}")
+            break
+            
     return None
 
+# =============================================================================
+# 4. MAIN PIPELINE: TWO-STEP EXECUTION
+# =============================================================================
 
-def _validate_llm_fields(fields_raw: List[Dict], top_35_fields: List[Dict] = None) -> List[Dict]:
-    """Validate LLM-returned field selections (pipeline-inversion format).
+def call_llm_for_fields(
+    payload: Any, 
+    eff_strengths: Dict[str, float], 
+    top_35_fields: List[Dict], 
+    max_retries: int = 3
+) -> Optional[List[Dict]]:
+    """Executes the Decoupled Two-Step LLM Pipeline with Deterministic Grounding."""
+    
+    # 1. Init Client
+    try:
+        from .engine_io import _maybe_load_dotenv
+        _maybe_load_dotenv()
+    except Exception:
+        pass
 
-    New format: LLM returns {field_id, astrological_reason} only — no planet_affinity
-    (that comes from BRANCH_PLANET_AFFINITY in Python).
-    • Resolves field_id against _COURSE_REGISTRY for canonical label/domain.
-    • Fuzzy-matches near-miss field_ids before rejecting them.
-    • Warns and skips hallucinated field_ids (not in registry).
-    • Ensures unique field_ids; caps at 20 entries.
-    • Pads to 20 from top_35_fields pre-scored list if LLM returned fewer.
-    """
-    seen_ids: set = set()
-    validated: List[Dict] = []
+    # A10 fix: provider selected via LLM_PROVIDER env var (default: openai)
+    # Supported values: 'openai', 'anthropic', 'gemini'
+    _provider_name = os.getenv("LLM_PROVIDER", "openai").lower()
+    _prov = _LLM_PROVIDERS.get(_provider_name, _LLM_PROVIDERS["openai"])
+    _env_var, _default_model, _call_fn = _prov
+    _model_override = os.getenv("LLM_MODEL", _default_model)
+    api_key = os.getenv(_env_var)
+    if not api_key:
+        logger.error("%s missing (provider=%s).", _env_var, _provider_name)
+        return None
+    # Build thin client wrapper so _run_llm_with_retry gets a callable
+    if _provider_name == "openai":
+        try:
+            import openai
+        except ImportError:
+            logger.error("openai package not installed.")
+            return None
+        client = openai.OpenAI(api_key=api_key)
+    else:
+        # LP6 fix: wrap non-OpenAI provider in _ProviderClientWrapper for retry support
+        client = _ProviderClientWrapper(_call_fn, api_key, _model_override)
+    valid_field_ids = {f.get("field_id") for f in top_35_fields if f.get("field_id")}
+    
+    # ---------------------------------------------------------
+    # DATA PREPARATION: Extract Deterministic Drivers
+    # ---------------------------------------------------------
+    # Safely extract house lords and lagna
+    lagna_sign = getattr(payload, "lagna_sign", "Unknown")
+    house_lords = getattr(payload, "house_lords", {})
+    # Handle int or str dictionary keys for house 10
+    h10_lord = house_lords.get(10, house_lords.get("10", "Unknown"))
+    
+    # Safely extract Jaimini Karakas
+    jaimini_k = getattr(payload, "jaimini_karakas", {})
+    ak = jaimini_k.get("AK", getattr(payload, "atmakaraka", "Unknown"))
+    amk = jaimini_k.get("AmK", getattr(payload, "amatyakaraka", "Unknown"))
+    
+    # Extract Planetary Strengths (Type-Safe)
+    planet_strengths = {}
+    
+    # 1. Try pulling directly from shadbala dict if it exists
+    shadbala_data = getattr(payload, "shadbala", {})
+    for p, val in shadbala_data.items():
+        if isinstance(val, dict):
+            planet_strengths[p] = float(val.get("shadbala_virupas", 0.0))
+        elif isinstance(val, (float, int)):
+            planet_strengths[p] = float(val)
 
-    for f in fields_raw:
-        fid           = str(f.get("field_id", "")).strip().lower().replace(" ", "_")
-        reason        = str(f.get("astrological_reason", "")).strip()
-        parent_reason = str(f.get("parent_reason", "")).strip()
-        llm_group     = f.get("llm_group", "match")
-        llm_rank      = f.get("llm_rank", len(validated)+1)
-        llm_rationale = f.get("llm_selection_rationale", "")
-        llm_ps        = f.get("llm_parent_summary", "")
+    # 2. If empty, try pulling from planets_d1 nested dict
+    if not planet_strengths:
+        planets_d1 = getattr(payload, "planets_d1", {})
+        for p, data in planets_d1.items():
+            if isinstance(data, dict) and "shadbala_virupas" in data:
+                planet_strengths[p] = float(data["shadbala_virupas"])
 
-        if not fid or fid in seen_ids:
-            continue
+    # 3. Final Fallback to effective strengths
+    if not planet_strengths:
+        planet_strengths = eff_strengths
 
-        # ── Registry lookup with fuzzy fallback ──────────────────────────────
-        reg_entry = _COURSE_REGISTRY.get(fid)
-        if not reg_entry:
-            fuzzy = _fuzzy_match_field_id(fid)
-            if fuzzy:
-                logger.info(f"Fuzzy-matched LLM field_id '{fid}' → '{fuzzy}'")
-                fid = fuzzy
-                reg_entry = _COURSE_REGISTRY.get(fid)
-        if not reg_entry:
-            logger.warning(f"LLM returned field_id '{fid}' not in registry — skipping.")
-            continue
+    # Build rich chart summary using the full Jyotish context function
+    chart_summary_text = _build_chart_summary_for_llm(payload, eff_strengths)
 
-        if fid in seen_ids:
-            continue
-        seen_ids.add(fid)
+    # A8 fix: replaced bare print() with logger.debug() to prevent PII leakage to stdout
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Chart summary (SENDING TO LLM):\n%s", chart_summary_text[:2000])
 
-        label = reg_entry.get("label", fid.replace("_", " ").title())
-        dom   = reg_entry.get("domain", "interdisciplinary").strip().lower()
-        if dom not in _VALID_DOMAINS:
-            dom = "interdisciplinary"
-
-        validated.append({
-            "field_id":               fid,
-            "field_label":            label,
-            "domain":                 dom,
-            "astrological_reason":    reason,
-            "parent_reason":          parent_reason,
-            "llm_group":              llm_group,
-            "llm_rank":               llm_rank,
-            "llm_selection_rationale": llm_rationale,
-            "llm_parent_summary":      llm_ps,
-            "registry_description":   reg_entry.get("description", ""),
-            "registry_niche":         reg_entry.get("niche", ""),
+    # ---------------------------------------------------------
+    # STEP 1: THE SELECTOR (Reasoning & Ranking)
+    # ---------------------------------------------------------
+    from .affinity import BRANCH_PLANET_AFFINITY
+    enriched_candidates = []
+    
+    for idx, f in enumerate(top_35_fields):
+        fid = f.get("field_id")
+        # Pull the deterministic planet weights assigned to this field from affinity.py
+        affinity_map = BRANCH_PLANET_AFFINITY.get(fid, {})
+        # Sort planets so the strongest affinities appear first in the array
+        ruling_planets = [planet for planet, weight in sorted(affinity_map.items(), key=lambda x: x[1], reverse=True)]
+        
+        enriched_candidates.append({
+            "field_id": fid,
+            "field_label": f.get("field_label"),
+            "domain": f.get("domain", ""),
+            "engine_rank": f.get("rank", idx + 1),
+            "engine_score": round(float(f.get("final_score", f.get("deterministic_score", 0.0))), 1),
+            "kp_score": round(float(f.get("kp_score", 0.0)), 1),
+            "jaimini_score": round(float(f.get("jaimini_score", 0.0)), 1),
+            "ruling_planets": ruling_planets[:4],
         })
+    
+    step1_user_prompt = f"Chart Core Facts:\n{chart_summary_text}\n\nCandidate Fields:\n{json.dumps(enriched_candidates, indent=2)}\n\nExecute the ranking algorithm. Provide your analytical_breakdown, then return EXACTLY 20 selected field_ids."
 
-        if len(validated) == 20:
-            break
+    step1_messages = [
+        {"role": "system", "content": _SELECTOR_SYSTEM_PROMPT},
+        {"role": "user", "content": step1_user_prompt}
+    ]
 
-    # Pad to 20 from pre-scored top_35 if LLM returned fewer
-    if len(validated) < 20 and top_35_fields:
-        for row in top_35_fields:
-            if len(validated) >= 20:
-                break
-            fid = row.get("field_id","")
-            if fid and fid not in seen_ids:
-                seen_ids.add(fid)
-                reg_entry = _COURSE_REGISTRY.get(fid, {})
-                validated.append({
-                    "field_id":            fid,
-                    "field_label":         row.get("field_label", fid.replace("_"," ").title()),
-                    "domain":              row.get("domain","interdisciplinary"),
-                    "astrological_reason": "",
-                    "registry_description": reg_entry.get("description",""),
-                    "registry_niche":       reg_entry.get("niche",""),
-                })
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("STEP 1 prompt (%d chars):\n%s", len(str(step1_messages)), str(step1_messages)[:1000])
 
-    return validated
+    def validate_step1(data: Dict):
+        ids = data.get("selected_field_ids", [])
+        if len(ids) != 20:
+            raise ValueError(f"Expected 20 IDs, got {len(ids)}.")
+        invalid = [i for i in ids if i not in valid_field_ids]
+        if invalid:
+            raise ValueError(f"Hallucinated IDs: {', '.join(invalid)}")
+
+    logger.info("Starting Step 1: LLM Selection...")
+    step1_result = _run_llm_with_retry(client, step1_messages, _STEP1_RESPONSE_SCHEMA, validate_step1, max_retries)
+    
+    if not step1_result:
+        logger.error("Step 1 Failed. Falling back to deterministic scoring.")
+        return None
+
+    chosen_ids = step1_result["selected_field_ids"]
+    analytical_breakdown = step1_result.get("analytical_breakdown", "")
+
+    # ---------------------------------------------------------
+    # STEP 2: THE GENERATOR (Formatting & Writing)
+    # ---------------------------------------------------------
+    # Only pass the 20 chosen fields to the generator to save tokens
+    chosen_field_details = [f for f in top_35_fields if f.get("field_id") in chosen_ids]
+    
+    # LP1 fix: enrich Step 2 payload with per-field engine scores and karaka data
+    # so the generator writes specific astrological_reasons, not generic summaries.
+    def _enrich_for_step2(f, rank):
+        aff  = f.get("affinity_planets", {})
+        top3 = sorted(aff.items(), key=lambda x: -x[1])[:3] if aff else []
+        trace = f.get("calc_trace", f.get("gap_detail", {}))
+        return {
+            "rank":            rank,
+            "field_id":        f.get("field_id", ""),
+            "field_label":     f.get("field_label", ""),
+            "domain":          f.get("domain", ""),
+            "engine_score":    round(f.get("final_score", 0), 1),
+            "top_planets":     [{"planet": p, "weight": round(w, 2)} for p, w in top3],
+            "verified_factors": (trace.get("verified_factors", "")
+                                 if isinstance(trace, dict) else ""),
+            "gap_boost":       round(f.get("gap_boost", 0), 3),
+        }
+    step2_user_prompt = (
+        f"Chart Context:\n{chart_summary_text}\n\n"
+        f"Selected Fields to Write For (with engine scores and key drivers):\n"
+        + json.dumps([
+            _enrich_for_step2(f, i+1)
+            for i, f in enumerate(chosen_field_details)
+        ], indent=2)
+    )
+
+    step2_messages = [
+        {"role": "system", "content": _GENERATOR_SYSTEM_PROMPT},
+        {"role": "user", "content": step2_user_prompt}
+    ]
+
+    def validate_step2(data: Dict):
+        fields = data.get("selected_fields", [])
+        if len(fields) != 20:
+            raise ValueError(f"Expected 20 explanations, got {len(fields)}.")
+        returned_ids = {f["field_id"] for f in fields}
+        missing_ids = set(chosen_ids) - returned_ids
+        if missing_ids:
+            raise ValueError(f"You missed explanations for these specific fields: {', '.join(missing_ids)}")
+
+    logger.info("Starting Step 2: LLM Generation...")
+    step2_result = _run_llm_with_retry(client, step2_messages, _STEP2_RESPONSE_SCHEMA, validate_step2, max_retries)
+
+    if not step2_result:
+        logger.error("Step 2 Failed. Falling back to deterministic scoring.")
+        return None
+
+    # ---------------------------------------------------------
+    # STEP 3: MERGE & RETURN
+    # ---------------------------------------------------------
+    # Re-attach the original deterministic payload data (scores, domains) to the LLM generated text
+    final_results = []
+    generated_dict = {f["field_id"]: f for f in step2_result["selected_fields"]}
+    
+    # We loop over chosen_ids to preserve the exact ranking/order decided in Step 1
+    for f_id in chosen_ids:
+        original_data = next((item for item in top_35_fields if item["field_id"] == f_id), {})
+        llm_data = generated_dict.get(f_id, {})
+        
+        merged_field = {**original_data, **llm_data}
+        merged_field["llm_selection_rationale"] = analytical_breakdown
+        merged_field["selection_rationale"] = analytical_breakdown
+        final_results.append(merged_field)
+
+    logger.info("Two-Step LLM Pipeline successfully completed.")
+    return final_results
+
+# ── Domain hint lists for field-promotion logic in _llm_fallback_from_top35 ──
+# Space/aerospace: field_ids or labels containing these tokens are protected from
+# being dropped when slicing the top-20 from the pre-scored top-35.
+_SPACE_FIELD_HINTS: tuple = (
+    "space", "aerospace", "astrophysics", "astronaut", "satellite",
+    "rocket", "isro", "nasa", "orbital", "astro",
+)
+
+# Extractive/resource industries: the fields most likely to be swapped OUT in favour
+# of niche but high-signal fields (space, medicine) that scored just below the cut.
+_EXTRACTIVE_FIELD_HINTS: tuple = (
+    "mining", "petroleum", "oil", "coal", "quarry",
+    "drilling", "excavation", "extraction", "refinery", "natural_resource",
+)
+
+# Medicine domain: field_id substrings that confirm a medicine/life-science field
+# independent of the domain tag (which may be missing or mis-labeled in some payloads).
+_MEDICINE_DOMAIN_HINTS: tuple = (
+    "medicine", "mbbs", "clinical", "surgery", "physician",
+    "nursing", "hospital", "doctor", "medical", "pharma", "biomedical",
+)
 
 
 def _llm_fallback_from_top35(top_35_fields: List[Dict] = None) -> List[Dict]:
-    """Return top-20 from pre-scored top-35 as selection fallback when LLM fails."""
-    if top_35_fields:
-        result = []
-        for row in sorted(top_35_fields, key=lambda x: -x.get("python_score", 0))[:20]:
-            fid = row.get("field_id", "")
-            if not fid:
-                continue
-            reg_entry = _COURSE_REGISTRY.get(fid, {})
-            result.append({
-                "field_id":                fid,
-                "field_label":             row.get("field_label", reg_entry.get("label", fid.replace("_", " ").title())),
-                "domain":                  row.get("domain", reg_entry.get("domain", "interdisciplinary")),
-                "astrological_reason":     "",
-                "parent_reason":           "",
-                "llm_group":               "match",
-                "llm_rank":                len(result) + 1,
-                "llm_selection_rationale": "",
-                "llm_parent_summary":      "",
-                "registry_description":    reg_entry.get("description", ""),
-                "registry_niche":          reg_entry.get("niche", ""),
-            })
-        return result
-    return []
+    """Return top-20 from pre-scored top-35 as selection fallback when LLM fails.
+
+    Preserves space/aerospace fields: if any space field exists in the input but
+    would be dropped from the top-20 cut, it is promoted by replacing the
+    lowest-ranked extractive field in the selection.
+    """
+    if not top_35_fields:
+        return _llm_fallback_fields()
+    _valid_doms = set(getattr(__import__('jyotish.constants', fromlist=['_VALID_DOMAINS']), '_VALID_DOMAINS', []))
+    sorted_fields = sorted(
+        top_35_fields,
+        key=lambda r: r.get("final_score", r.get("deterministic_score", r.get("python_score", 0.0))),
+        reverse=True,
+    )
+    selected  = list(sorted_fields[:20])
+    remainder = list(sorted_fields[20:])
+
+    # Promote space/aerospace fields excluded from top-20 by swapping out extractive fields
+    def _is_space(r: Dict) -> bool:
+        t = f"{r.get('field_id','')} {r.get('field_label','')}".lower()
+        return any(h in t for h in _SPACE_FIELD_HINTS)
+
+    def _is_extractive(r: Dict) -> bool:
+        t = f"{r.get('field_id','')} {r.get('field_label','')}".lower()
+        return any(h in t for h in _EXTRACTIVE_FIELD_HINTS)
+
+    def _is_medicine(r: Dict) -> bool:
+        fid = r.get("field_id", "").lower()
+        dom = r.get("domain", "").lower()
+        return dom == "medicine" or any(h in fid for h in _MEDICINE_DOMAIN_HINTS)
+
+    space_excluded = [r for r in remainder if _is_space(r)]
+    if space_excluded:
+        extractive_idxs = [i for i, r in enumerate(selected) if _is_extractive(r)]
+        for sp in space_excluded:
+            if not extractive_idxs:
+                break
+            swap_idx = extractive_idxs.pop()
+            selected[swap_idx] = sp
+
+    # Promote medicine/life-science fields excluded from top-20 by swapping out extractive fields.
+    medicine_excluded = [r for r in remainder if _is_medicine(r)]
+    if medicine_excluded:
+        extractive_idxs = [i for i, r in enumerate(selected) if _is_extractive(r)]
+        for med in medicine_excluded:
+            if not extractive_idxs:
+                break
+            swap_idx = extractive_idxs.pop()
+            selected[swap_idx] = med
+
+    out = []
+    for row in selected:
+        fid   = row.get("field_id", "")
+        label = row.get("field_label", fid.replace("_", " ").title())
+        dom   = row.get("domain", "interdisciplinary").strip().lower()
+        if _valid_doms and dom not in _valid_doms:
+            dom = "interdisciplinary"
+        out.append({
+            "field_id":                fid,
+            "field_label":             label,
+            "domain":                  dom,
+            "final_score":             row.get("final_score", row.get("deterministic_score", row.get("python_score", 0.0))),
+            "astrological_reason":     "Deterministic pre-score selection (LLM fallback).",
+            "parent_reason":           "",
+            "llm_group":               "fallback",
+            "llm_rank":                len(out) + 1,
+            "llm_selection_rationale": "",
+            "llm_parent_summary":      "",
+            "registry_description":    row.get("registry_description", ""),
+            "registry_niche":          row.get("registry_niche", ""),
+        })
+    return out
+
+
+def _llm_fallback_fields() -> List[Dict]:
+    """Minimal generic field set used when LLM call is unavailable."""
+    return [
+        {"field_id":"computer_science_engineering",  "field_label":"Computer Science & Engineering",        "domain":"technology",  "planet_affinity":{"Mercury":0.40,"Rahu":0.30,"Saturn":0.20,"Sun":0.10}},
+        {"field_id":"data_science_analytics",        "field_label":"Data Science & Analytics",              "domain":"technology",  "planet_affinity":{"Mercury":0.40,"Rahu":0.30,"Saturn":0.20,"Jupiter":0.10}},
+        {"field_id":"artificial_intelligence_ml",    "field_label":"Artificial Intelligence & Machine Learning","domain":"technology","planet_affinity":{"Mercury":0.35,"Rahu":0.35,"Saturn":0.20,"Jupiter":0.10}},
+        {"field_id":"medicine_mbbs",                 "field_label":"Medicine (MBBS)",                       "domain":"medicine",    "planet_affinity":{"Mars":0.30,"Sun":0.25,"Moon":0.25,"Mercury":0.20}},
+        {"field_id":"law_llb",                       "field_label":"Law (LLB)",                             "domain":"law",         "planet_affinity":{"Jupiter":0.40,"Mercury":0.30,"Sun":0.20,"Saturn":0.10}},
+        {"field_id":"economics",                     "field_label":"Economics",                             "domain":"commerce",    "planet_affinity":{"Jupiter":0.35,"Mercury":0.30,"Saturn":0.20,"Sun":0.15}},
+        {"field_id":"civil_engineering",             "field_label":"Civil Engineering",                     "domain":"engineering", "planet_affinity":{"Saturn":0.40,"Mars":0.35,"Sun":0.15,"Mercury":0.10}},
+        {"field_id":"psychology",                    "field_label":"Psychology",                            "domain":"humanities",  "planet_affinity":{"Moon":0.40,"Mercury":0.30,"Jupiter":0.20,"Ketu":0.10}},
+        {"field_id":"education_teaching",            "field_label":"Education & Teaching",                  "domain":"education",   "planet_affinity":{"Jupiter":0.40,"Mercury":0.30,"Moon":0.20,"Sun":0.10}},
+        {"field_id":"finance_banking",               "field_label":"Finance & Banking",                     "domain":"commerce",    "planet_affinity":{"Mercury":0.35,"Saturn":0.30,"Jupiter":0.25,"Sun":0.10}},
+        {"field_id":"research_academia",             "field_label":"Research & Academia",                   "domain":"research",        "planet_affinity":{"Mercury":0.35,"Ketu":0.30,"Jupiter":0.25,"Saturn":0.10}},
+        {"field_id":"architecture",                  "field_label":"Architecture",                          "domain":"design",          "planet_affinity":{"Saturn":0.30,"Venus":0.30,"Mars":0.25,"Mercury":0.15}},
+        {"field_id":"political_science_governance",  "field_label":"Political Science & Governance",        "domain":"public",          "planet_affinity":{"Sun":0.35,"Jupiter":0.30,"Mercury":0.25,"Saturn":0.10}},
+        {"field_id":"fine_arts_creative_design",     "field_label":"Fine Arts & Creative Design",           "domain":"arts",            "planet_affinity":{"Venus":0.45,"Moon":0.30,"Mercury":0.15,"Sun":0.10}},
+        {"field_id":"biotechnology",                 "field_label":"Biotechnology",                         "domain":"science",         "planet_affinity":{"Moon":0.30,"Mercury":0.25,"Ketu":0.25,"Mars":0.20}},
+
+    ]

@@ -84,6 +84,26 @@ export function buildBirthInput(
   return { ...dt, ...place };
 }
 
+/** Compute current age (years, with decimals) from a consolidated chart JSON.
+ *
+ * Uses `student_context.dob` and `system_config.current_date` if present;
+ * falls back to today's date when current_date is missing. Returns null
+ * when the chart has no parseable date of birth. */
+export function ageFromConsolidated(consolidated: Record<string, unknown> | undefined | null): number | null {
+  if (!consolidated) return null;
+  const sc = (consolidated as { student_context?: { dob?: string } }).student_context;
+  const sys = (consolidated as { system_config?: { current_date?: string } }).system_config;
+  const dob = sc?.dob;
+  if (!dob) return null;
+  const dobTime = Date.parse(dob);
+  if (!Number.isFinite(dobTime)) return null;
+  const refTime = sys?.current_date ? Date.parse(sys.current_date) : Date.now();
+  const ref = Number.isFinite(refTime) ? refTime : Date.now();
+  const diffMs = ref - dobTime;
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return null;
+  return diffMs / (365.25 * 24 * 60 * 60 * 1000);
+}
+
 export function buildUserInfo(
   displayName: string,
   email: string,

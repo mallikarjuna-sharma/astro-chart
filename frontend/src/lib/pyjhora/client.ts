@@ -1,6 +1,8 @@
 import type {
   AshtakavargaResponse,
   BirthInput,
+  CareerContextInput,
+  CareerTimelineResponse,
   ConsolidatedRequest,
   DivisionalChartsResponse,
   EducationAnalysisResponse,
@@ -165,5 +167,19 @@ export const pyjhora = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_json: userJson }),
+    }),
+
+  careerTimeline: (
+    userJson: Record<string, unknown>,
+    opts?: { careerContext?: CareerContextInput; enrichLlm?: boolean },
+  ) =>
+    request<CareerTimelineResponse>("/api/career-timeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_json: userJson,
+        career_context: opts?.careerContext,
+        enrich_llm: opts?.enrichLlm ?? true,
+      }),
     }),
 };

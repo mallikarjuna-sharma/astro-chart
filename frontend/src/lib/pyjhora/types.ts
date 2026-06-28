@@ -177,6 +177,156 @@ export interface EducationFieldResult {
   registry?: EducationFieldRegistry;
 }
 
+export interface CareerOutcome {
+  primary_opportunity: string;
+  peak_md_lord: string;
+  peak_years: string;
+  growth_arc: string;
+}
+
+export interface CareerTrajectoryPoint {
+  label: string;
+  score: number;
+  color: string;
+  event_type: string;
+}
+
+export interface CareerCalendarEntry {
+  year: number;
+  event_type: string;
+  ad_lord: string;
+  score: number;
+  color: string;
+}
+
+export interface CareerMDArc {
+  md_lord: string;
+  start_date: string;
+  end_date: string;
+  narrative: string;
+}
+
+export interface CareerForeignMeta {
+  total: number;
+  high: number;
+  moderate: number;
+  mild: number;
+  peak_score: number;
+  peak_period: string;
+  geo_summary: string;
+}
+
+export interface CareerForeignOpportunity {
+  md_lord?: string;
+  ad_lord?: string;
+  start_date?: string;
+  end_date?: string;
+  foreign_score?: number;
+  geo_affinity?: string;
+  duration_type?: string;
+  narrative?: string;
+  active_houses?: number[] | null;
+  drivers?: string[];
+  warnings?: string[];
+  [k: string]: unknown;
+}
+
+export interface CareerPratyantardasha {
+  pd_lord?: string;
+  start_date?: string;
+  end_date?: string;
+  pd_score?: number;
+  hint?: string;
+  llm_narrative_html?: string;
+  [k: string]: unknown;
+}
+
+export interface CareerTimelineBlock {
+  md_lord: string;
+  ad_lord: string;
+  start_date: string;
+  end_date: string;
+  event_type: string;
+  secondary_event_type?: string;
+  career_score: number;
+  confidence?: string;
+  is_current?: boolean;
+  is_past?: boolean;
+  is_primary_opportunity?: boolean;
+  domain_tag?: string;
+  career_track?: string;
+  active_houses?: number[];
+  narrative_hint?: string;
+  md_narrative?: string;
+  md_arc_html?: string;
+  llm_ad_narrative_html?: string;
+  jaimini_role?: string;
+  workplace_dynamics?: Record<string, unknown>;
+  salary_range?: Record<string, unknown>;
+  skill_recommendations?: string[];
+  remedies?: string[];
+  event_remedies?: unknown[];
+  transit_flags?: unknown[];
+  pratyantardashas?: CareerPratyantardasha[];
+  foreign_opportunity?: CareerForeignOpportunity;
+  sub_scores?: Record<string, number>;
+  [k: string]: unknown;
+}
+
+export interface CareerContextInput {
+  employment_status?: string;
+  designation?: string;
+  years_experience?: number;
+  industry_sector?: string;
+  company_type?: string;
+  desired_outcome?: string;
+  join_date?: string;
+  last_promotion_date?: string;
+  last_hike_date?: string;
+  geographic_preference?: string;
+  actively_looking?: boolean;
+  on_notice_period?: boolean;
+  is_family_business?: boolean;
+}
+
+export interface CareerTimelineRequest {
+  user_json: Record<string, unknown>;
+  career_context?: CareerContextInput;
+  enrich_llm?: boolean;
+}
+
+export interface CareerTimelineResponse {
+  engine_version: string;
+  generated_at: string;
+  student: {
+    name?: string;
+    dob?: string;
+    birth_place?: string;
+    gender?: string;
+    current_age?: number;
+    lagna_sign?: string;
+    lagna_lord?: string;
+    atmakaraka?: string;
+    amatyakaraka?: string;
+    h10_lord?: string;
+    karakamsha?: string;
+    yogas?: string[];
+    school_board?: string;
+    risk_appetite?: string;
+    active_dasha_lord?: string;
+  };
+  career_context: Record<string, unknown> & { warnings?: string[] };
+  outcome: CareerOutcome;
+  trajectory: CareerTrajectoryPoint[];
+  calendar: CareerCalendarEntry[];
+  md_arcs: CareerMDArc[];
+  blocks: CareerTimelineBlock[];
+  foreign_opportunities: CareerForeignOpportunity[];
+  foreign_meta: CareerForeignMeta;
+  micro_timing: Record<string, unknown>;
+  llm_enriched: boolean;
+}
+
 export interface EducationAnalysisResponse {
   engine_version: string;
   generated_at: string;
@@ -223,5 +373,8 @@ export interface ChartSession {
   consolidated?: Record<string, unknown>;
   educationAnalysis?: EducationAnalysisResponse;
   educationAnalysisError?: string;
+  careerTimeline?: CareerTimelineResponse;
+  careerTimelineError?: string;
+  careerContextInput?: CareerContextInput;
   savedAt?: string;
 }

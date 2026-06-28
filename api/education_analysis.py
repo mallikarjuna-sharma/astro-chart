@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -72,7 +71,7 @@ def _report_payload(
         "top_match_field_ids": [r["field_id"] for r in match_fields],
         "soul_field_id": soul_fields[0]["field_id"] if soul_fields else None,
         "fields": sorted_results,
-        "payload": asdict(payload),
+        "payload": payload.model_dump(),
     }
 
 

@@ -51,6 +51,26 @@ _PLANET_TRAIT_PARENT: Dict[str, str] = {
 
 class ExplainabilityEngine:
     @staticmethod
+    def _llm_parent_text(rec):
+        return (rec.get("llm_parent_summary", "")
+                or rec.get("parent_reason", "")
+                or rec.get("llm_parent_reason", "")).strip()
+
+    @staticmethod
+    def _llm_astro_text(rec):
+        return (rec.get("astrological_reason", "")
+                or rec.get("llm_astrological_reason", "")
+                or rec.get("llm_narrative", "")).strip()
+
+    @staticmethod
+    def _llm_payload(rec):
+        return rec.get("llm_payload", {}) or {}
+
+    @staticmethod
+    def _method_norm(rec, key):
+        return float((rec.get("method_normalized_scores", {}) or {}).get(key, 0.0))
+
+    @staticmethod
     def _planet_roles(planet, payload):
         roles = []
         ak, amk = getattr(payload, "atmakaraka", ""), getattr(payload, "amatyakaraka", "")
@@ -71,7 +91,10 @@ class ExplainabilityEngine:
 
     @staticmethod
     def _top_planets(rec, n=3):
-        return sorted(rec["top_affinity_planets"].items(), key=lambda x: -x[1])[:n]
+        planets = rec.get("top_affinity_planets") or rec.get("affinity_planets") or {}
+        if isinstance(planets, dict):
+            return sorted(planets.items(), key=lambda x: -x[1])[:n]
+        return []
 
     @classmethod
     def _parent_explanation(cls, rank, rec, payload, active_lord, peak_lord):
@@ -90,9 +113,14 @@ class ExplainabilityEngine:
             lines.append(f"{p1}{role_str} is the strongest planet for this field ({_PLANET_TRAIT_PARENT.get(p1,'broad capability')}){dig_str}.")
 
         # Append LLM-generated astrological reasoning when present
-        llm_reason = rec.get("llm_astrological_reason", "").strip()
+        # Key may be "astrological_reason" (from engine merge) or "llm_astrological_reason" (legacy)
+        llm_reason = cls._llm_astro_text(rec)
         if llm_reason:
             lines.append(f"Astrological basis: {llm_reason}")
+
+        llm_parent = cls._llm_parent_text(rec)
+        if llm_parent:
+            lines.append(f"Parent explanation: {llm_parent}")
 
         return " ".join(lines)
 
@@ -111,9 +139,13 @@ class ExplainabilityEngine:
             lines.append(f"  {p}{role_str} {dig_str}: affinity {w:.2f}")
 
         # LLM-generated per-field astrological reasoning
-        llm_reason = rec.get("llm_astrological_reason", "").strip()
+        llm_reason = cls._llm_astro_text(rec)
         if llm_reason:
             lines.append(f"  [LLM] {llm_reason}")
+
+        llm_parent = cls._llm_parent_text(rec)
+        if llm_parent:
+            lines.append(f"  [PARENT] {llm_parent}")
 
         return "\n".join(lines)
 
@@ -123,15 +155,39 @@ class ExplainabilityEngine:
         selection_rationale = rankings[0].get("llm_selection_rationale", "") if rankings else ""
         output = []
         for rank, rec in enumerate(rankings[:top_n], 1):
+            method_breakdown = rec.get("method_breakdown", {}) or {}
             output.append({
-                "rank":                     rank,
-                "field":                    rec["field_label"],
-                "domain":                   rec["domain"],
-                "final_score":              round(rec["final_score"], 2),
-                "parent":                   cls._parent_explanation(rank, rec, payload, active_lord, peak_lord),
-                "astrologer":               cls._astrologer_explanation(rank, rec, payload, active_lord, peak_lord),
-                "llm_astrological_reason":  rec.get("llm_astrological_reason", ""),
-                "llm_selection_rationale":  selection_rationale,
+                "rank":                       rank,
+                "field_id":                   rec.get("field_id", ""),
+                "field":                      rec["field_label"],
+                "domain":                     rec["domain"],
+                "final_score":                round(rec["final_score"], 2),
+                "composite_score":            round(float(rec.get("composite_score", 0.0)), 2),
+                "affinity_score":             round(float(rec.get("affinity_score", 0.0)), 2),
+                "blended_score":              round(float(rec.get("blended_score", 0.0)), 2),
+                "knrao_score":                round(float(rec.get("knrao_score", method_breakdown.get("knrao", {}).get("score", 0.0))), 2),
+                "kp_score":                   round(float(rec.get("kp_score", method_breakdown.get("kp", {}).get("score", 0.0))), 2),
+                "jaimini_score":              round(float(rec.get("jaimini_score", method_breakdown.get("jaimini", {}).get("score", 0.0))), 2),
+                "parashara_score":            round(float(rec.get("parashara_score", method_breakdown.get("parashara", {}).get("score", 0.0))), 2),
+                "method_total_score":         round(float(rec.get("method_total_score", method_breakdown.get("weighted_total", 0.0))), 2),
+                "weighted_method_score":      round(float(rec.get("weighted_method_score", rec.get("combined_score", method_breakdown.get("weighted_total", 0.0)))), 2),
+                "knrao_normalized_score":     round(cls._method_norm(rec, "knrao"), 2),
+                "kp_normalized_score":        round(cls._method_norm(rec, "kp"), 2),
+                "jaimini_normalized_score":   round(cls._method_norm(rec, "jaimini"), 2),
+                "parashara_normalized_score": round(cls._method_norm(rec, "parashara"), 2),
+                "method_breakdown":           method_breakdown,
+                "llm_rank":                   rec.get("llm_rank"),
+                "llm_padded":                 rec.get("llm_padded", False),
+                "engine_rank":                rec.get("engine_rank", rec.get("rank", rank)),
+                "hard_lockout":               rec.get("hard_lockout", False),
+                "selection_rationale":        selection_rationale,
+                "astrological_reason":        cls._llm_astro_text(rec),
+                "parent_friendly_explanation": rec.get("parent_friendly_explanation", ""),
+                "parent":                     cls._parent_explanation(rank, rec, payload, active_lord, peak_lord),
+                "astrologer":                 cls._astrologer_explanation(rank, rec, payload, active_lord, peak_lord),
+                "llm_parent_summary":         cls._llm_parent_text(rec),
+                "llm_selection_rationale":    selection_rationale,
+                "llm_payload":                cls._llm_payload(rec),
             })
         return output
 
@@ -237,31 +293,73 @@ class ExplainabilityEngine:
 
     @classmethod
     def _norm_chain_html(cls, ct: Dict) -> str:
-        """Render the full score computation chain as step-by-step HTML."""
-        n = ct["normalization"]
-        fc = ct["final_chain"]
-        def fmt_mult(v, note):
-            cls2 = "mult-red" if v < 1 else ("mult-grn" if v > 1 else "mult-neu")
-            return f"<span class='{cls2}'>×{v:.3f}</span> <span class='chain-note'>{note}</span>"
+        """Render the full score computation chain as step-by-step HTML.
 
+        Uses the directly-logged chain values (Gap-B fix) instead of recomputing
+        intermediate products.  Falls back gracefully for older records that lack
+        the new BVB / threshold / mismatch / friction / ak_flat steps.
+        """
+        n  = ct.get("normalization", {})
+        fc = ct.get("final_chain", {})
+
+        # ── helper ────────────────────────────────────────────────────────────
+        def _v(key, fallback=0.0):
+            return fc.get(key, fallback)
+
+        # ── threshold / mismatch / qa note strings (keys removed in Gap-B fix) ──
+        thresh_note   = ("×0.70 — field below aptitude threshold"
+                         if _v("threshold_mult") < 1 else "threshold met ✓")
+        mismatch_note = ("×0.85 — domain–chart mismatch flagged"
+                         if _v("mismatch_mult") < 1 else "no mismatch ✓")
+        qa_note       = ("×0.70 — QA gate failed"
+                         if _v("qa_gate_mult") < 1 else "QA gate passed ✓")
+
+        # ── build rows using logged values ────────────────────────────────────
         rows = [
-            ("Composite Score (raw)",     f"{n['composite_score_raw']:.4f}",  "domain aptitude: shadbala + SAV + eff_strength blend"),
-            ("Composite Score (norm)",    f"{n['composite_norm']:.4f}",        "log-norm (soft-cap 200, max ~115)"),
-            ("Affinity Score (raw)",      f"{n['affinity_score_raw']:.4f}",    "Σ(planet_weight × eff_strength) × 100"),
-            ("Affinity Score (norm)",     f"{n['affinity_norm']:.4f}",         "log-norm (soft-cap 180, max ~115)"),
-            ("Blended Score",             f"{n['blended']:.4f}",               f"{n['domain_blend_weight']}×composite_norm + {n['affinity_blend_weight']}×affinity_norm"),
-            ("After Gap Boost",           f"{fc['after_boost']:.4f}",          f"×(1 + {ct['gap_boost_total']:.4f}) gap_boost"),
-            ("After Gap Penalty",         f"{fc['after_penalty']:.4f}",        f"×(1 − {abs(ct['gap_penalty_total']):.4f}) gap_penalty"),
-            ("After Threshold Gate",      f"{fc['after_penalty']*fc['threshold_mult']:.4f}", fc['threshold_note']),
-            ("After Mismatch Gate",       f"{fc['after_penalty']*fc['threshold_mult']*fc['mismatch_mult']:.4f}", fc['mismatch_note']),
-            ("After Friction (QA)",       f"{fc['after_penalty']*fc['threshold_mult']*fc['mismatch_mult']*fc['friction_mult']:.4f}", f"friction_mult={fc['friction_mult']:.3f} | {fc['friction_note'][:60]}"),
-            ("FINAL SCORE",               f"{fc['final_score']:.4f}",          fc['qa_gate_note']),
+            ("Composite Score (raw)",      f"{n.get('composite_score_raw', 0):.4f}",
+             "domain aptitude: shadbala + SAV + eff_strength blend"),
+            ("Composite Score (norm)",     f"{n.get('composite_norm', 0):.4f}",
+             "log-norm (soft-cap 200, max ~115)"),
+            ("Affinity Score (raw)",       f"{n.get('affinity_score_raw', 0):.4f}",
+             "Σ(planet_weight × eff_strength) × 100"),
+            ("Affinity Score (norm)",      f"{n.get('affinity_norm', 0):.4f}",
+             "log-norm (soft-cap 180, max ~115)"),
+            ("Blended Score",              f"{n.get('blended', _v('blended')):.4f}",
+             f"{n.get('domain_blend_weight','?')}×composite_norm + "
+             f"{n.get('affinity_blend_weight','?')}×affinity_norm"),
+            ("After Gap Boost",            f"{_v('after_boost'):.4f}",
+             f"×(1 + {ct.get('gap_boost_total', 0):.4f}) gap_boost"),
+            ("After Gap Penalty",          f"{_v('after_penalty'):.4f}",
+             f"×(1 − {abs(ct.get('gap_penalty_total', 0)):.4f}) gap_penalty"),
+            # Gap-B fix: BVB astro_multiplier step (was invisible before)
+            ("After BVB Multiplier",       f"{_v('after_bvb_multiplier', _v('after_penalty')):.4f}",
+             f"×{_v('bvb_multiplier', 1):.4f} (BVB astro_mult) "
+             f"+ {_v('bvb_combined_addend', 0):.4f} (combined_score addend)"),
+            ("After Threshold Gate",       f"{_v('after_threshold', _v('after_bvb_multiplier')):.4f}",
+             f"×{_v('threshold_mult', 1):.2f} — {thresh_note}"),
+            ("After Mismatch Gate",        f"{_v('after_mismatch', _v('after_threshold')):.4f}",
+             f"×{_v('mismatch_mult', 1):.2f} — {mismatch_note}"),
+            ("After Friction/QA-Friction", f"{_v('after_friction', _v('after_mismatch')):.4f}",
+             f"×{_v('friction_mult', 1):.4f} | {str(fc.get('friction_note',''))[:60]}"),
+            ("After QA Gate",              f"{_v('after_qa', _v('after_friction')):.4f}",
+             f"×{_v('qa_gate_mult', 1):.2f} — {qa_note}"),
+            # Gap-B fix: ak_domain_flat addition (was invisible before)
+            ("+ AK Domain Flat",           f"{_v('after_ak_flat', _v('after_qa')):.4f}",
+             f"+{_v('ak_domain_flat', 0):.4f} soul-domain supplement (added after all multipliers)"),
+            ("Pre-Norm Score",             f"{_v('final_score'):.4f}",
+             "engine chain total (before cross-batch 20–100 normalization)"),
         ]
+
         trs = ""
         for step, val, note in rows:
-            bold = " style='font-weight:700;background:#eef2ff'" if step == "FINAL SCORE" else ""
-            trs += f"<tr{bold}><td class='chain-step'>{step}</td><td class='chain-val'>{val}</td><td class='chain-note-td'>{note}</td></tr>"
-        return f"<table class='chain-table'><thead><tr><th>Step</th><th>Value</th><th>Note</th></tr></thead><tbody>{trs}</tbody></table>"
+            is_final = step in ("Pre-Norm Score",)
+            bold = " style='font-weight:700;background:#eef2ff'" if is_final else ""
+            trs += (f"<tr{bold}><td class='chain-step'>{step}</td>"
+                    f"<td class='chain-val'>{val}</td>"
+                    f"<td class='chain-note-td'>{note}</td></tr>")
+        return (f"<table class='chain-table'>"
+                f"<thead><tr><th>Step</th><th>Value</th><th>Note</th></tr></thead>"
+                f"<tbody>{trs}</tbody></table>")
 
     @classmethod
     def _gap_table_html(cls, boosts: Dict, penalties: Dict) -> str:
@@ -313,6 +411,16 @@ class ExplainabilityEngine:
         n       = ct.get("normalization", {})
         fc      = ct.get("final_chain", {})
 
+        # Gap-C: pre_norm / norm_note
+        pre_norm  = rec.get("pre_norm_score")
+        norm_note = rec.get("norm_note", "")
+
+        # Gap-3: explainability_matrix
+        em = rec.get("explainability_matrix", {})
+        em_spread  = em.get("paradigm_spread", 0)
+        em_conc    = em.get("paradigm_concurrence", {})
+        em_flag    = em.get("structural_friction_flag", "")
+
         chain_table = cls._norm_chain_html(ct) if n else "<p>No chain trace.</p>"
         gap_table   = cls._gap_table_html(boosts, pens)
         aff_table   = cls._affinity_table_html(aff_w, aff_c, pt)
@@ -336,6 +444,39 @@ class ExplainabilityEngine:
         top3 = sorted(aff_c.items(), key=lambda x: -x[1])[:3]
         top3_str = " | ".join(f"{p} ({v:.1f})" for p, v in top3) if top3 else "none"
 
+        # Method scores for summary header
+        _ms = rec.get("method_scores", rec.get("bvb_method_scores", {}))
+        knrao_s    = _ms.get("knrao", rec.get("knrao_score", 0))
+        kp_s       = _ms.get("kp",    rec.get("kp_score", 0))
+        jai_s      = _ms.get("jaimini", rec.get("jaimini_score", 0))
+        par_s      = _ms.get("parashara", rec.get("parashara_score", 0))
+        method_total = rec.get("method_total_score", rec.get("bvb_score", 0))
+        method_log_html = cls._method_log_html(rec, esc)
+
+        # LLM narrative — canonical key is "astrological_reason" (engine merge), fallback to legacy key
+        llm_narr = (rec.get("astrological_reason","") or rec.get("llm_astrological_reason","")).strip()
+        llm_score = rec.get("llm_score")
+        if llm_narr:
+            llm_score_badge = (f'<span style="background:#1565c0;color:#fff;font-size:.72rem;'
+                               f'padding:2px 8px;border-radius:10px;margin-left:10px">LLM {llm_score:.0f}</span>'
+                               if llm_score is not None else "")
+            llm_narr_html = (
+                f'<div style="margin:10px 0 6px;padding:12px 16px;background:#e8f4fd;border-left:4px solid #1565c0;'
+                f'border-radius:0 6px 6px 0">'
+                f'<div style="font-size:.72rem;font-weight:700;color:#1565c0;letter-spacing:.05em;margin-bottom:5px">'
+                f'⊙ LLM ASTROLOGICAL JUSTIFICATION{llm_score_badge}</div>'
+                f'<div style="font-size:.83rem;color:#1a1a2e;line-height:1.65">{esc(llm_narr)}</div>'
+                f'</div>'
+            )
+        else:
+            llm_narr_html = (
+                '<div style="margin:10px 0 6px;padding:8px 16px;background:#f5f5f5;border-left:4px solid #bdbdbd;'
+                'border-radius:0 6px 6px 0;color:#9e9e9e;font-size:.78rem;font-style:italic">'
+                '⊙ LLM narrative not available for this field (LLM may not have been invoked or field was outside top-35).'
+                '</div>'
+            )
+        llm_payload_html = cls._llm_payload_html(rec, esc)
+
         # Fired gap boosts summary (top 3)
         top_boosts = sorted(boosts.items(), key=lambda x: -x[1])[:3]
         boosts_str = ", ".join(f"{k}={v*100:+.1f}%" for k, v in top_boosts) if top_boosts else "none"
@@ -353,6 +494,9 @@ class ExplainabilityEngine:
     <span class='fb-top3'>Top planets: {esc(top3_str)}</span>
   </summary>
   <div class='field-body'>
+
+    {llm_narr_html}
+    {llm_payload_html}
 
     <div class='trace-section'>
       <table style='width:100%;font-size:.82rem;border-collapse:collapse'>
@@ -399,6 +543,45 @@ class ExplainabilityEngine:
       <summary class='ss-hdr'>③ Final Score Chain — every multiplication step</summary>
       <div class='ss-body'>
         {chain_table}
+        {(
+          f"<p class='ss-note' style='margin-top:6px'>"
+          f"<strong>Pre-normalisation score:</strong> {pre_norm:.4f} &nbsp;→&nbsp; "
+          f"<strong>Displayed score:</strong> {score:.2f} &nbsp;|&nbsp; "
+          f"<em>{esc(norm_note)}</em></p>"
+        ) if pre_norm is not None else ""}
+      </div>
+    </details>
+
+    <details class='sub-section' open>
+      <summary class='ss-hdr'>④ Paradigm Concurrence — spread={em_spread:.1f}{" ⚠ FRICTION" if em_flag else ""}</summary>
+      <div class='ss-body'>
+        {(f"<div style='padding:6px 10px;background:#fff3e0;border-left:3px solid #e65100;"
+           f"border-radius:4px;font-size:.80rem;color:#bf360c;margin-bottom:8px'>"
+           f"⚠ {esc(em_flag)}</div>") if em_flag else
+          "<p style='color:#2e7d32;font-size:.80rem;margin:0 0 6px'>✓ No paradigm friction detected.</p>"}
+        <table style='border-collapse:collapse;width:100%;font-size:.80rem'>
+          <thead><tr style='background:#f5f5f5'>
+            <th style='padding:4px 10px;text-align:left'>Method</th>
+            <th style='padding:4px 10px;text-align:right'>Norm Score</th>
+            <th style='padding:4px 10px;text-align:left'>Status</th>
+          </tr></thead>
+          <tbody>
+            {"".join(
+              f"<tr><td style='padding:3px 10px;font-weight:600'>{esc(m.title())}</td>"
+              f"<td style='padding:3px 10px;text-align:right;font-family:Consolas'>{v.get('score',0):.1f}</td>"
+              f"<td style='padding:3px 10px;color:{'#2e7d32' if v.get('score',0)>=30 else '#c62828'}'>{esc(v.get('status',''))}</td></tr>"
+              for m, v in em_conc.items()
+            )}
+          </tbody>
+        </table>
+        <p class='ss-note'>Paradigm spread = max − min of normalised method scores. Threshold: &gt;30 → friction flag.</p>
+      </div>
+    </details>
+
+    <details class='sub-section'>
+      <summary class='ss-hdr'>⑤ Method I/O Log — KNRao={knrao_s:.0f} · KP={kp_s:.0f} · Jaimini={jai_s:.0f} · Parashara={par_s:.0f} → combined={method_total:.0f}</summary>
+      <div class='ss-body'>
+        {method_log_html}
       </div>
     </details>
 
@@ -546,6 +729,194 @@ class ExplainabilityEngine:
   </details>
 </div>"""
 
+
+    @classmethod
+    def _method_log_html(cls, rec: Dict, esc) -> str:
+        """Render per-method input/output log for one field as an HTML section."""
+        ml = rec.get("method_log", {})
+        if not ml:
+            return "<p style=\'color:#888\'>No method log available.</p>"
+
+        METHOD_COLORS = {
+            "knrao":    ("#1a237e", "#e8eaf6"),
+            "kp":       ("#1b5e20", "#e8f5e9"),
+            "jaimini":  ("#4a148c", "#f3e5f5"),
+            "parashara":("#e65100", "#fff3e0"),
+        }
+        blocks = []
+        for mkey in ("knrao", "kp", "jaimini", "parashara"):
+            m = ml.get(mkey, {})
+            if not m:
+                continue
+            fg, bg = METHOD_COLORS.get(mkey, ("#333", "#f9f9f9"))
+            score   = m.get("score", 0)
+            weight  = m.get("weight", 0)
+            norm    = m.get("normalized_score", 0)
+            contrib = m.get("weighted_contribution", round(float(norm) * float(weight), 2))
+            comps   = m.get("components", {})
+            traces  = m.get("trace", [])
+            ms      = m.get("exec_ms", m.get("ms", 0))   # Gap-6 fix: renamed ms→exec_ms
+            inp     = m.get("inputs", {})
+
+            # Input row
+            inp_cells = "".join(
+                f"<td style=\'padding:3px 8px;font-size:.76rem\'><strong>{esc(str(k))}:</strong> {esc(str(v))}</td>"
+                for k, v in inp.items() if v
+            )
+
+            # Component rows
+            comp_rows = "".join(
+                f"<tr><td style=\'font-family:Consolas;font-size:.75rem;padding:2px 8px;color:#555\'>{esc(k)}</td>"
+                f"<td style=\'text-align:right;font-family:Consolas;font-size:.75rem;padding:2px 8px;font-weight:600;color:{fg}\'>{esc(str(round(float(v),2)))}</td></tr>"
+                for k, v in comps.items()
+            ) if comps else "<tr><td colspan=\'2\' style=\'color:#999;font-size:.75rem\'>—</td></tr>"
+
+            # Trace lines
+            trace_html = "<br>".join(esc(t) for t in traces[:8]) if traces else "<em style=\'color:#999\'>none</em>"
+
+            blocks.append(f"""
+<div style=\'border:1px solid {fg}30;border-radius:8px;margin-bottom:10px;overflow:hidden\'>
+  <div style=\'background:{bg};border-left:4px solid {fg};padding:8px 14px;display:flex;align-items:center;gap:16px\'>
+    <span style=\'font-weight:700;color:{fg};font-size:.88rem\'>{esc(m.get("name","?"))}</span>
+    <span style=\'background:{fg};color:#fff;border-radius:4px;padding:2px 10px;font-size:.8rem;font-weight:700\'>
+      Score: {score:.1f}
+    </span>
+    <span style=\\'color:#555;font-size:.78rem\\'>Norm: {norm:.1f}/100 | Weight: {weight:.0%} → contrib: {contrib:.1f}</span>
+    <span style=\'margin-left:auto;color:#888;font-size:.73rem\'>{ms:.0f}ms</span>
+  </div>
+  <div style=\'display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0\'>
+    <div style=\'padding:8px 14px;border-right:1px solid #eee\'>
+      <div style=\'font-size:.76rem;font-weight:700;color:{fg};margin-bottom:4px;text-transform:uppercase\'>Inputs</div>
+      <table style=\'border-collapse:collapse;width:100%\'><tr>{inp_cells}</tr></table>
+    </div>
+    <div style=\'padding:8px 14px\'>
+      <div style=\'font-size:.76rem;font-weight:700;color:{fg};margin-bottom:4px;text-transform:uppercase\'>Components</div>
+      <table style=\'border-collapse:collapse;width:100%\'>{comp_rows}</table>
+    </div>
+  </div>
+  <div style=\'padding:6px 14px 8px;border-top:1px solid #eee;background:#fafafa\'>
+    <div style=\'font-size:.74rem;font-weight:700;color:#555;margin-bottom:3px\'>Trace</div>
+    <div style=\'font-family:Consolas;font-size:.73rem;color:#333;line-height:1.55\'>{trace_html}</div>
+  </div>
+        </div>""")
+        return "\n".join(blocks)
+
+    @classmethod
+    def _llm_payload_html(cls, rec: Dict, esc) -> str:
+        """Render the full LLM JSON payload for one field as a collapsible section."""
+        payload = rec.get("llm_payload", {}) or {}
+        if not payload:
+            return "<p style='color:#888'>No LLM JSON payload available.</p>"
+        try:
+            payload_text = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+        except Exception:
+            payload_text = str(payload)
+        selection = esc(str(payload.get("selection_rationale", rec.get("llm_selection_rationale", "")) or ""))
+        provider = esc(str(payload.get("provider", "unknown")))
+        return f"""
+<details style='border:1px solid #dfe3ec;border-radius:8px;background:#fbfcff;margin-top:10px'>
+  <summary style='cursor:pointer;padding:10px 14px;font-weight:700;color:#1a237e;list-style:none'>
+    LLM JSON Payload <span style='font-weight:600;color:#546e7a'>[{provider}]</span>
+  </summary>
+  <div style='padding:12px 14px;border-top:1px solid #e7ebf5'>
+    <div style='font-size:.78rem;color:#555;margin-bottom:8px'><strong>Selection rationale:</strong> {selection or "—"}</div>
+    <pre style='margin:0;font-family:Consolas,"Courier New",monospace;font-size:.76rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;background:#0b1020;color:#dbe4ff;padding:12px;border-radius:6px;overflow-x:auto'>{esc(payload_text)}</pre>
+  </div>
+</details>"""
+
+    @classmethod
+    def _all_fields_table_html(cls, rankings: List[Dict], esc) -> str:
+        """Full sortable table: all fields × Eng% × LLM% × method scores × LLM narrative."""
+        if not rankings:
+            return "<p>No results.</p>"
+        top_raw = rankings[0]["final_score"] if rankings else 1.0
+        top_llm = max((r.get("llm_score") or 0) for r in rankings) or 1.0
+
+        domain_colours = {
+            "technology":     "#0d47a1", "engineering":   "#1b5e20", "medicine":      "#b71c1c",
+            "science":        "#006064", "arts":          "#6a1b9a", "design":        "#880e4f",
+            "law":            "#e65100", "business":      "#4e342e", "education":     "#33691e",
+            "humanities":     "#37474f", "interdisciplinary": "#455a64",
+        }
+
+        rows = ""
+        for i, r in enumerate(rankings, 1):
+            eng_pct = max(1, min(100, round(r["final_score"] / top_raw * 100)))
+            llm_raw = r.get("llm_score") or 0
+            llm_pct = max(1, min(100, round(llm_raw / top_llm * 100))) if llm_raw else 0
+            llm_pct_str = f"{llm_pct}%" if llm_raw else "—"
+
+            dom     = r.get("domain","")
+            dc      = domain_colours.get(dom, "#455a64")
+            bg      = "#e8f5e9" if i<=3 else ("#fff8e1" if i<=7 else ("" if i<=15 else "#fafafa"))
+
+            knrao_s   = r.get("knrao_score",   r.get("method_scores",{}).get("knrao",0))
+            kp_s      = r.get("kp_score",      r.get("method_scores",{}).get("kp",0))
+            jai_s     = r.get("jaimini_score",  r.get("method_scores",{}).get("jaimini",0))
+            par_s     = r.get("parashara_score",r.get("method_scores",{}).get("parashara",0))
+
+            narrative = (r.get("astrological_reason","")
+                         or r.get("llm_astrological_reason","")
+                         or r.get("llm_narrative","")).strip()
+            narr_html = (f'<span style="color:#1a1a2e;font-size:.78rem;line-height:1.6">{esc(narrative)}</span>'
+                         if narrative else '<em style="color:#bbb;font-size:.75rem">No LLM narrative</em>')
+
+            eng_bar_w = eng_pct
+            eng_col   = "#1b5e20" if eng_pct>=80 else ("#f57f17" if eng_pct>=60 else "#b71c1c")
+            llm_bar_w = llm_pct
+            llm_col   = "#1565c0" if llm_pct>=80 else ("#7b1fa2" if llm_pct>=60 else "#546e7a")
+
+            rows += f"""<tr style="background:{bg}" data-eng="{eng_pct}" data-llm="{llm_pct}"
+                data-knrao="{knrao_s}" data-kp="{kp_s}" data-jai="{jai_s}" data-par="{par_s}">
+  <td style="text-align:center;font-weight:700;color:#1a237e;width:36px">{i}</td>
+  <td style="font-weight:600;min-width:180px">{esc(r["field_label"])}</td>
+  <td style="width:100px">
+    <span style="background:{dc};color:#fff;font-size:.7rem;padding:1px 7px;border-radius:10px">{esc(dom)}</span>
+  </td>
+  <td style="width:90px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="width:50px;height:8px;background:#eee;border-radius:4px;overflow:hidden">
+        <div style="width:{eng_bar_w}%;height:100%;background:{eng_col};border-radius:4px"></div>
+      </div>
+      <span style="font-weight:700;color:{eng_col};font-size:.82rem">{eng_pct}%</span>
+    </div>
+  </td>
+  <td style="width:90px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="width:50px;height:8px;background:#eee;border-radius:4px;overflow:hidden">
+        <div style="width:{llm_bar_w}%;height:100%;background:{llm_col};border-radius:4px"></div>
+      </div>
+      <span style="font-weight:700;color:{llm_col};font-size:.82rem">{llm_pct_str}</span>
+    </div>
+  </td>
+  <td style="font-family:Consolas;font-size:.78rem;text-align:center;color:#1a237e">{knrao_s:.0f}</td>
+  <td style="font-family:Consolas;font-size:.78rem;text-align:center;color:#1b5e20">{kp_s:.0f}</td>
+  <td style="font-family:Consolas;font-size:.78rem;text-align:center;color:#4a148c">{jai_s:.0f}</td>
+  <td style="font-family:Consolas;font-size:.78rem;text-align:center;color:#e65100">{par_s:.0f}</td>
+  <td style="min-width:280px;padding:6px 10px">{narr_html}</td>
+</tr>"""
+
+        return f"""
+<div style="overflow-x:auto">
+<table id="all-fields-tbl" style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.10)">
+  <thead>
+    <tr style="background:#1a237e;color:#fff">
+      <th onclick="sortTbl(0)" style="padding:9px 8px;cursor:pointer;white-space:nowrap;font-size:.73rem">#</th>
+      <th onclick="sortTbl(1)" style="padding:9px 10px;cursor:pointer;text-align:left;font-size:.73rem">Field ↕</th>
+      <th onclick="sortTbl(2)" style="padding:9px 10px;cursor:pointer;text-align:left;font-size:.73rem">Domain ↕</th>
+      <th onclick="sortTbl(3)" style="padding:9px 8px;cursor:pointer;text-align:left;font-size:.73rem">Eng% ↕</th>
+      <th onclick="sortTbl(4)" style="padding:9px 8px;cursor:pointer;text-align:left;font-size:.73rem">LLM% ↕</th>
+      <th onclick="sortTbl(5)" style="padding:9px 8px;cursor:pointer;font-size:.73rem" title="K.N. Rao score /100">KNRao ↕</th>
+      <th onclick="sortTbl(6)" style="padding:9px 8px;cursor:pointer;font-size:.73rem" title="KP score /100">KP ↕</th>
+      <th onclick="sortTbl(7)" style="padding:9px 8px;cursor:pointer;font-size:.73rem" title="Jaimini score /100">Jai ↕</th>
+      <th onclick="sortTbl(8)" style="padding:9px 8px;cursor:pointer;font-size:.73rem" title="Parashara score /100">Para ↕</th>
+      <th style="padding:9px 10px;text-align:left;font-size:.73rem;min-width:280px">LLM Narrative</th>
+    </tr>
+  </thead>
+  <tbody id="all-fields-tbody">{rows}</tbody>
+</table>
+</div>"""
+
     @classmethod
     def export_html_full_trace(cls, rankings: List[Dict], payload, active_lord: str,
                                 peak_lord: str, student_name: str,
@@ -572,12 +943,28 @@ class ExplainabilityEngine:
         parent_rows = ""
         for rank, rec in enumerate(rankings[:top_n], 1):
             exp = cls._parent_explanation(rank, rec, payload, active_lord, peak_lord)
+            llm_parent_p = cls._llm_parent_text(rec)
+            llm_narr_p = cls._llm_astro_text(rec)
+            narr_cell = ""
+            if llm_parent_p or llm_narr_p:
+                narr_cell = (
+                    f'<div style="margin-top:7px;display:grid;gap:8px">'
+                    f'<div style="padding:8px 12px;background:#f3e5f5;'
+                    f'border-left:3px solid #7b1fa2;border-radius:0 4px 4px 0;'
+                    f'font-size:.78rem;color:#4a148c;line-height:1.5">'
+                    f'<strong>Parent Tone:</strong> {esc(llm_parent_p or "Not available")}</div>'
+                    f'<div style="padding:8px 12px;background:#e3f2fd;'
+                    f'border-left:3px solid #1565c0;border-radius:0 4px 4px 0;'
+                    f'font-size:.78rem;color:#1a237e;line-height:1.5">'
+                    f'<strong>Astro Tone:</strong> {esc(llm_narr_p or "Not available")}</div>'
+                    f'</div>'
+                )
             parent_rows += (
                 f"<tr><td class='rank'>{rank}</td>"
                 f"<td class='field'>{esc(rec['field_label'])}</td>"
                 f"<td class='domain'>{esc(rec['domain'])}</td>"
                 f"<td class='score'>{rec['final_score']:.2f}</td>"
-                f"<td class='explanation'>{esc(exp)}</td></tr>"
+                f"<td class='explanation'>{esc(exp)}{narr_cell}</td></tr>"
             )
 
         # ── Astrologer tab rows ──
@@ -585,12 +972,36 @@ class ExplainabilityEngine:
         for rank, rec in enumerate(rankings[:top_n], 1):
             exp  = cls._astrologer_explanation(rank, rec, payload, active_lord, peak_lord)
             fmt  = "<br>".join(esc(l) for l in exp.split("\n"))
+            llm_parent_a = cls._llm_parent_text(rec)
+            llm_narr_a = cls._llm_astro_text(rec)
+            llm_score_a = rec.get("llm_score")
+            narr_cell_a = ""
+            if llm_parent_a or llm_narr_a:
+                badge = (f' &nbsp;<span style="background:#1565c0;color:#fff;font-size:.68rem;'
+                         f'padding:1px 6px;border-radius:8px">LLM {llm_score_a:.0f}</span>'
+                         if llm_score_a is not None else "")
+                narr_cell_a = (
+                    f'<div style="margin-top:8px;display:grid;gap:8px">'
+                    f'<div style="padding:9px 12px;background:#f3e5f5;'
+                    f'border-left:3px solid #7b1fa2;border-radius:0 5px 5px 0;'
+                    f'font-size:.79rem;color:#4a148c;line-height:1.6">'
+                    f'<span style="font-weight:700;color:#7b1fa2;font-size:.7rem;'
+                    f'letter-spacing:.06em">◌ PARENT TONE</span><br>'
+                    f'{esc(llm_parent_a or "Not available")}</div>'
+                    f'<div style="padding:9px 12px;background:#e8f4fd;'
+                    f'border-left:3px solid #1565c0;border-radius:0 5px 5px 0;'
+                    f'font-size:.79rem;color:#1a1a2e;line-height:1.6">'
+                    f'<span style="font-weight:700;color:#1565c0;font-size:.7rem;'
+                    f'letter-spacing:.06em">⊙ ASTRO TONE{badge}</span><br>'
+                    f'{esc(llm_narr_a or "Not available")}</div>'
+                    f'</div>'
+                )
             astro_rows += (
                 f"<tr><td class='rank'>{rank}</td>"
                 f"<td class='field'>{esc(rec['field_label'])}</td>"
                 f"<td class='domain'>{esc(rec['domain'])}</td>"
                 f"<td class='score'>{rec['final_score']:.2f}</td>"
-                f"<td class='explanation astro-text'>{fmt}</td></tr>"
+                f"<td class='explanation astro-text'>{fmt}{narr_cell_a}</td></tr>"
             )
 
         # ── Trace tab ──
@@ -610,6 +1021,9 @@ class ExplainabilityEngine:
         trace_blocks = ""
         for rank, rec in enumerate(rankings[:top_n], 1):
             trace_blocks += cls._field_trace_html_block(rank, rec, esc)
+
+        # ── All-fields scores table ────────────────────────────────────────────
+        all_fields_tbl  = cls._all_fields_table_html(rankings, esc)
 
         gen_date = datetime.now().strftime("%d %b %Y, %H:%M")
         name_str = esc(student_name)
@@ -748,6 +1162,7 @@ table.aff-table td{{padding:4px 10px;border-bottom:1px solid #eee}}
 <div class="tabs">
   <button class="tab-btn active" onclick="showTab('parent',this)">Parent Explanations</button>
   <button class="tab-btn" onclick="showTab('astro',this)">Astrological Explanations</button>
+  <button class="tab-btn" onclick="showTab('scores',this)">All Fields &amp; Scores</button>
   <button class="tab-btn" onclick="showTab('trace',this)">Full Calculation Trace</button>
 </div>
 
@@ -767,6 +1182,11 @@ table.aff-table td{{padding:4px 10px;border-bottom:1px solid #eee}}
   </table>
 </div>
 
+<div id="panel-scores" class="tab-panel">
+  <p class="panel-title">All {n_shown} fields — Engine %, LLM %, method scores, and per-field narrative</p>
+  {all_fields_tbl}
+</div>
+
 <div id="panel-trace" class="tab-panel">
   <p class="panel-title">Two-phase architecture: Phase 1 computed once for the chart, Phase 2 applied per branch.</p>
   {phase1_html}
@@ -783,6 +1203,21 @@ function showTab(name,btn){{
   document.querySelectorAll('.tab-btn').forEach(function(el){{el.classList.remove('active')}});
   document.getElementById('panel-'+name).classList.add('active');
   btn.classList.add('active');
+}}
+var _sortDir={{}};
+function sortTbl(col){{
+  var tb=document.getElementById("all-fields-tbody");
+  if(!tb)return;
+  var rows=Array.from(tb.rows);
+  var asc=!_sortDir[col]; _sortDir[col]=asc;
+  rows.sort(function(a,b){{
+    var av=a.cells[col]?a.cells[col].innerText.replace("%","").trim():"";
+    var bv=b.cells[col]?b.cells[col].innerText.replace("%","").trim():"";
+    var an=parseFloat(av),bn=parseFloat(bv);
+    if(!isNaN(an)&&!isNaN(bn))return asc?an-bn:bn-an;
+    return asc?av.localeCompare(bv):bv.localeCompare(av);
+  }});
+  rows.forEach(function(r){{tb.appendChild(r)}});
 }}
 </script>
 </body>
@@ -813,13 +1248,26 @@ function showTab(name,btn){{
         # Build parent rows
         parent_rows = ""
         for ex in explanations:
+            payload_block = ""
+            payload = ex.get("llm_payload", {}) or {}
+            if payload:
+                try:
+                    payload_text = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+                except Exception:
+                    payload_text = str(payload)
+                payload_block = (
+                    "<details style='margin-top:8px;border:1px solid #dfe3ec;border-radius:6px;background:#fbfcff'>"
+                    "<summary style='cursor:pointer;padding:8px 10px;font-size:.78rem;font-weight:700;color:#1a237e;list-style:none'>LLM JSON Payload</summary>"
+                    f"<div style='padding:10px 12px;border-top:1px solid #e7ebf5'><pre style='margin:0;font-family:Consolas,\"Courier New\",monospace;font-size:.76rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;background:#0b1020;color:#dbe4ff;padding:10px;border-radius:6px'>{_esc(payload_text)}</pre></div>"
+                    "</details>"
+                )
             parent_rows += (
                 "\n            <tr>"
                 f"\n              <td class='rank'>{ex['rank']}</td>"
                 f"\n              <td class='field'>{_esc(ex['field'])}</td>"
                 f"\n              <td class='domain'>{_esc(ex['domain'])}</td>"
                 f"\n              <td class='score'>{ex['final_score']:.2f}</td>"
-                f"\n              <td class='explanation'>{_esc(ex['parent'])}</td>"
+                f"\n              <td class='explanation'>{_esc(ex['parent'])}{payload_block}</td>"
                 "\n            </tr>"
             )
 
@@ -828,13 +1276,26 @@ function showTab(name,btn){{
         for ex in explanations:
             lines = ex['astrologer'].split('\n')
             formatted = '<br>'.join(_esc(l) for l in lines)
+            payload_block = ""
+            payload = ex.get("llm_payload", {}) or {}
+            if payload:
+                try:
+                    payload_text = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+                except Exception:
+                    payload_text = str(payload)
+                payload_block = (
+                    "<details style='margin-top:8px;border:1px solid #dfe3ec;border-radius:6px;background:#fbfcff'>"
+                    "<summary style='cursor:pointer;padding:8px 10px;font-size:.78rem;font-weight:700;color:#1a237e;list-style:none'>LLM JSON Payload</summary>"
+                    f"<div style='padding:10px 12px;border-top:1px solid #e7ebf5'><pre style='margin:0;font-family:Consolas,\"Courier New\",monospace;font-size:.76rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;background:#0b1020;color:#dbe4ff;padding:10px;border-radius:6px'>{_esc(payload_text)}</pre></div>"
+                    "</details>"
+                )
             astro_rows += (
                 "\n            <tr>"
                 f"\n              <td class='rank'>{ex['rank']}</td>"
                 f"\n              <td class='field'>{_esc(ex['field'])}</td>"
                 f"\n              <td class='domain'>{_esc(ex['domain'])}</td>"
                 f"\n              <td class='score'>{ex['final_score']:.2f}</td>"
-                f"\n              <td class='explanation astro-text'>{formatted}</td>"
+                f"\n              <td class='explanation astro-text'>{formatted}{payload_block}</td>"
                 "\n            </tr>"
             )
 
@@ -877,192 +1338,40 @@ function showTab(name,btn){{
 <body>
 <header>
   <h1>JyotishAI Career Field Explainability Report</h1>
-  <p>Student: <strong>{_esc(student_name)}</strong> &bull; Generated: {gen_date} &bull; Engine: {ENGINE_VERSION} &bull; Top {n_fields} fields shown</p>
+  <p>Student: <strong>{_esc(student_name)}</strong> &bull; Generated: {gen_date} &bull; Engine: {ENGINE_VERSION}</p>
 </header>
-<div class="tabs">
-  <button class="tab-btn active" onclick="showTab('parent', this)">Parent Explanations</button>
-  <button class="tab-btn" onclick="showTab('astro', this)">Astrological Explanations</button>
-</div>
-<div id="panel-parent" class="tab-panel active">
-  <p class="panel-title">Plain-language career guidance &mdash; for parents and students</p>
+<nav class="tabs">
+  <button class="tab-btn active" onclick="showTab('parent',this)">Parent View</button>
+  <button class="tab-btn"        onclick="showTab('astro',this)">Astrologer View</button>
+</nav>
+<div id="parent" class="tab-panel active">
+  <p class="panel-title">Career Field Recommendations — {n_fields} fields analysed</p>
   <table>
-    <thead>
-      <tr><th>#</th><th>Field</th><th>Domain</th><th>Score</th><th>Explanation</th></tr>
-    </thead>
+    <thead><tr>
+      <th>Rank</th><th>Field</th><th>Domain</th><th>Score</th><th>Explanation (Parent)</th>
+    </tr></thead>
     <tbody>{parent_rows}</tbody>
   </table>
 </div>
-<div id="panel-astro" class="tab-panel">
-  <p class="panel-title">Technical astrological analysis &mdash; for Jyotish practitioners</p>
+<div id="astro" class="tab-panel">
+  <p class="panel-title">Astrological Technical View</p>
   <table>
-    <thead>
-      <tr><th>#</th><th>Field</th><th>Domain</th><th>Score</th><th>Planetary Analysis</th></tr>
-    </thead>
+    <thead><tr>
+      <th>Rank</th><th>Field</th><th>Domain</th><th>Score</th><th>Explanation (Astrologer)</th>
+    </tr></thead>
     <tbody>{astro_rows}</tbody>
   </table>
 </div>
 <script>
-function showTab(name, btn) {{
-  document.querySelectorAll('.tab-panel').forEach(function(el) {{ el.classList.remove('active'); }});
-  document.querySelectorAll('.tab-btn').forEach(function(el) {{ el.classList.remove('active'); }});
-  document.getElementById('panel-' + name).classList.add('active');
+function showTab(id, btn) {{
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
   btn.classList.add('active');
 }}
 </script>
 </body>
 </html>"""
-
         with open(fp, "w", encoding="utf-8") as fh:
             fh.write(html)
-        logger.info(f"HTML explanations exported --> {fp}")
         return fp
-
-    @classmethod
-    def print_console(cls, explanations):
-        import textwrap
-        print("\n" + "="*120)
-        print("  CAREER FIELD EXPLAINABILITY REPORT")
-        print("="*120)
-        for ex in explanations:
-            print(f"\n{'--'*60}")
-            print(f"  Rank #{ex['rank']}  |  {ex['field'].upper()}  |  "
-                  f"Score {ex['final_score']:.2f}  |  Domain: {ex['domain'].upper()}")
-            print(f"{'--'*60}")
-            print("\n  -- FOR PARENTS --")
-            for line in textwrap.wrap(ex["parent"], width=110, initial_indent="  ", subsequent_indent="  "):
-                print(line)
-            print("\n  -- FOR ASTROLOGERS --")
-            for line in ex["astrologer"].split("\n"):
-                print(f"  {line}")
-            if ex.get("llm_astrological_reason"):
-                print("\n  -- LLM ASTROLOGICAL REASONING --")
-                for line in textwrap.wrap(ex["llm_astrological_reason"], width=110, initial_indent="  ", subsequent_indent="  "):
-                    print(line)
-        print("\n" + "="*120)
-        if explanations and explanations[0].get("llm_selection_rationale"):
-            print("\n  -- LLM FIELD SELECTION RATIONALE --")
-            for line in textwrap.wrap(explanations[0]["llm_selection_rationale"], width=110, initial_indent="  ", subsequent_indent="  "):
-                print(line)
-            print("="*120)
-
-"""
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        json_path     = sys.argv[1]
-        _fname_stem   = os.path.splitext(os.path.basename(json_path))[0]
-        student_name  = _fname_stem.split("_")[0].capitalize()
-        logger.info(f"Loading payload from: {json_path}  (student: {student_name})")
-        with open(json_path, "rb") as f:
-            raw = f.read().rstrip(b'\x00')
-        raw_payload    = json.loads(raw.decode("utf-8-sig"))
-        sample_payload = parse_json_payload(raw_payload, student_name=student_name)
-    else:
-        logger.info("No payload file provided -- using hardcoded sample (Ramsunder).")
-        student_name, target_year = "Ramsunder", "2027"
-        # FIX-13: corrected to match actual JSON payload (ramsunder_chart_details.json).
-        # Saturn in Leo = no dignity (enemy sign, NOT "OWN"). Mercury in Libra = neutral.
-        # Shadbala values from actual JSON virupas.
-        sample_payload = NatalPayloadV2(
-            name="Ramsunder", lagna_sign="Libra", lagna_lord="Venus",
-            h10_lord="Moon", atmakaraka="Saturn", amatyakaraka="Jupiter", karakamsha="Scorpio",
-            planet_strength={"Saturn":0.64,"Mars":0.68,"Mercury":0.82,"Rahu":0.50,"Jupiter":0.65,"Moon":0.39,"Sun":0.38,"Venus":0.46,"Ketu":0.50},
-            shadbala={"Saturn":383.41,"Mars":408.42,"Mercury":489.67,"Rahu":300.0,"Jupiter":387.51,"Moon":234.60,"Sun":229.45,"Venus":277.61,"Ketu":300.0},
-            planet_house={"Saturn":11,"Mars":1,"Mercury":12,"Rahu":3,"Ketu":9,"Jupiter":2,"Moon":8,"Sun":1,"Venus":2},
-            house_lords={"1":"Venus","2":"Mars","3":"Jupiter","4":"Saturn","5":"Saturn","6":"Jupiter","7":"Mars","8":"Venus","9":"Mercury","10":"Moon","11":"Sun","12":"Mercury"},
-            yogas_present=["BudhaAditya","GajaKesari"],
-            dasha_sequence=[{"lord":"Jupiter","start_age":14.8,"end_age":30.8}, {"lord":"Saturn","start_age":30.8,"end_age":49.8}],
-            current_age=17.6, sun_moon_degrees_apart=141.5,
-            sav_points_houses={"H1":31,"H2":26,"H3":28,"H4":23,"H5":26,"H6":28,"H7":26,"H8":25,"H9":28,"H10":28,"H11":39,"H12":29},
-            planet_dignities={"Mars":"OWN","Jupiter":"OWN"},
-            d24_planet_dignities={"Jupiter":"OWN","Venus":"OWN","Saturn":"OWN"},
-            d9_planet_dignities={"Mars":"OWN","Jupiter":"DEBILITATED","Saturn":"DEBILITATED"},
-            combust_planets=["Mercury","Mars"],
-            gender="F",
-        )
-
-    final_rankings = run_engine(sample_payload)
-    active_lord = _get_active_dasha_lord(sample_payload.dasha_sequence, float(sample_payload.current_age))
-
-    # Calculate peak lord for the Explainability Engine
-    _peak_lord, _ = _peak_career_dasha(
-        getattr(sample_payload, "dasha_sequence", []),
-        getattr(sample_payload, "shadbala", {}),
-        getattr(sample_payload, "planet_dignities", {}),
-        getattr(sample_payload, "house_lords", {}),
-        getattr(sample_payload, "atmakaraka", ""),
-        getattr(sample_payload, "amatyakaraka", ""),
-        current_age=float(getattr(sample_payload, "current_age", 0)),
-    )
-
-    # DESIGN-5: Age-stage stream guidance
-    _age_stage = classify_age_stage(float(getattr(sample_payload, "current_age", 0)), final_rankings)
-    if _age_stage.get("stage") in ("class_9_10", "class_11_12"):
-        print(f"\n{'='*60}")
-        print(f"  STAGE: {_age_stage['stage'].replace('_',' ').upper()}")
-        for s in _age_stage.get("top_streams_by_score", []):
-            print(f"  Stream: {s['stream']}  (weighted score: {s['weighted_score']})")
-        print(f"  Guidance: {_age_stage['guidance']}")
-        print(f"{'='*60}")
-
-    print(f"\n=== JyotishAI Career Rankings -- {sample_payload.name} (Top 20) ===")
-    print(f"Engine: {ENGINE_VERSION}  |  Active Dasha: {active_lord or 'N/A'}")
-    print(f"\n{'Rank':<5} {'Domain':<14} {'Score':>7}  {'Aff':>6}  {'GapB%':>6}  {'Pen%':>5}  {'Key Planets':<30}  Branch")
-    print("-" * 120)
-    for rank, rec in enumerate(final_rankings[:20], 1):
-        top  = ", ".join(f"{p}({v:.1f})" for p,v in rec["top_affinity_planets"].items())
-        sc   = rec["score_components"]
-        print(f"{rank:<5} [{rec['domain'].upper():<12}]  {rec['final_score']:>6.2f}"
-              f"  {sc['affinity_score']:>6.2f}  {sc['gap_boost_pct']:>+5.1f}%"
-              f"  {sc['gap_penalty_pct']:>4.1f}%  {top:<30}  {rec['field_label']}")
-
-    # EXPLAINABILITY ENGINE — HTML full trace (disabled — uncomment to enable)
-    # ExplainabilityEngine.export_html_full_trace(
-    #     final_rankings, sample_payload, active_lord, _peak_lord,
-    #     student_name, top_n=20
-    # )
-
-    # Recompute eff_strengths for explainability text export
-    _pb_main   = _paksha_bala(getattr(sample_payload, "sun_moon_degrees_apart", 0.0))
-    _war_main  = _detect_planetary_war(getattr(sample_payload, "planets_d1", {}))
-    _d9_main   = getattr(sample_payload, "divisional_charts", {}).get("D9_navamsha", {})
-    _varg_main = [p for p in _ALL_PLANETS
-                  if _is_vargottama(p, getattr(sample_payload,"planets_d1",{}).get(p,{}).get("sign",""), _d9_main)]
-    _eff_main, _ = _compute_eff_strengths(
-        getattr(sample_payload, "shadbala", {}),
-        getattr(sample_payload, "planet_dignities", {}),
-        getattr(sample_payload, "planet_retrograde", {}),
-        _war_main, _varg_main,
-        getattr(sample_payload, "nakshatra_data", {}),
-        set(getattr(sample_payload, "neecha_bhanga_planets", [])),
-        _pb_main,
-        getattr(sample_payload, "house_lords", {}),
-        getattr(sample_payload, "lagna_lord", ""),
-        getattr(sample_payload, "planet_house", {}),
-        set(getattr(sample_payload, "cazimi_planets", [])),
-        getattr(sample_payload, "planets_d1", {}),
-        set(getattr(sample_payload, "combust_planets", [])),
-        set(getattr(sample_payload, "detected_yogas", []))
-    )
-    _peak_lord, _ = _peak_career_dasha(
-        getattr(sample_payload, "dasha_sequence", []),
-        getattr(sample_payload, "shadbala", {}),
-        getattr(sample_payload, "planet_dignities", {}),
-        getattr(sample_payload, "house_lords", {}),
-        getattr(sample_payload, "atmakaraka", ""),
-        getattr(sample_payload, "amatyakaraka", ""),
-        current_age=float(getattr(sample_payload, "current_age", 0)),
-    )
-    explanations = ExplainabilityEngine.generate(
-        final_rankings, sample_payload, active_lord, _peak_lord, top_n=15
-    )
-    #ExplainabilityEngine.print_console(explanations)
-    ExplainabilityEngine.export_html(explanations, student_name)
-
-from .payload import NatalPayloadV2
-from .astro import (
-    _compute_eff_strengths, _detect_planetary_war, _is_vargottama,
-    _paksha_bala, _get_active_dasha_lord, _planet_abs_degree,
-)
-from .boosts import _peak_career_dasha, _ALL_PLANETS
-"""

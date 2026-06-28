@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "description": "Macro health scores per industry sector (0\u20131.5). Edit this file to update without redeploying.",
+    "threshold": 0.7,
+    "updated": "2026-06"
+  },
+  "sectors": {
+    "technology": 0.72,
+    "software": 0.72,
+    "it": 0.72,
+    "finance": 0.88,
+    "healthcare": 1.15,
+    "consulting": 0.85,
+    "manufacturing": 0.9,
+    "real_estate": 0.68,
+    "retail": 0.75,
+    "media": 0.65,
+    "education": 0.95,
+    "energy": 1.05,
+    "logistics": 0.82,
+    "government": 1.0,
+    "pharma": 1.1,
+    "_default": 0.9
+  }
+}
