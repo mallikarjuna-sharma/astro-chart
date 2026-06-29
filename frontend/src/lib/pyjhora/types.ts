@@ -19,7 +19,26 @@ export interface BirthInput {
 export interface UserInfo {
   display_name: string;
   email?: string | null;
+  phone?: string | null;
   location_query?: string | null;
+  notes?: string | null;
+  gender?: "M" | "F" | null;
+  education_system?: string | null;
+  student_preference?: StudentPreference | null;
+}
+
+export interface SavedChartSummary {
+  chart_id: string;
+  user_id: string;
+  user_info: UserInfo;
+  birth_local: string;
+  place_label: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedChartListResponse {
+  charts: SavedChartSummary[];
 }
 
 export interface StudentPreference {

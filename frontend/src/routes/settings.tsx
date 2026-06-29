@@ -25,7 +25,13 @@ function SettingsPage() {
   const [emailDigest, setEmailDigest] = useState(true);
 
   const save = () => {
-    persistUserProfile(displayName, email, useUserStore.getState().locationQuery);
+    persistUserProfile({
+      display_name: displayName,
+      email: email || null,
+      location_query: useUserStore.getState().locationQuery || null,
+      phone: useUserStore.getState().phone || null,
+      notes: useUserStore.getState().notes || null,
+    });
     toast.success("Profile saved");
   };
 

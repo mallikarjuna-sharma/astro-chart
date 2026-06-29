@@ -115,12 +115,15 @@ export function buildUserInfo(
   };
 }
 
-/** Persist profile to localStorage and mirror display name into chart session. */
-export function persistUserProfile(displayName: string, email: string, locationQuery: string): UserInfo {
+/** Persist a full UserInfo payload to localStorage-backed profile store. */
+export function persistUserProfile(userInfo: UserInfo, userId?: string): UserInfo {
   useUserStore.getState().setProfile({
-    displayName: displayName.trim(),
-    email: email.trim(),
-    locationQuery: locationQuery.trim(),
+    userId: userId ?? useUserStore.getState().userId,
+    displayName: userInfo.display_name.trim(),
+    email: userInfo.email?.trim() ?? "",
+    phone: userInfo.phone?.trim() ?? "",
+    locationQuery: userInfo.location_query?.trim() ?? "",
+    notes: userInfo.notes?.trim() ?? "",
   });
-  return buildUserInfo(displayName, email, locationQuery);
+  return userInfo;
 }

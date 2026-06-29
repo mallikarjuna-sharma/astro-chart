@@ -15,6 +15,7 @@ import type {
   PrashnaRequest,
   PrashnaResponse,
   SavedChartResponse,
+  SavedChartListResponse,
   ShadbalaResponse,
   StudentContext,
   TableResponse,
@@ -110,6 +111,9 @@ export const pyjhora = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_info: userInfo, birth_input: birthInput }),
     }),
+
+  listUserCharts: (userId: string) =>
+    request<SavedChartListResponse>(`/api/users/${encodeURIComponent(userId)}/charts`),
 
   getSavedChart: (userId: string, chartId: string) =>
     request<SavedChartResponse>(

@@ -4,3 +4,4 @@ export * from "./client";
 export * from "./normalize";
 export * from "./session";
 export * from "./pipeline";
+export * from "./user-profile";

@@ -6,15 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect } from "react";
+import { Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PlaceAutocomplete } from "@/components/charts/PlaceAutocomplete";
 import {
   buildBirthInput,
-  defaultStudentContext,
+  buildUserInfoFromForm,
+  fetchAndRestoreCharts,
+  formFieldsFromSaved,
   parseBirthDateTime,
   persistUserProfile,
   saveAndGenerateCharts,
+  studentContextFromUserInfo,
   ensureUserId,
   PYJHORA_LS_USER,
 } from "@/lib/pyjhora";
@@ -34,28 +39,44 @@ const AYANAMSA_OPTIONS = [
   { value: "TRUE_PUSHYA", label: "True Pushya" },
 ];
 
-function splitCsv(v: string): string[] {
-  return v
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
+type FormState = {
+  displayName: string;
+  email: string;
+  phone: string;
+  notes: string;
+  date: string;
+  time: string;
+  locationQuery: string;
+  placeLabel: string;
+  latitude: string;
+  longitude: string;
+  timezoneOffsetHours: string;
+  ayanamsa: string;
+  useTrueNodes: boolean;
+  includeOuterPlanets: boolean;
+  gender: "M" | "F";
+  educationSystem: string;
+  riskAppetite: "LOW" | "MODERATE" | "HIGH";
+  interestedIn: string;
+  excelAt: string;
+  financialConstraints: boolean;
+};
 
-function BirthDataPage() {
-  const nav = useNavigate();
-  const [saving, setSaving] = useState(false);
-  const [progress, setProgress] = useState("");
-  const storedDisplayName = useUserStore((s) => s.displayName);
-  const storedEmail = useUserStore((s) => s.email);
-  const storedLocationQuery = useUserStore((s) => s.locationQuery);
-  const setProfile = useUserStore((s) => s.setProfile);
-
-  const [form, setForm] = useState({
-    displayName: storedDisplayName || "Demo user",
-    email: storedEmail,
+function defaultForm(stored: {
+  displayName: string;
+  email: string;
+  phone: string;
+  locationQuery: string;
+  notes: string;
+}): FormState {
+  return {
+    displayName: stored.displayName || "Demo user",
+    email: stored.email,
+    phone: stored.phone,
+    notes: stored.notes,
     date: "2014-08-10",
     time: "13:00:00",
-    locationQuery: storedLocationQuery || "srirangam",
+    locationQuery: stored.locationQuery || "srirangam",
     placeLabel: "Srirangam, Tiruchirappalli, Tamil Nadu, India",
     latitude: "10.8627",
     longitude: "78.6928",
@@ -63,41 +84,79 @@ function BirthDataPage() {
     ayanamsa: "LAHIRI",
     useTrueNodes: false,
     includeOuterPlanets: false,
-    gender: "O" as "M" | "F" | "O",
+    gender: "M",
     educationSystem: "India_CBSE",
-    riskAppetite: "MODERATE" as "LOW" | "MODERATE" | "HIGH",
+    riskAppetite: "MODERATE",
     interestedIn: "",
     excelAt: "",
     financialConstraints: false,
-  });
+  };
+}
 
-  const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
+function BirthDataPage() {
+  const nav = useNavigate();
+  const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [progress, setProgress] = useState("");
+
+  const storedDisplayName = useUserStore((s) => s.displayName);
+  const storedEmail = useUserStore((s) => s.email);
+  const storedPhone = useUserStore((s) => s.phone);
+  const storedLocationQuery = useUserStore((s) => s.locationQuery);
+  const storedNotes = useUserStore((s) => s.notes);
+  const storedUserId = useUserStore((s) => s.userId);
+  const setProfile = useUserStore((s) => s.setProfile);
+  const setUserId = useUserStore((s) => s.setUserId);
+
+  const [userId, setUserIdInput] = useState(
+    () => storedUserId || (typeof window !== "undefined" ? localStorage.getItem(PYJHORA_LS_USER) : null) || "",
+  );
+
+  const [form, setForm] = useState<FormState>(() =>
+    defaultForm({
+      displayName: storedDisplayName,
+      email: storedEmail,
+      phone: storedPhone,
+      locationQuery: storedLocationQuery,
+      notes: storedNotes,
+    }),
+  );
+
+  const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
-    if (storedDisplayName || storedEmail || storedLocationQuery) {
+    if (storedDisplayName || storedEmail || storedPhone || storedLocationQuery || storedNotes) {
       setForm((f) => ({
         ...f,
         displayName: storedDisplayName || f.displayName,
         email: storedEmail || f.email,
+        phone: storedPhone || f.phone,
         locationQuery: storedLocationQuery || f.locationQuery,
+        notes: storedNotes || f.notes,
       }));
     }
-  }, [storedDisplayName, storedEmail, storedLocationQuery]);
+  }, [storedDisplayName, storedEmail, storedPhone, storedLocationQuery, storedNotes]);
 
-  const onDisplayNameChange = (displayName: string) => {
-    update("displayName", displayName);
-    setProfile({ displayName });
+  useEffect(() => {
+    if (storedUserId && !userId) {
+      setUserIdInput(storedUserId);
+    }
+  }, [storedUserId, userId]);
+
+  const syncProfileFields = (patch: Partial<FormState>) => {
+    setProfile({
+      displayName: patch.displayName,
+      email: patch.email,
+      phone: patch.phone,
+      locationQuery: patch.locationQuery,
+      notes: patch.notes,
+    });
   };
 
-  const onEmailChange = (email: string) => {
-    update("email", email);
-    setProfile({ email });
-  };
-
-  const onLocationQueryChange = (locationQuery: string) => {
-    update("locationQuery", locationQuery);
-    setProfile({ locationQuery });
+  const applyFormFromSaved = (fields: ReturnType<typeof formFieldsFromSaved>) => {
+    setForm((f) => ({ ...f, ...fields }));
+    syncProfileFields(fields);
   };
 
   const applyGeocode = (geo: GeocodeResponse) => {
@@ -106,6 +165,45 @@ function BirthDataPage() {
     update("placeLabel", geo.place_label);
     if (geo.timezone_offset_hours != null) {
       update("timezoneOffsetHours", String(geo.timezone_offset_hours));
+    }
+  };
+
+  const resolveUserId = () => {
+    const id = userId.trim() || ensureUserId(localStorage.getItem(PYJHORA_LS_USER) ?? undefined);
+    localStorage.setItem(PYJHORA_LS_USER, id);
+    setUserIdInput(id);
+    setUserId(id);
+    return id;
+  };
+
+  const handleFetch = async () => {
+    const id = userId.trim();
+    if (!id) {
+      toast.error("Enter your user ID to fetch saved details");
+      return;
+    }
+
+    setFetching(true);
+    setProgress("Fetching from database…");
+    try {
+      const { session, chartId } = await fetchAndRestoreCharts({
+        userId: id,
+        onProgress: setProgress,
+      });
+
+      applyFormFromSaved(formFieldsFromSaved(session.userInfo, session.birthInput));
+      setUserId(id);
+      setUserIdInput(id);
+
+      toast.success("Profile loaded", {
+        description: `Chart ${chartId} · ${session.userInfo.display_name}`,
+      });
+      nav({ to: "/charts" });
+    } catch (err: unknown) {
+      toast.error("Fetch failed", { description: String((err as Error)?.message ?? err) });
+    } finally {
+      setFetching(false);
+      setProgress("");
     }
   };
 
@@ -119,9 +217,7 @@ function BirthDataPage() {
     setSaving(true);
     setProgress("Starting…");
     try {
-      const userId = ensureUserId(localStorage.getItem(PYJHORA_LS_USER) ?? undefined);
-      localStorage.setItem(PYJHORA_LS_USER, userId);
-
+      const resolvedUserId = resolveUserId();
       const dt = parseBirthDateTime(form.date, form.time);
       const birthInput = buildBirthInput(dt, {
         place_label: form.placeLabel || "Birth place",
@@ -133,22 +229,12 @@ function BirthDataPage() {
         include_outer_planets: form.includeOuterPlanets,
       });
 
-      const userInfo = persistUserProfile(form.displayName, form.email, form.locationQuery);
-      const studentContext = {
-        ...defaultStudentContext(),
-        pob: form.placeLabel || null,
-        gender: form.gender,
-        education_system: form.educationSystem,
-        student_preference: {
-          interested_in: splitCsv(form.interestedIn),
-          already_excel_at: splitCsv(form.excelAt),
-          financial_constraints: form.financialConstraints,
-          risk_appetite: form.riskAppetite,
-        },
-      };
+      const userInfo = buildUserInfoFromForm(form);
+      persistUserProfile(userInfo, resolvedUserId);
+      const studentContext = studentContextFromUserInfo(userInfo, form.placeLabel || "");
 
       const { session, persisted } = await saveAndGenerateCharts({
-        userId,
+        userId: resolvedUserId,
         userInfo,
         birthInput,
         studentContext,
@@ -174,17 +260,66 @@ function BirthDataPage() {
     }
   };
 
+  const busy = saving || fetching;
+
   return (
     <div>
       <PageHeader
         title="Birth Data"
         subtitle="Enter birth details once — save and all charts load from the PyJHora backend automatically."
       />
+      <Card className="max-w-3xl mb-6">
+        <CardHeader>
+          <CardTitle>Your user ID</CardTitle>
+          <CardDescription>
+            Save this ID to retrieve your birth chart and profile from any device. Use Fetch to load your
+            latest saved chart from the database.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Label htmlFor="user-id">User ID</Label>
+              <Input
+                id="user-id"
+                value={userId}
+                onChange={(e) => {
+                  setUserIdInput(e.target.value);
+                  setUserId(e.target.value.trim());
+                }}
+                placeholder="e.g. user-82eafa62"
+                className="font-mono text-sm mt-1"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <Button type="button" variant="outline" disabled={busy} onClick={() => void handleFetch()}>
+                {fetching ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
+                Fetch
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => {
+                  const id = ensureUserId(undefined);
+                  setUserIdInput(id);
+                  setUserId(id);
+                  localStorage.setItem(PYJHORA_LS_USER, id);
+                  toast.success("New user ID generated", { description: id });
+                }}
+              >
+                New ID
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="max-w-3xl">
         <CardHeader>
           <CardTitle>Native details</CardTitle>
           <CardDescription>
-            Geocoding uses the same API as the legacy chart tool. No separate fetch/save buttons needed.
+            Profile fields are stored in <code className="text-xs">user_info</code> in DynamoDB when you save.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,18 +329,48 @@ function BirthDataPage() {
                 <Label>Display name</Label>
                 <Input
                   value={form.displayName}
-                  onChange={(e) => onDisplayNameChange(e.target.value)}
+                  onChange={(e) => {
+                    update("displayName", e.target.value);
+                    syncProfileFields({ displayName: e.target.value });
+                  }}
                   required
                   placeholder="As per records"
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <Label>Email (optional)</Label>
                 <Input
                   type="email"
                   value={form.email}
-                  onChange={(e) => onEmailChange(e.target.value)}
+                  onChange={(e) => {
+                    update("email", e.target.value);
+                    syncProfileFields({ email: e.target.value });
+                  }}
                   placeholder="you@example.com"
+                />
+              </div>
+              <div>
+                <Label>Phone (optional)</Label>
+                <Input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => {
+                    update("phone", e.target.value);
+                    syncProfileFields({ phone: e.target.value });
+                  }}
+                  placeholder="+91 …"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={form.notes}
+                  onChange={(e) => {
+                    update("notes", e.target.value);
+                    syncProfileFields({ notes: e.target.value });
+                  }}
+                  placeholder="Any context for the astrologer"
+                  rows={2}
                 />
               </div>
               <div>
@@ -226,7 +391,10 @@ function BirthDataPage() {
                 <Label>Location (city / town)</Label>
                 <PlaceAutocomplete
                   value={form.locationQuery}
-                  onChange={onLocationQueryChange}
+                  onChange={(v) => {
+                    update("locationQuery", v);
+                    syncProfileFields({ locationQuery: v });
+                  }}
                   onResolved={(geo) => applyGeocode(geo)}
                 />
               </div>
@@ -298,18 +466,17 @@ function BirthDataPage() {
             </div>
 
             <div className="border-t border-border pt-4">
-              <p className="text-sm font-medium mb-3">Student context (for consolidated export)</p>
+              <p className="text-sm font-medium mb-3">Student context (stored in user_info)</p>
               <div className="grid sm:grid-cols-3 gap-4">
                 <div>
                   <Label>Gender</Label>
-                  <Select value={form.gender} onValueChange={(v) => update("gender", v as "M" | "F" | "O")}>
+                  <Select value={form.gender} onValueChange={(v) => update("gender", v as "M" | "F")}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="M">M</SelectItem>
-                      <SelectItem value="F">F</SelectItem>
-                      <SelectItem value="O">O</SelectItem>
+                      <SelectItem value="M">Male</SelectItem>
+                      <SelectItem value="F">Female</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -363,10 +530,10 @@ function BirthDataPage() {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              <Button type="submit" disabled={saving} className="gradient-gold text-primary-foreground">
+              <Button type="submit" disabled={busy} className="gradient-gold text-primary-foreground">
                 {saving ? "Generating…" : "Save & generate charts"}
               </Button>
-              <Button type="button" variant="outline" onClick={() => nav({ to: "/prashna" })}>
+              <Button type="button" variant="outline" onClick={() => nav({ to: "/prashna" })} disabled={busy}>
                 Skip — use Prashna mode instead
               </Button>
               {progress && <span className="text-xs text-muted-foreground">{progress}</span>}

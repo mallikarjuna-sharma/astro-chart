@@ -1,7 +1,9 @@
 import type { BirthInput, ChartSession, StudentContext, UserInfo } from "./types";
-import { isDynamoUnavailableError, pyjhora } from "./client";
+import { isDynamoUnavailableError, pyjhora, PYJHORA_LS_USER } from "./client";
 import { normalizeTableResponse } from "./normalize";
 import { saveChartSession } from "./session";
+import { studentContextFromUserInfo } from "./user-profile";
+import { syncUserProfileFromUserInfo } from "@/stores/profile-sync";
 
 export interface GenerateChartsOptions {
   userId: string;
@@ -154,4 +156,76 @@ export async function saveAndGenerateCharts(opts: GenerateChartsOptions): Promis
 
   saveChartSession(session);
   return { session, persisted };
+}
+
+export interface FetchUserChartsOptions {
+  userId: string;
+  chartId?: string;
+  onProgress?: (step: string) => void;
+}
+
+export interface FetchUserChartsResult {
+  session: ChartSession;
+  chartId: string;
+}
+
+/**
+ * Load the latest (or specified) saved chart from DynamoDB and regenerate
+ * extended analysis into the local chart session — without creating a new DB row.
+ */
+export async function fetchAndRestoreCharts(
+  opts: FetchUserChartsOptions,
+): Promise<FetchUserChartsResult> {
+  const { userId, chartId: chartIdOpt, onProgress } = opts;
+  const trimmedId = userId.trim();
+  if (!trimmedId) {
+    throw new Error("User ID is required");
+  }
+
+  onProgress?.("Fetching saved charts…");
+  const list = await pyjhora.listUserCharts(trimmedId);
+  if (!list.charts.length) {
+    throw new Error(`No saved charts found for user ID "${trimmedId}"`);
+  }
+
+  const chartId = chartIdOpt ?? list.charts[0].chart_id;
+  onProgress?.(`Loading chart ${chartId}…`);
+  const saved = await pyjhora.getSavedChart(trimmedId, chartId);
+
+  const birthInput = saved.birth_input;
+  const userInfo = saved.user_info;
+  const studentContext = studentContextFromUserInfo(userInfo, birthInput.place_label ?? "");
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem(PYJHORA_LS_USER, trimmedId);
+  }
+  syncUserProfileFromUserInfo(trimmedId, userInfo);
+
+  const d1Table = normalizeTableResponse(saved.d1_table, saved.meta);
+  const divisionalBasic = saved.divisional_charts;
+  const extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress);
+
+  const session: ChartSession = {
+    userId: trimmedId,
+    chartId: saved.chart_id,
+    userInfo,
+    birthInput,
+    studentContext,
+    d1Table,
+    divisionalBasic,
+    divisionalExtended: extended.divisionalExtended,
+    panchanga: extended.panchanga,
+    ashtakavarga: extended.ashtakavarga,
+    shadbala: extended.shadbala,
+    jaimini: extended.jaimini,
+    vimshottari: extended.vimshottari,
+    kp: extended.kp,
+    consolidated: extended.consolidated,
+    educationAnalysis: extended.educationAnalysis,
+    educationAnalysisError: extended.educationAnalysisError,
+    savedAt: saved.updated_at,
+  };
+
+  saveChartSession(session);
+  return { session, chartId: saved.chart_id };
 }
