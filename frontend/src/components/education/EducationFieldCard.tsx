@@ -1,0 +1,392 @@
+import type { ReactNode } from "react";
+import type { EducationFieldResult } from "@/lib/pyjhora/types";
+import {
+  astroReason,
+  burnoutBadgeClass,
+  geoBadgeClass,
+  institutionExamples,
+  parentReason,
+  parseVerifiedFactors,
+  stageBoxClass,
+  wealthBadgeClass,
+} from "@/lib/education-report/card-helpers";
+import { domainColor, domainIcon } from "@/lib/education-report/utils";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  rank: number;
+  field: EducationFieldResult;
+}
+
+const CONF_BARS = [
+  { key: "knrao_pct" as const, label: "KN Rao (Classical)", color: "#4f46e5" },
+  { key: "kp_pct" as const, label: "KP (Micro-Timing)", color: "#7c3aed" },
+  { key: "jaimini_pct" as const, label: "Jaimini (Aptitude)", color: "#0891b2" },
+  { key: "parashara_pct" as const, label: "Parashara (Strength)", color: "#059669" },
+  { key: "sbc_pct" as const, label: "SBC", color: "#d97706" },
+];
+
+function InsightBadge({
+  className,
+  title,
+  children,
+}: {
+  className: string;
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-1 text-[10.5px] font-bold tracking-wide px-2.5 py-0.5 rounded-full border",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function EducationFieldCard({ rank, field }: Props) {
+  const color = domainColor(field.domain);
+  const icon = domainIcon(field.domain);
+  const cm = field.confidence_matrix ?? {};
+  const alignment = cm.alignment_confidence ?? 0;
+  const isCluster = field.chart_type?.is_cluster ?? false;
+  const confLabel = isCluster ? "Distributed Fit" : "Alignment Confidence";
+
+  const wp = field.wealth_potential ?? {};
+  const geo = field.geo_suitability ?? {};
+  const br = field.burnout_risk ?? {};
+  const mn = field.micro_niches ?? {};
+  const em = field.explainability_matrix ?? {};
+  const sbc = field.sbc_detail ?? {};
+  const ap = field.academic_path ?? {};
+  const it = field.institutional_tier ?? {};
+  const reg = field.registry ?? {};
+
+  const vf = parseVerifiedFactors(field.verified_factors);
+  const sbcScore = field.sbc_event_score ?? field.smi;
+  const instExamples = institutionExamples(it, reg);
+
+  const progMap: Record<string, string> = {
+    UG: reg.ug_program ?? "",
+    PG: reg.pg_program ?? "",
+    PhD: reg.phd_program ?? "",
+  };
+  const nicheMap: Record<string, string> = {
+    UG: reg.ug_niche ?? "",
+    PG: reg.pg_niche ?? "",
+    PhD: reg.phd_niche ?? "",
+  };
+
+  const wealthLevel = wp.wealth_potential ?? "";
+  const geoLabel =
+    geo.geo_suitability ??
+    ((geo.geo_foreign_pct ?? 0) >= 60
+      ? "International"
+      : (geo.geo_domestic_pct ?? 0) >= 60
+        ? "Domestic"
+        : "Hybrid");
+  const burnoutLevel = br.burnout_risk ?? "";
+
+  return (
+    <article className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <header className="flex flex-wrap justify-between items-start gap-3 mb-4">
+        <div className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
+          <span className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm shrink-0">
+            {rank}
+          </span>
+          {field.field_label}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="text-[0.85rem] font-semibold text-white px-2.5 py-1 rounded-md" style={{ background: color }}>
+            {icon} {field.domain.charAt(0).toUpperCase() + field.domain.slice(1)}
+          </span>
+          <span className="text-[0.85rem] font-semibold text-white px-2.5 py-1 rounded-md bg-slate-500">
+            {field.final_score.toFixed(1)} pts
+          </span>
+          {alignment > 0 ? (
+            <span className="text-[9.5px] font-semibold px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-900">
+              {alignment}% Aligned
+            </span>
+          ) : null}
+        </div>
+      </header>
+
+      <div className="space-y-3">
+        <section className="bg-emerald-50 border border-emerald-200 rounded-[10px] px-4 py-3.5">
+          <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider mb-2">
+            Why this field suits your child
+          </div>
+          <p className="text-[1.02rem] text-slate-800 leading-relaxed whitespace-pre-line">{parentReason(field)}</p>
+        </section>
+
+        <section className="bg-slate-100 border-l-4 border-slate-400 rounded-r-lg px-4 py-3.5">
+          <div className="text-[0.85rem] uppercase tracking-wide font-bold text-slate-500 mb-1">
+            Astrological Signature:
+          </div>
+          <p className="text-[0.95rem] font-mono text-slate-600">{astroReason(field)}</p>
+        </section>
+
+        {vf.positive.length || vf.negative.length ? (
+          <div className="flex flex-wrap gap-1 items-center">
+            <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mr-1">Boosts</span>
+            {vf.positive.map((p) => (
+              <span key={p} className="text-[9.5px] font-semibold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-300">
+                {p}
+              </span>
+            ))}
+            {vf.negative.map((p) => (
+              <span key={p} className="text-[9.5px] font-semibold px-2 py-0.5 rounded-lg bg-rose-50 text-rose-900 border border-rose-300">
+                {p}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-1.5">
+          {field.boost_pct ? (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-green-100 text-green-800 border border-green-300">
+              +{Math.round(field.boost_pct)}% gap boost
+            </span>
+          ) : null}
+          {field.timing_band ? (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-blue-50 text-blue-900 border border-blue-300">
+              ⏱ {field.timing_band}
+            </span>
+          ) : null}
+          {sbcScore != null ? (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-violet-50 text-violet-900 border border-violet-300">
+              SBC {Math.round(sbcScore)}
+            </span>
+          ) : null}
+          {field.pre_norm_score != null ? (
+            <span
+              title={field.norm_note}
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-slate-50 text-slate-600 border border-slate-300 cursor-help"
+            >
+              pre-norm {field.pre_norm_score.toFixed(1)}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 pt-2.5 border-t border-black/5">
+          {wealthLevel ? (
+            <InsightBadge className={wealthBadgeClass(wealthLevel)} title={wp.wealth_note}>
+              {wealthLevel === "High" ? "▲" : wealthLevel === "Low" ? "▼" : "●"} Wealth: {wealthLevel}
+            </InsightBadge>
+          ) : null}
+          {(geo.geo_foreign_pct ?? 0) > 0 || geoLabel ? (
+            <InsightBadge
+              className={geoBadgeClass(geoLabel)}
+              title={geo.geo_note}
+            >
+              ✈ {geoLabel.includes("International") ? "International" : geoLabel.includes("Domestic") ? "Domestic" : "Hybrid"}
+            </InsightBadge>
+          ) : null}
+          {burnoutLevel ? (
+            <InsightBadge className={burnoutBadgeClass(burnoutLevel)} title={br.burnout_note}>
+              ● Burnout: {burnoutLevel}
+            </InsightBadge>
+          ) : null}
+        </div>
+
+        {(wp.wealth_connections?.length || geo.geo_foreign_pct != null || br.stress_flags?.length) ? (
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
+            {wp.wealth_connections?.length || wp.wealth_note ? (
+              <div className="flex-1 min-w-[150px] bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Wealth Drivers</div>
+                {wp.wealth_connections?.length ? (
+                  <p className="text-[10.5px] text-slate-700 leading-snug">
+                    {wp.wealth_connections.slice(0, 4).join(" • ")}
+                  </p>
+                ) : null}
+                {wp.wealth_note ? <p className="text-[10px] text-slate-500 italic mt-1">{wp.wealth_note}</p> : null}
+              </div>
+            ) : null}
+            {(geo.geo_foreign_pct ?? 0) > 0 || (geo.geo_domestic_pct ?? 0) > 0 ? (
+              <div className="flex-1 min-w-[150px] bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Geography Split</div>
+                <div className="flex items-center gap-1.5 text-[9.5px] text-slate-600">
+                  <span className="min-w-[55px]">🌍 {geo.geo_foreign_pct ?? 0}% intl</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${geo.geo_foreign_pct ?? 0}%` }} />
+                  </div>
+                  <span>🏠 {geo.geo_domestic_pct ?? 0}%</span>
+                </div>
+                {geo.geo_note ? <p className="text-[10px] text-slate-500 italic mt-1">{geo.geo_note}</p> : null}
+              </div>
+            ) : null}
+            {br.stress_flags?.length || br.burnout_note ? (
+              <div className="flex-1 min-w-[150px] bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Stress Flags</div>
+                {br.stress_flags?.slice(0, 3).map((f) => (
+                  <p key={f} className="text-[10px] text-amber-900 leading-snug">
+                    ⚡ {f}
+                  </p>
+                ))}
+                {br.burnout_note ? (
+                  <p className="text-[10px] text-amber-800 italic mt-1">{br.burnout_note}</p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {field.top_karakas?.length ? (
+          <div className="flex flex-wrap gap-1.5">
+            {field.top_karakas.map((k) => (
+              <span
+                key={k}
+                className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-xl bg-blue-50 text-blue-900 border border-blue-200"
+              >
+                {k}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {em.structural_friction_flag ? (
+          <div className="flex gap-2 bg-orange-50 border-l-[3px] border-orange-500 rounded-r-lg px-3 py-2 text-[11px] text-orange-900">
+            <span className="shrink-0">⚠</span>
+            <span>
+              {em.structural_friction_flag}
+              {em.paradigm_spread ? (
+                <span className="text-amber-700 text-[9.5px] font-semibold ml-1">
+                  (paradigm spread {em.paradigm_spread.toFixed(1)})
+                </span>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
+
+        {mn.micro_niches?.length ? (
+          <div>
+            <div className="flex flex-wrap gap-1.5">
+              {mn.micro_niches.map((n) => (
+                <span
+                  key={n}
+                  className="text-[10.5px] font-semibold px-2.5 py-0.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300/50"
+                >
+                  {n}
+                </span>
+              ))}
+            </div>
+            {mn.niche_driver ? (
+              <p className="text-[10px] text-slate-400 mt-1">Sub-specialisation driver: {mn.niche_driver}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {Object.keys(cm).length > 0 ? (
+          <div className="bg-slate-50 rounded-lg p-3 border border-black/5">
+            <div className="text-xs font-bold text-slate-600 mb-1.5">
+              {confLabel}: <span className="text-blue-800 text-sm">{alignment}%</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {CONF_BARS.map(({ key, label, color: barColor }) => {
+                const pct = cm[key] ?? 0;
+                const sbcLabel =
+                  key === "sbc_pct" && field.sbc_exam_date
+                    ? `SBC (${field.sbc_exam_date})`
+                    : label;
+                return (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="text-[10.5px] font-semibold text-slate-500 w-[110px] shrink-0">
+                      {sbcLabel}
+                    </span>
+                    <div className="flex-1 h-[7px] bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }} />
+                    </div>
+                    <span className="text-[10.5px] font-bold text-slate-600 w-8 text-right shrink-0">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {sbc.career_nakshatras?.length || sbc.key_protections?.length || sbc.key_obstructions?.length ? (
+          <details className="rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 text-[10.5px]">
+            <summary className="font-bold text-violet-800 cursor-pointer list-none flex items-center gap-1.5">
+              SBC Timing Detail — {field.sbc_exam_date ?? "Boards"}
+            </summary>
+            {sbc.career_nakshatras?.length ? (
+              <p className="text-violet-900 font-semibold mt-1.5">
+                Career Nakshatras: {sbc.career_nakshatras.join(" • ")}
+              </p>
+            ) : null}
+            {sbc.key_protections?.map((p) => (
+              <p key={p} className="text-emerald-800 pl-1">
+                ✓ {p}
+              </p>
+            ))}
+            {sbc.key_obstructions?.map((o) => (
+              <p key={o} className="text-rose-800 pl-1">
+                ✗ {o}
+              </p>
+            ))}
+          </details>
+        ) : null}
+
+        {ap.path_stages?.length ? (
+          <div className="pt-3 border-t border-black/5">
+            <div className="text-[10.5px] font-bold text-amber-800 uppercase tracking-wider mb-2">
+              🎓 Academic Execution Path
+            </div>
+            <div className="flex flex-wrap items-center gap-0">
+              {ap.path_stages.map((stage, i) => {
+                const stg = stage.stage;
+                const rec = stage.recommended ?? false;
+                const progName = progMap[stg] || stage.label || stg;
+                const subNiche = nicheMap[stg];
+                return (
+                  <div key={stg} className="flex items-center">
+                    {i > 0 ? <span className="text-slate-400 px-1 text-sm">→</span> : null}
+                    <div
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg border text-center text-[11px]",
+                        stageBoxClass(stg, rec),
+                      )}
+                    >
+                      <div className="font-bold leading-snug">
+                        {progName}
+                        {rec ? " ✓" : ""}
+                      </div>
+                      {stage.strength_label ? (
+                        <small className="block text-[9px] font-normal opacity-75">{stage.strength_label}</small>
+                      ) : null}
+                      {subNiche ? (
+                        <div className="text-[9.5px] text-gray-500 italic mt-0.5 leading-snug">{subNiche}</div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {ap.depth_label ? <p className="text-[10px] text-slate-400 mt-1.5">{ap.depth_label}</p> : null}
+          </div>
+        ) : null}
+
+        {it.tier ? (
+          <div className="flex gap-2 items-start bg-orange-50 rounded-lg border border-orange-300 px-3 py-2.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-orange-900 bg-orange-200 rounded-md px-2 py-0.5 shrink-0 whitespace-nowrap">
+              {it.tier}
+            </span>
+            <div className="text-[11px] text-slate-700 leading-snug">
+              {it.archetype ? <strong className="text-slate-900">{it.archetype}</strong> : null}
+              {instExamples.length ? (
+                <>
+                  <br />
+                  <span className="text-slate-600">{instExamples.join(" • ")}</span>
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}

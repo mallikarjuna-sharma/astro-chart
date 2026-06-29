@@ -145,6 +145,8 @@ export interface EducationFieldRegistry {
   description?: string;
   specialization?: string;
   niche?: string;
+  track?: string;
+  label?: string;
   ug_program?: string;
   ug_niche?: string;
   pg_program?: string;
@@ -154,6 +156,85 @@ export interface EducationFieldRegistry {
   admission_exams?: string[];
   career_paths?: string[];
   institutions?: string[];
+  available_at?: Record<string, boolean | string[] | null>;
+}
+
+export interface WealthPotential {
+  wealth_potential?: string;
+  wealth_connections?: string[];
+  wealth_note?: string;
+}
+
+export interface GeoSuitability {
+  /** Label string e.g. "International / Relocation" (backend key name) */
+  geo_suitability?: string;
+  geo_foreign_pct?: number;
+  geo_domestic_pct?: number;
+  geo_note?: string;
+}
+
+export interface BurnoutRisk {
+  burnout_risk?: string;
+  stress_flags?: string[];
+  burnout_note?: string;
+}
+
+export interface MicroNiches {
+  micro_niches?: string[];
+  niche_driver?: string;
+  driver_planet?: string;
+}
+
+export interface ConfidenceMatrix {
+  knrao_pct?: number;
+  kp_pct?: number;
+  jaimini_pct?: number;
+  parashara_pct?: number;
+  sbc_pct?: number;
+  alignment_confidence?: number;
+}
+
+export interface AcademicPathStage {
+  stage: string;
+  label?: string;
+  strength_label?: string;
+  recommended?: boolean;
+}
+
+export interface AcademicPath {
+  depth_label?: string;
+  path_stages?: AcademicPathStage[];
+}
+
+export interface InstitutionalTier {
+  tier?: string;
+  tier_key?: string;
+  archetype?: string;
+  target_examples?: string[];
+}
+
+export interface ExplainabilityMatrix {
+  structural_friction_flag?: string;
+  paradigm_spread?: number;
+}
+
+export interface SbcDetail {
+  career_nakshatras?: string[];
+  key_protections?: string[];
+  key_obstructions?: string[];
+}
+
+export interface ChartType {
+  is_cluster?: boolean;
+  cluster_label?: string;
+  domain_clusters?: Record<string, string[]>;
+}
+
+export interface CorporateEntrepreneurial {
+  corporate_pct?: number;
+  entrep_pct?: number;
+  style_label?: string;
+  style_note?: string;
 }
 
 export interface EducationFieldResult {
@@ -163,12 +244,33 @@ export interface EducationFieldResult {
   final_score: number;
   llm_parent_reason?: string;
   llm_astrological_reason?: string;
+  parent_friendly_explanation?: string;
+  astrological_reason?: string;
   llm_parent_summary?: string;
   llm_selection_rationale?: string;
   llm_group?: string;
   llm_rank?: number;
   gap_breakdown?: Record<string, number>;
   top_affinity_planets?: Record<string, number>;
+  top_karakas?: string[];
+  verified_factors?: string;
+  boost_pct?: number;
+  pre_norm_score?: number;
+  norm_note?: string;
+  timing_band?: string;
+  sbc_event_score?: number;
+  smi?: number;
+  sbc_exam_date?: string;
+  sbc_detail?: SbcDetail;
+  wealth_potential?: WealthPotential;
+  geo_suitability?: GeoSuitability;
+  burnout_risk?: BurnoutRisk;
+  micro_niches?: MicroNiches;
+  confidence_matrix?: ConfidenceMatrix;
+  academic_path?: AcademicPath;
+  institutional_tier?: InstitutionalTier;
+  explainability_matrix?: ExplainabilityMatrix;
+  chart_type?: ChartType;
   score_components?: {
     blended?: number;
     gap_boost_pct?: number;

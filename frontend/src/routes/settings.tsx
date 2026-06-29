@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useUserStore } from "@/stores/user-store";
+import { persistUserProfile } from "@/lib/pyjhora/session";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — JyotishAI" }] }),
@@ -15,13 +17,17 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [name, setName] = useState("Lakshman KP");
-  const [email, setEmail] = useState("lakshman@example.com");
+  const displayName = useUserStore((s) => s.displayName);
+  const email = useUserStore((s) => s.email);
+  const setProfile = useUserStore((s) => s.setProfile);
   const [language, setLanguage] = useState("English");
   const [whatsapp, setWhatsapp] = useState(true);
   const [emailDigest, setEmailDigest] = useState(true);
 
-  const save = () => toast.success("Settings saved");
+  const save = () => {
+    persistUserProfile(displayName, email, useUserStore.getState().locationQuery);
+    toast.success("Profile saved");
+  };
 
   return (
     <div>
@@ -30,8 +36,8 @@ function SettingsPage() {
         <Card>
           <CardHeader><CardTitle>Profile</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div><Label>Name</Label><Input value={name} onChange={(e)=>setName(e.target.value)} /></div>
-            <div><Label>Email</Label><Input value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
+            <div><Label>Name</Label><Input value={displayName} onChange={(e) => setProfile({ displayName: e.target.value })} /></div>
+            <div><Label>Email</Label><Input value={email} onChange={(e) => setProfile({ email: e.target.value })} /></div>
             <Button onClick={save} className="gradient-gold text-primary-foreground">Save profile</Button>
           </CardContent>
         </Card>

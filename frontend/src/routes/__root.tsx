@@ -12,6 +12,18 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/AppShell";
+import { useChartSessionStore } from "@/stores/chart-session-store";
+import { syncUserProfileFromSession } from "@/stores/profile-sync";
+import { getStoredDisplayName } from "@/stores/user-store";
+
+function ProfileBootstrap() {
+  useEffect(() => {
+    if (getStoredDisplayName()) return;
+    const session = useChartSessionStore.getState().session;
+    if (session) syncUserProfileFromSession(session);
+  }, []);
+  return null;
+}
 
 function NotFoundComponent() {
   return (
@@ -123,6 +135,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ProfileBootstrap />
       <AppShell>
         <Outlet />
       </AppShell>

@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ChartLegend, SouthIndianChart } from "@/components/charts/SouthIndianChart";
 import { useChartSession } from "@/hooks/use-chart-session";
+import { useDisplayName } from "@/hooks/use-display-name";
 import type { DivisionalChart } from "@/lib/pyjhora/types";
 import { useMemo, useState } from "react";
 
@@ -30,6 +31,7 @@ function mergeCharts(session: ReturnType<typeof useChartSession>): DivisionalCha
 
 function ChartsPage() {
   const session = useChartSession();
+  const displayName = useDisplayName();
   const allCharts = useMemo(() => mergeCharts(session), [session]);
   const meta = session?.divisionalBasic?.meta ?? session?.divisionalExtended?.meta;
   const [active, setActive] = useState(String(allCharts[0]?.factor ?? "1"));
@@ -63,7 +65,7 @@ function ChartsPage() {
         title="Divisional Charts"
         subtitle={
           session.chartId
-            ? `Chart ${session.chartId} · ${session.userInfo.display_name} · ${allCharts.length} vargas`
+            ? `Chart ${session.chartId} · ${displayName} · ${allCharts.length} vargas`
             : `Generated via PyJHora · ${allCharts.length} vargas`
         }
       />

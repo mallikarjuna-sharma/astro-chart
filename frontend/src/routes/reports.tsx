@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { FileText, Download, Share2 } from "lucide-react";
 import { useChartSession } from "@/hooks/use-chart-session";
+import { useDisplayName } from "@/hooks/use-display-name";
 import { ConsolidatedExportPanel } from "@/components/charts/ConsolidatedExportPanel";
 
 export const Route = createFileRoute("/reports")({
@@ -23,6 +24,7 @@ const TEMPLATES = [
 
 function ReportsPage() {
   const session = useChartSession();
+  const displayName = useDisplayName();
   const [generated, setGenerated] = useState<{ template: string; url: string; at: string }[]>([
     { template: "professional", url: "/reports/sample-professional.pdf", at: "2026-06-05" },
   ]);
@@ -33,9 +35,7 @@ function ReportsPage() {
     toast.success("Report generated", { description: r.url });
   };
 
-  const chartLabel = session?.chartId
-    ? `Chart ${session.chartId} · ${session.userInfo.display_name}`
-    : undefined;
+  const chartLabel = session?.chartId ? `Chart ${session.chartId} · ${displayName}` : undefined;
 
   return (
     <div>

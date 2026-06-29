@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import { useDisplayName } from "@/hooks/use-display-name";
+import { initialsFromName } from "@/stores/user-store";
 
 interface NavItem { to: string; label: string; icon: any; group: string; }
 
@@ -36,6 +38,8 @@ const NAV: NavItem[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
+  const displayName = useDisplayName();
+  const initials = initialsFromName(displayName);
 
   return (
     <div className="min-h-screen flex">
@@ -92,7 +96,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="font-semibold">JyotishAI</span>
           </div>
           <div className="text-sm text-muted-foreground hidden md:block">
-            Welcome back — let the charts illuminate the path ahead.
+            {displayName !== "Student" ? (
+              <>Welcome back, <span className="font-medium text-foreground">{displayName}</span></>
+            ) : (
+              "Welcome back — let the charts illuminate the path ahead."
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -103,7 +111,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Sun className="w-4 h-4 hidden dark:block" />
               <Moon className="w-4 h-4 dark:hidden" />
             </button>
-            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium">LK</div>
+            <div
+              className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium"
+              title={displayName}
+            >
+              {initials}
+            </div>
           </div>
         </header>
         <main className="flex-1 px-5 md:px-8 py-6 md:py-8 max-w-[1400px] w-full mx-auto">

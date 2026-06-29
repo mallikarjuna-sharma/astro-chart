@@ -1,7 +1,10 @@
 import type { BirthInput, ChartSession, StudentContext, UserInfo } from "./types";
 import { normalizeTableResponse } from "./normalize";
+import { useChartSessionStore } from "@/stores/chart-session-store";
+import { syncUserProfileFromSession } from "@/stores/profile-sync";
+import { useUserStore } from "@/stores/user-store";
 
-export const CHART_SESSION_KEY = "jyotish:chartSession";
+/** @deprecated Use chart session store subscriptions; kept for legacy listeners. */
 export const CHART_SESSION_EVENT = "jyotish:chartSession";
 
 export function defaultStudentContext(): StudentContext {
@@ -20,36 +23,36 @@ export function defaultStudentContext(): StudentContext {
 
 export function loadChartSession(): ChartSession | null {
   if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(CHART_SESSION_KEY);
-    if (!raw) return null;
-    const session = JSON.parse(raw) as ChartSession;
-    if (session.d1Table) {
-      session.d1Table = normalizeTableResponse(session.d1Table);
-    }
-    return session;
-  } catch {
-    return null;
-  }
+  return useChartSessionStore.getState().session;
 }
 
 export function saveChartSession(session: ChartSession): void {
-  sessionStorage.setItem(CHART_SESSION_KEY, JSON.stringify(session));
+  const normalized = session.d1Table
+    ? { ...session, d1Table: normalizeTableResponse(session.d1Table) }
+    : session;
+  useChartSessionStore.getState().setSession(normalized);
+  syncUserProfileFromSession(normalized);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(CHART_SESSION_EVENT));
   }
 }
 
 export function patchChartSession(patch: Partial<ChartSession>): ChartSession | null {
-  const current = loadChartSession();
-  if (!current) return null;
-  const next = { ...current, ...patch };
-  saveChartSession(next);
+  const next = useChartSessionStore.getState().patchSession(patch);
+  if (next) {
+    syncUserProfileFromSession(next);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(CHART_SESSION_EVENT));
+    }
+  }
   return next;
 }
 
 export function clearChartSession(): void {
-  sessionStorage.removeItem(CHART_SESSION_KEY);
+  useChartSessionStore.getState().clearSession();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(CHART_SESSION_EVENT));
+  }
 }
 
 /** Split HTML date/time inputs into pyJHora birth fields. */
@@ -84,11 +87,7 @@ export function buildBirthInput(
   return { ...dt, ...place };
 }
 
-/** Compute current age (years, with decimals) from a consolidated chart JSON.
- *
- * Uses `student_context.dob` and `system_config.current_date` if present;
- * falls back to today's date when current_date is missing. Returns null
- * when the chart has no parseable date of birth. */
+/** Compute current age (years, with decimals) from a consolidated chart JSON. */
 export function ageFromConsolidated(consolidated: Record<string, unknown> | undefined | null): number | null {
   if (!consolidated) return null;
   const sc = (consolidated as { student_context?: { dob?: string } }).student_context;
@@ -110,8 +109,18 @@ export function buildUserInfo(
   locationQuery: string,
 ): UserInfo {
   return {
-    display_name: displayName,
+    display_name: displayName.trim(),
     email: email.trim() || null,
     location_query: locationQuery.trim() || null,
   };
+}
+
+/** Persist profile to localStorage and mirror display name into chart session. */
+export function persistUserProfile(displayName: string, email: string, locationQuery: string): UserInfo {
+  useUserStore.getState().setProfile({
+    displayName: displayName.trim(),
+    email: email.trim(),
+    locationQuery: locationQuery.trim(),
+  });
+  return buildUserInfo(displayName, email, locationQuery);
 }

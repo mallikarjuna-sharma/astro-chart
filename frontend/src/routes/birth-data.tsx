@@ -6,19 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { PlaceAutocomplete } from "@/components/charts/PlaceAutocomplete";
 import {
   buildBirthInput,
-  buildUserInfo,
   defaultStudentContext,
   parseBirthDateTime,
+  persistUserProfile,
   saveAndGenerateCharts,
   ensureUserId,
   PYJHORA_LS_USER,
 } from "@/lib/pyjhora";
 import type { GeocodeResponse } from "@/lib/pyjhora/types";
+import { useUserStore } from "@/stores/user-store";
 
 export const Route = createFileRoute("/birth-data")({
   head: () => ({ meta: [{ title: "Birth Data — JyotishAI" }] }),
@@ -44,13 +45,17 @@ function BirthDataPage() {
   const nav = useNavigate();
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState("");
+  const storedDisplayName = useUserStore((s) => s.displayName);
+  const storedEmail = useUserStore((s) => s.email);
+  const storedLocationQuery = useUserStore((s) => s.locationQuery);
+  const setProfile = useUserStore((s) => s.setProfile);
 
   const [form, setForm] = useState({
-    displayName: "Demo user",
-    email: "",
+    displayName: storedDisplayName || "Demo user",
+    email: storedEmail,
     date: "2014-08-10",
     time: "13:00:00",
-    locationQuery: "srirangam",
+    locationQuery: storedLocationQuery || "srirangam",
     placeLabel: "Srirangam, Tiruchirappalli, Tamil Nadu, India",
     latitude: "10.8627",
     longitude: "78.6928",
@@ -68,6 +73,32 @@ function BirthDataPage() {
 
   const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    if (storedDisplayName || storedEmail || storedLocationQuery) {
+      setForm((f) => ({
+        ...f,
+        displayName: storedDisplayName || f.displayName,
+        email: storedEmail || f.email,
+        locationQuery: storedLocationQuery || f.locationQuery,
+      }));
+    }
+  }, [storedDisplayName, storedEmail, storedLocationQuery]);
+
+  const onDisplayNameChange = (displayName: string) => {
+    update("displayName", displayName);
+    setProfile({ displayName });
+  };
+
+  const onEmailChange = (email: string) => {
+    update("email", email);
+    setProfile({ email });
+  };
+
+  const onLocationQueryChange = (locationQuery: string) => {
+    update("locationQuery", locationQuery);
+    setProfile({ locationQuery });
+  };
 
   const applyGeocode = (geo: GeocodeResponse) => {
     update("latitude", String(geo.latitude));
@@ -102,7 +133,7 @@ function BirthDataPage() {
         include_outer_planets: form.includeOuterPlanets,
       });
 
-      const userInfo = buildUserInfo(form.displayName, form.email, form.locationQuery);
+      const userInfo = persistUserProfile(form.displayName, form.email, form.locationQuery);
       const studentContext = {
         ...defaultStudentContext(),
         pob: form.placeLabel || null,
@@ -163,7 +194,7 @@ function BirthDataPage() {
                 <Label>Display name</Label>
                 <Input
                   value={form.displayName}
-                  onChange={(e) => update("displayName", e.target.value)}
+                  onChange={(e) => onDisplayNameChange(e.target.value)}
                   required
                   placeholder="As per records"
                 />
@@ -173,7 +204,7 @@ function BirthDataPage() {
                 <Input
                   type="email"
                   value={form.email}
-                  onChange={(e) => update("email", e.target.value)}
+                  onChange={(e) => onEmailChange(e.target.value)}
                   placeholder="you@example.com"
                 />
               </div>
@@ -195,7 +226,7 @@ function BirthDataPage() {
                 <Label>Location (city / town)</Label>
                 <PlaceAutocomplete
                   value={form.locationQuery}
-                  onChange={(v) => update("locationQuery", v)}
+                  onChange={onLocationQueryChange}
                   onResolved={(geo) => applyGeocode(geo)}
                 />
               </div>
