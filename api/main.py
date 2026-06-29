@@ -34,8 +34,17 @@ from api.geocode import GeocodeError, geocode_location, geocode_place_id, places
 from api.jhora_bootstrap import init_jhora
 from api.education_analysis import EducationAnalysisError, run_education_analysis
 from api.career_timeline import CareerTimelineError, run_career_timeline
+from api.prashna import PrashnaError, list_prashna_categories, run_prashna_analysis, run_prashna_batch
 from api.schemas.education_analysis import EducationAnalysisRequest, EducationAnalysisResponse
 from api.schemas.career_timeline import CareerTimelineRequest, CareerTimelineResponse
+from api.schemas.prashna import (
+    PrashnaBatchRequest,
+    PrashnaBatchResponse,
+    PrashnaCategoriesResponse,
+    PrashnaCategoryMeta,
+    PrashnaRequest,
+    PrashnaResponse,
+)
 from api.schemas.chart import (
     BirthChartBody,
     BirthRequest,
@@ -830,6 +839,51 @@ async def career_timeline_endpoint(body: CareerTimelineRequest) -> CareerTimelin
             status_code=502, detail=f"Career timeline analysis failed: {exc}"
         ) from exc
     return CareerTimelineResponse.model_validate(result)
+
+
+@app.get("/api/prashna/categories", response_model=PrashnaCategoriesResponse)
+def prashna_categories_endpoint() -> PrashnaCategoriesResponse:
+    """Return Prashna category metadata for UI dropdowns (label, primary house, example)."""
+    return PrashnaCategoriesResponse(
+        categories=[PrashnaCategoryMeta.model_validate(c) for c in list_prashna_categories()]
+    )
+
+
+@app.post("/api/prashna", response_model=PrashnaResponse)
+def prashna_endpoint(body: PrashnaRequest) -> PrashnaResponse:
+    """Cast a Prashna (horary) chart at the moment of the question and analyse it.
+
+    No birth data required. Returns verdict, KP sub-lord analysis, significators,
+    timing estimate, chart snapshot, and optional natal overlay notes when natal
+    fields are supplied on the request.
+    """
+    try:
+        return run_prashna_analysis(body)
+    except PrashnaError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Prashna analysis failed: {exc}") from exc
+
+
+@app.post("/api/prashna/batch", response_model=PrashnaBatchResponse)
+def prashna_batch_endpoint(body: PrashnaBatchRequest) -> PrashnaBatchResponse:
+    """Run Prashna analysis for multiple categories at the same moment (single chart cast)."""
+    try:
+        results = run_prashna_batch(
+            question=body.question,
+            categories=body.categories,
+            moment=body.moment,
+            city=body.city,
+            lat=body.lat,
+            lon=body.lon,
+        )
+    except PrashnaError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Batch Prashna analysis failed: {exc}") from exc
+    return PrashnaBatchResponse(
+        results={key: resp.model_dump() for key, resp in results.items()}
+    )
 
 
 @app.post("/api/consolidated")

@@ -11,6 +11,9 @@ import type {
   KpResponse,
   PanchangaResponse,
   PlaceSuggestion,
+  PrashnaCategoriesResponse,
+  PrashnaRequest,
+  PrashnaResponse,
   SavedChartResponse,
   ShadbalaResponse,
   StudentContext,
@@ -181,5 +184,15 @@ export const pyjhora = {
         career_context: opts?.careerContext,
         enrich_llm: opts?.enrichLlm ?? true,
       }),
+    }),
+
+  prashnaCategories: () =>
+    request<PrashnaCategoriesResponse>("/api/prashna/categories"),
+
+  prashna: (body: PrashnaRequest) =>
+    request<PrashnaResponse>("/api/prashna", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }),
 };

@@ -378,3 +378,77 @@ export interface ChartSession {
   careerContextInput?: CareerContextInput;
   savedAt?: string;
 }
+
+/** POST /api/prashna — horary chart at question moment. */
+export interface PrashnaRequest {
+  question: string;
+  category: string;
+  moment?: string;
+  city?: string;
+  lat?: number;
+  lon?: number;
+  natal_lagna_sign?: string;
+  natal_moon_sign?: string;
+  natal_lagna_lord?: string;
+  natal_atmakaraka?: string;
+  natal_yogas?: string[];
+}
+
+export interface PrashnaFactor {
+  factor: string;
+  weight: string;
+  detail: string;
+}
+
+export interface PrashnaPlanetSnapshot {
+  sign?: string;
+  degree?: number;
+  house?: number;
+  nakshatra?: string;
+  sub_lord?: string;
+  retrograde?: boolean;
+}
+
+export interface PrashnaResponse {
+  question: string;
+  category: string;
+  category_label: string;
+  moment: string;
+  city: string;
+  verdict: "YES" | "NO" | "CONDITIONAL" | "UNCERTAIN" | string;
+  confidence: number;
+  confidence_band: string;
+  kp_sublord_planet: string;
+  kp_sublord_verdict: string;
+  kp_signifies_affirm: boolean;
+  moon_status: string;
+  moon_void: boolean;
+  timing_estimate: string;
+  timing_unit: string;
+  affirm_significators: string[];
+  deny_significators: string[];
+  lagna_sign: string;
+  lagna_lord: string;
+  moon_sign: string;
+  moon_nakshatra: string;
+  factors: PrashnaFactor[];
+  classical_rules: string[];
+  remedies: string[];
+  planets: Record<string, PrashnaPlanetSnapshot>;
+  house_lords: Record<string, string>;
+  kp_cusp_sublords: Record<string, string>;
+  natal_context_applied: boolean;
+  natal_notes: string[];
+  html_path?: string | null;
+}
+
+export interface PrashnaCategoryMeta {
+  key: string;
+  label: string;
+  primary_house: number;
+  example: string;
+}
+
+export interface PrashnaCategoriesResponse {
+  categories: PrashnaCategoryMeta[];
+}
