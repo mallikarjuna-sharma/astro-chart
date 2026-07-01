@@ -1084,6 +1084,7 @@ def _run_normalization_stage(payload_data: NatalPayloadV2) -> tuple:
 
 
         gap_boost, gap_detail = 0.0, {}
+        gap_penalty = 0.0
         _PCC = 0.12
         _top_karaka = max(hard_affinity.items(), key=lambda x: x[1])[0] if hard_affinity else ""
 
@@ -1460,7 +1461,6 @@ def _run_normalization_stage(payload_data: NatalPayloadV2) -> tuple:
         if ak == "Venus" and lagna_sign == "Leo" and domain == "engineering":
             gap_boost -= 0.08; gap_detail["leo_venus_ak_engineering_guard"] = -0.08
 
-        gap_penalty = 0.0
         p_ak_comb = min(_ak_combustion_penalty(aff, ak, combust, digs, planets_d1=planets_d1), 0.15)
         gap_penalty += p_ak_comb; gap_detail["ak_combustion_penalty"] = round(-p_ak_comb, 3)
         p_dust = _dusthana_lord_penalty(aff, lagna_sign, house_lords, lagna_lord, label, eff_strengths)
