@@ -46,7 +46,6 @@ type FormState = {
   notes: string;
   date: string;
   time: string;
-  locationQuery: string;
   placeLabel: string;
   latitude: string;
   longitude: string;
@@ -76,8 +75,8 @@ function defaultForm(stored: {
     notes: stored.notes,
     date: "2014-08-10",
     time: "13:00:00",
-    locationQuery: stored.locationQuery || "srirangam",
-    placeLabel: "Srirangam, Tiruchirappalli, Tamil Nadu, India",
+    placeLabel:
+      stored.locationQuery || "Srirangam, Tiruchirappalli, Tamil Nadu, India",
     latitude: "10.8627",
     longitude: "78.6928",
     timezoneOffsetHours: "5.5",
@@ -132,8 +131,8 @@ function BirthDataPage() {
         displayName: storedDisplayName || f.displayName,
         email: storedEmail || f.email,
         phone: storedPhone || f.phone,
-        locationQuery: storedLocationQuery || f.locationQuery,
         notes: storedNotes || f.notes,
+        placeLabel: storedLocationQuery || f.placeLabel,
       }));
     }
   }, [storedDisplayName, storedEmail, storedPhone, storedLocationQuery, storedNotes]);
@@ -159,13 +158,19 @@ function BirthDataPage() {
     syncProfileFields(fields);
   };
 
-  const applyGeocode = (geo: GeocodeResponse) => {
-    update("latitude", String(geo.latitude));
-    update("longitude", String(geo.longitude));
-    update("placeLabel", geo.place_label);
-    if (geo.timezone_offset_hours != null) {
-      update("timezoneOffsetHours", String(geo.timezone_offset_hours));
-    }
+  const applyGeocode = (geo: GeocodeResponse, description?: string) => {
+    const label = description || geo.place_label;
+    setForm((f) => ({
+      ...f,
+      placeLabel: label,
+      latitude: String(geo.latitude),
+      longitude: String(geo.longitude),
+      timezoneOffsetHours:
+        geo.timezone_offset_hours != null
+          ? String(geo.timezone_offset_hours)
+          : f.timezoneOffsetHours,
+    }));
+    syncProfileFields({ locationQuery: label });
   };
 
   const resolveUserId = () => {
@@ -231,6 +236,7 @@ function BirthDataPage() {
 
       const userInfo = buildUserInfoFromForm(form);
       persistUserProfile(userInfo, resolvedUserId);
+      syncProfileFields({ locationQuery: form.placeLabel });
       const studentContext = studentContextFromUserInfo(userInfo, form.placeLabel || "");
 
       const { session, persisted } = await saveAndGenerateCharts({
@@ -388,19 +394,13 @@ function BirthDataPage() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <Label>Location (city / town)</Label>
+                <Label>Birth place</Label>
                 <PlaceAutocomplete
-                  value={form.locationQuery}
-                  onChange={(v) => {
-                    update("locationQuery", v);
-                    syncProfileFields({ locationQuery: v });
-                  }}
-                  onResolved={(geo) => applyGeocode(geo)}
+                  value={form.placeLabel}
+                  onChange={(v) => update("placeLabel", v)}
+                  onResolved={(geo, label) => applyGeocode(geo, label)}
+                  placeholder="Search city or town — pick a suggestion to fill coordinates"
                 />
-              </div>
-              <div className="sm:col-span-2">
-                <Label>Place label</Label>
-                <Input value={form.placeLabel} onChange={(e) => update("placeLabel", e.target.value)} />
               </div>
               <div>
                 <Label>Latitude</Label>

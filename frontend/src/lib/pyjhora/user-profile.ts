@@ -5,7 +5,7 @@ export interface BirthDataFormSlice {
   displayName: string;
   email: string;
   phone: string;
-  locationQuery: string;
+  placeLabel: string;
   notes: string;
   gender: "M" | "F";
   educationSystem: string;
@@ -40,7 +40,7 @@ export function buildUserInfoFromForm(form: BirthDataFormSlice): UserInfo {
     display_name: form.displayName.trim(),
     email: form.email.trim() || null,
     phone: form.phone.trim() || null,
-    location_query: form.locationQuery.trim() || null,
+    location_query: form.placeLabel.trim() || null,
     notes: form.notes.trim() || null,
     gender: form.gender,
     education_system: form.educationSystem.trim() || null,
@@ -83,7 +83,6 @@ export function formFieldsFromSaved(
 ): BirthDataFormSlice & {
   date: string;
   time: string;
-  placeLabel: string;
   latitude: string;
   longitude: string;
   timezoneOffsetHours: string;
@@ -98,7 +97,7 @@ export function formFieldsFromSaved(
     displayName: userInfo.display_name ?? "",
     email: userInfo.email ?? "",
     phone: userInfo.phone ?? "",
-    locationQuery: userInfo.location_query ?? "",
+    placeLabel: birthInput.place_label || userInfo.location_query || "",
     notes: userInfo.notes ?? "",
     gender: userInfo.gender === "F" ? "F" : "M",
     educationSystem: userInfo.education_system ?? "India_CBSE",
@@ -108,7 +107,6 @@ export function formFieldsFromSaved(
     financialConstraints: pref?.financial_constraints ?? false,
     date,
     time,
-    placeLabel: birthInput.place_label ?? "",
     latitude: String(birthInput.latitude),
     longitude: String(birthInput.longitude),
     timezoneOffsetHours: String(birthInput.timezone_offset_hours),
