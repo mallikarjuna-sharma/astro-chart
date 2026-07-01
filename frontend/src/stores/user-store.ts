@@ -39,9 +39,12 @@ export const useUserStore = create<UserState>()(
         syncDisplayNameToChartSession(displayName);
       },
       setProfile: (profile) => {
-        set((state) => ({ ...state, ...profile }));
-        if (profile.displayName !== undefined) {
-          syncDisplayNameToChartSession(profile.displayName);
+        const next = Object.fromEntries(
+          Object.entries(profile).filter(([, value]) => value !== undefined),
+        ) as Partial<UserProfile>;
+        set((state) => ({ ...state, ...next }));
+        if (next.displayName !== undefined) {
+          syncDisplayNameToChartSession(next.displayName);
         }
       },
       resetProfile: () => set({ ...EMPTY_PROFILE }),
@@ -63,7 +66,7 @@ export const useUserStore = create<UserState>()(
 
 /** Non-React access to the persisted display name. */
 export function getStoredDisplayName(): string {
-  return useUserStore.getState().displayName.trim();
+  return (useUserStore.getState().displayName ?? "").trim();
 }
 
 export function initialsFromName(name: string): string {

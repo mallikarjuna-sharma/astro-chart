@@ -24,6 +24,7 @@ import {
   PYJHORA_LS_USER,
 } from "@/lib/pyjhora";
 import type { GeocodeResponse } from "@/lib/pyjhora/types";
+import type { UserProfile } from "@/stores/user-store";
 import { useUserStore } from "@/stores/user-store";
 
 export const Route = createFileRoute("/birth-data")({
@@ -143,19 +144,19 @@ function BirthDataPage() {
     }
   }, [storedUserId, userId]);
 
-  const syncProfileFields = (patch: Partial<FormState>) => {
-    setProfile({
-      displayName: patch.displayName,
-      email: patch.email,
-      phone: patch.phone,
-      locationQuery: patch.locationQuery,
-      notes: patch.notes,
-    });
+  const syncProfileFields = (patch: Partial<UserProfile>) => {
+    setProfile(patch);
   };
 
   const applyFormFromSaved = (fields: ReturnType<typeof formFieldsFromSaved>) => {
     setForm((f) => ({ ...f, ...fields }));
-    syncProfileFields(fields);
+    syncProfileFields({
+      displayName: fields.displayName,
+      email: fields.email,
+      phone: fields.phone,
+      locationQuery: fields.placeLabel,
+      notes: fields.notes,
+    });
   };
 
   const applyGeocode = (geo: GeocodeResponse, description?: string) => {
