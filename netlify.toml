@@ -1,0 +1,16 @@
+# Monorepo: frontend is the TanStack Start app (SSR via @netlify/vite-plugin-tanstack-start).
+# The plugin writes .netlify/v1/functions/server.mjs with path "/*" so direct URLs
+# like /birth-data are server-rendered (no SPA index.html fallback needed).
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist/client"
+
+[build.environment]
+  NODE_VERSION = "22.21.1"
+  VITE_PYJHORA_API_BASE = "https://pyjhora-api-8ni1.onrender.com"
+
+[dev]
+  command = "npm run dev"
+  port = 8080
