@@ -11,12 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as StudentRouteImport } from './routes/student'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PrashnaRouteImport } from './routes/prashna'
 import { Route as ParashariRouteImport } from './routes/parashari'
 import { Route as PanchangaRouteImport } from './routes/panchanga'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as KpRouteImport } from './routes/kp'
 import { Route as KnRaoRouteImport } from './routes/kn-rao'
 import { Route as EducationAnalysisRouteImport } from './routes/education-analysis'
@@ -35,6 +37,11 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
 const StudentRoute = StudentRouteImport.update({
   id: '/student',
   path: '/student',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -65,6 +72,11 @@ const PanchangaRoute = PanchangaRouteImport.update({
 const MarketplaceRoute = MarketplaceRouteImport.update({
   id: '/marketplace',
   path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KpRoute = KpRouteImport.update({
@@ -123,12 +135,14 @@ export interface FileRoutesByFullPath {
   '/education-analysis': typeof EducationAnalysisRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
+  '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/panchanga': typeof PanchangaRoute
   '/parashari': typeof ParashariRoute
   '/prashna': typeof PrashnaRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/student': typeof StudentRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -142,12 +156,14 @@ export interface FileRoutesByTo {
   '/education-analysis': typeof EducationAnalysisRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
+  '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/panchanga': typeof PanchangaRoute
   '/parashari': typeof ParashariRoute
   '/prashna': typeof PrashnaRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/student': typeof StudentRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -162,12 +178,14 @@ export interface FileRoutesById {
   '/education-analysis': typeof EducationAnalysisRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
+  '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/panchanga': typeof PanchangaRoute
   '/parashari': typeof ParashariRoute
   '/prashna': typeof PrashnaRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/student': typeof StudentRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -183,12 +201,14 @@ export interface FileRouteTypes {
     | '/education-analysis'
     | '/kn-rao'
     | '/kp'
+    | '/login'
     | '/marketplace'
     | '/panchanga'
     | '/parashari'
     | '/prashna'
     | '/reports'
     | '/settings'
+    | '/signup'
     | '/student'
     | '/workspace'
   fileRoutesByTo: FileRoutesByTo
@@ -202,12 +222,14 @@ export interface FileRouteTypes {
     | '/education-analysis'
     | '/kn-rao'
     | '/kp'
+    | '/login'
     | '/marketplace'
     | '/panchanga'
     | '/parashari'
     | '/prashna'
     | '/reports'
     | '/settings'
+    | '/signup'
     | '/student'
     | '/workspace'
   id:
@@ -221,12 +243,14 @@ export interface FileRouteTypes {
     | '/education-analysis'
     | '/kn-rao'
     | '/kp'
+    | '/login'
     | '/marketplace'
     | '/panchanga'
     | '/parashari'
     | '/prashna'
     | '/reports'
     | '/settings'
+    | '/signup'
     | '/student'
     | '/workspace'
   fileRoutesById: FileRoutesById
@@ -241,12 +265,14 @@ export interface RootRouteChildren {
   EducationAnalysisRoute: typeof EducationAnalysisRoute
   KnRaoRoute: typeof KnRaoRoute
   KpRoute: typeof KpRoute
+  LoginRoute: typeof LoginRoute
   MarketplaceRoute: typeof MarketplaceRoute
   PanchangaRoute: typeof PanchangaRoute
   ParashariRoute: typeof ParashariRoute
   PrashnaRoute: typeof PrashnaRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
   StudentRoute: typeof StudentRoute
   WorkspaceRoute: typeof WorkspaceRoute
 }
@@ -265,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: '/student'
       fullPath: '/student'
       preLoaderRoute: typeof StudentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -307,6 +340,13 @@ declare module '@tanstack/react-router' {
       path: '/marketplace'
       fullPath: '/marketplace'
       preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kp': {
@@ -385,12 +425,14 @@ const rootRouteChildren: RootRouteChildren = {
   EducationAnalysisRoute: EducationAnalysisRoute,
   KnRaoRoute: KnRaoRoute,
   KpRoute: KpRoute,
+  LoginRoute: LoginRoute,
   MarketplaceRoute: MarketplaceRoute,
   PanchangaRoute: PanchangaRoute,
   ParashariRoute: ParashariRoute,
   PrashnaRoute: PrashnaRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
   StudentRoute: StudentRoute,
   WorkspaceRoute: WorkspaceRoute,
 }

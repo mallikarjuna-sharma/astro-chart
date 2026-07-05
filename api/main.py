@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # override=True so project .env wins over a stale GEMINI_API_KEY in the shell.
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -58,6 +58,25 @@ from api.schemas.storage import (
     SavedChartListResponse,
     SavedChartResponse,
     SaveChartRequest,
+)
+from api.schemas.auth import (
+    AuthResponse,
+    LoginRequest,
+    MeResponse,
+    SendOtpRequest,
+    SendOtpResponse,
+    SignupRequest,
+    VerifyOtpRequest,
+    VerifyOtpResponse,
+)
+from api.auth_service import (
+    AuthServiceError,
+    auth_http_error,
+    complete_signup,
+    get_current_user,
+    login,
+    send_signup_otp,
+    verify_signup_otp,
 )
 
 _PLANET_NAMES = {
@@ -328,6 +347,51 @@ class AutocompleteResponse(BaseModel):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/auth/otp/send", response_model=SendOtpResponse)
+def auth_send_otp(body: SendOtpRequest) -> SendOtpResponse:
+    try:
+        return send_signup_otp(body)
+    except AuthServiceError as exc:
+        raise auth_http_error(exc) from exc
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+
+
+@app.post("/api/auth/otp/verify", response_model=VerifyOtpResponse)
+def auth_verify_otp(body: VerifyOtpRequest) -> VerifyOtpResponse:
+    try:
+        return verify_signup_otp(body)
+    except AuthServiceError as exc:
+        raise auth_http_error(exc) from exc
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+
+
+@app.post("/api/auth/signup", response_model=AuthResponse)
+def auth_signup(body: SignupRequest) -> AuthResponse:
+    try:
+        return complete_signup(body)
+    except AuthServiceError as exc:
+        raise auth_http_error(exc) from exc
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+def auth_login(body: LoginRequest) -> AuthResponse:
+    try:
+        return login(body)
+    except AuthServiceError as exc:
+        raise auth_http_error(exc) from exc
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+
+
+@app.get("/api/auth/me", response_model=MeResponse)
+def auth_me(authorization: str | None = Header(default=None)) -> MeResponse:
+    return get_current_user(authorization)
 
 
 @app.get("/api/geocode", response_model=GeocodeResponse)

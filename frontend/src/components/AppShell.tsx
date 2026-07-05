@@ -1,14 +1,15 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ReactNode } from "react";
 import {
   Sparkles, Star, BookOpen, Compass, ClipboardList, GraduationCap,
   LineChart, MessageCircleQuestion, Briefcase, Bot, Store, Settings,
-  FileText, User2, Sun, Moon,
+  FileText, User2, Sun, Moon, LogIn, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { useDisplayName } from "@/hooks/use-display-name";
 import { initialsFromName } from "@/stores/user-store";
+import { useAuthStore, useIsAuthenticated } from "@/stores/auth-store";
 
 interface NavItem { to: string; label: string; icon: any; group: string; }
 
@@ -37,9 +38,18 @@ const NAV: NavItem[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
   const displayName = useDisplayName();
   const initials = initialsFromName(displayName);
+  const isAuthenticated = useIsAuthenticated();
+  const authUser = useAuthStore((s) => s.user);
+  const clearSession = useAuthStore((s) => s.clearSession);
+
+  const handleLogout = () => {
+    clearSession();
+    navigate({ to: "/login" });
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -96,13 +106,32 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="font-semibold">JyotishAI</span>
           </div>
           <div className="text-sm text-muted-foreground hidden md:block">
-            {displayName !== "Student" ? (
+            {isAuthenticated && authUser ? (
+              <>Signed in as <span className="font-medium text-foreground">@{authUser.username}</span></>
+            ) : displayName !== "Student" ? (
               <>Welcome back, <span className="font-medium text-foreground">{displayName}</span></>
             ) : (
               "Welcome back — let the charts illuminate the path ahead."
             )}
           </div>
           <div className="flex items-center gap-2">
+            {isAuthenticated ? (
+              <button
+                onClick={handleLogout}
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm hover:bg-muted text-muted-foreground"
+              >
+                <LogOut className="w-4 h-4" />
+                Log out
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm hover:bg-muted text-muted-foreground"
+              >
+                <LogIn className="w-4 h-4" />
+                Log in
+              </Link>
+            )}
             <button
               onClick={() => document.documentElement.classList.toggle("dark")}
               className="p-2 rounded-md hover:bg-muted text-muted-foreground"

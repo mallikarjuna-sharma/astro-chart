@@ -14,3 +14,6 @@ frontend/.tanstack/
 frontend/.output/
 frontend/.vinxi/
 frontend/.nitro/
+
+# Local Netlify folder
+.netlify
