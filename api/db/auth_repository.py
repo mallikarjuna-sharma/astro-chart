@@ -56,22 +56,23 @@ def _email_pk(email: str) -> str:
 
 
 def generate_otp_code() -> str:
-    fixed = os.getenv("AUTH_FIXED_OTP", "0000").strip()
+    fixed = os.getenv("AUTH_FIXED_OTP", "").strip()
     if fixed:
         return fixed
-    return f"{secrets.randbelow(1_000_000):06d}"
+    return f"{secrets.randbelow(10_000):04d}"
 
 
 def save_otp_challenge(email: str) -> str:
+    normalized = _normalize_email(email)
     code = generate_otp_code()
     now = datetime.now(timezone.utc)
     ttl = int(now.timestamp()) + OTP_TTL_SECONDS
     item = {
-        "PK": _email_pk(email),
+        "PK": _email_pk(normalized),
         "SK": "OTP#signup",
         "entity_type": "otp",
-        "email": _normalize_email(email),
-        "otp_hash": _hash_otp(email, code),
+        "email": normalized,
+        "otp_hash": _hash_otp(normalized, code),
         "attempts": 0,
         "max_attempts": OTP_MAX_ATTEMPTS,
         "created_at": _utc_now(),
@@ -83,8 +84,10 @@ def save_otp_challenge(email: str) -> str:
 
 
 def verify_otp_challenge(email: str, otp: str) -> None:
+    normalized = _normalize_email(email)
+    otp = otp.strip()
     table = get_users_table()
-    key = {"PK": _email_pk(email), "SK": "OTP#signup"}
+    key = {"PK": _email_pk(normalized), "SK": "OTP#signup"}
     resp = table.get_item(Key=key)
     item = resp.get("Item")
     if not item:
@@ -95,7 +98,7 @@ def verify_otp_challenge(email: str, otp: str) -> None:
         table.delete_item(Key=key)
         raise AuthRepositoryError("Too many invalid attempts. Request a new code.")
 
-    if _hash_otp(email, otp) != item.get("otp_hash"):
+    if _hash_otp(normalized, otp) != item.get("otp_hash"):
         table.update_item(
             Key=key,
             UpdateExpression="SET attempts = :attempts",

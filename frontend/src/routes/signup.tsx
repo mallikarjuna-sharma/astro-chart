@@ -36,13 +36,15 @@ function SignupPage() {
   const [loading, setLoading] = useState(false);
 
   const sendOtp = async () => {
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       toast.error("Enter your email address");
       return;
     }
+    setEmail(normalizedEmail);
     setLoading(true);
     try {
-      const res = await authApi.sendOtp(email.trim());
+      const res = await authApi.sendOtp(normalizedEmail);
       if (res.dev_otp) toast.message(`Dev OTP: ${res.dev_otp}`);
       toast.success(res.message);
       setStep("otp");
@@ -60,7 +62,7 @@ function SignupPage() {
     }
     setLoading(true);
     try {
-      const res = await authApi.verifyOtp(email.trim(), otp);
+      const res = await authApi.verifyOtp(email.trim().toLowerCase(), otp);
       setVerificationToken(res.verification_token);
       toast.success("Email verified");
       setStep("credentials");

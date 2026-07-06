@@ -63,7 +63,9 @@ def _decode_token(token: str, expected_type: str) -> dict:
 
 
 def _dev_expose_otp() -> bool:
-    if os.getenv("AUTH_FIXED_OTP", "0000").strip():
+    if os.getenv("AUTH_FIXED_OTP", "").strip():
+        return True
+    if not os.getenv("SES_FROM_EMAIL", "").strip():
         return True
     return os.getenv("AUTH_DEV_EXPOSE_OTP", "").strip().lower() in {"1", "true", "yes"}
 

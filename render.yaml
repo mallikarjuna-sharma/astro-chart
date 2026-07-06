@@ -19,6 +19,10 @@ services:
         value: JyotishUsers
       - key: DYNAMODB_PROFILES_TABLE_NAME
         value: JyotishProfiles
+      - key: JWT_SECRET
+        sync: false
+      - key: AUTH_OTP_PEPPER
+        sync: false
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
