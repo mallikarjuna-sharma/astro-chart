@@ -19,7 +19,7 @@ export function EducationAnalysisSection() {
     if (!consolidated) {
       patchChartSession({
         educationAnalysisError:
-          "Consolidated chart JSON is not available. Regenerate charts from Birth Data.",
+          "Consolidated chart JSON is not available. Open a profile from the Profiles page.",
       });
       return;
     }
@@ -50,7 +50,7 @@ export function EducationAnalysisSection() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
-          No chart session. Generate charts from Birth Data first.
+          No chart session. Open a profile from the Profiles page first.
         </CardContent>
       </Card>
     );
@@ -93,7 +93,7 @@ export function EducationAnalysisSection() {
 
         {!loading && !data && !error ? (
           <p className="text-sm text-muted-foreground py-4">
-            Consolidated JSON required. Save &amp; generate charts on Birth Data first.
+            Consolidated JSON required. Open a profile from the Profiles page first.
           </p>
         ) : null}
       </CardContent>

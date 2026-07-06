@@ -7,7 +7,7 @@ export function ComingSoonCard({
   title,
   description,
   icon: Icon = Sparkles,
-  ctaHref = "/birth-data",
+  ctaHref = "/",
   ctaLabel = "Enter birth data",
 }: {
   title: string;

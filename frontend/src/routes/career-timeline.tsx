@@ -6,7 +6,7 @@ import { CareerTimelineSection } from "@/components/career/CareerTimelineSection
 import { useChartSession } from "@/hooks/use-chart-session";
 
 export const Route = createFileRoute("/career-timeline")({
-  head: () => ({ meta: [{ title: "Career Timeline — JyotishAI" }] }),
+  head: () => ({ meta: [{ title: "Job Analysis — JyotishAI" }] }),
   component: CareerTimelinePage,
 });
 
@@ -14,9 +14,9 @@ function EmptyState() {
   return (
     <Card>
       <CardContent className="py-8 text-center text-muted-foreground">
-        <p className="mb-3">Run Save &amp; generate charts on Birth Data first.</p>
-        <Link to="/birth-data">
-          <Button variant="outline">Enter birth data</Button>
+        <p className="mb-3">Open a profile from the Profiles page first.</p>
+        <Link to="/">
+          <Button variant="outline">Go to Profiles</Button>
         </Link>
       </CardContent>
     </Card>
@@ -30,7 +30,7 @@ function CareerTimelinePage() {
     return (
       <div>
         <PageHeader
-          title="Career Timeline"
+          title="Job Analysis"
           subtitle="JyotishAI Antardasha-level career projection with foreign opportunity windows."
         />
         <EmptyState />

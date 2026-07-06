@@ -17,15 +17,35 @@ interface Props {
   initial?: CareerContextInput;
   currentAge?: number | null;
   loading?: boolean;
-  enrichLlm: boolean;
-  onEnrichLlmChange: (v: boolean) => void;
-  onSubmit: (ctx: CareerContextInput) => void;
+  enrichLlm?: boolean;
+  onEnrichLlmChange?: (v: boolean) => void;
+  onSubmit?: (ctx: CareerContextInput) => void;
+  /** Inline use (e.g. profile wizard) — no submit button or form wrapper. */
+  embedded?: boolean;
+  value?: CareerContextInput;
+  onChange?: (ctx: CareerContextInput) => void;
 }
 
 /** Rough heuristic: working years ≈ age - 22, clamped to [0, 50]. */
-function defaultYearsExperience(age: number | null | undefined): number {
+export function defaultYearsExperience(age: number | null | undefined): number {
   if (typeof age !== "number" || !Number.isFinite(age)) return 0;
   return Math.max(0, Math.min(50, Math.round(age - 22)));
+}
+
+export function defaultCareerContext(currentAge?: number | null): CareerContextInput {
+  return {
+    employment_status: "employed",
+    designation: "",
+    years_experience: defaultYearsExperience(currentAge),
+    company_type: "mnc",
+    industry_sector: "software",
+    desired_outcome: "promotion",
+    join_date: "",
+    last_promotion_date: "",
+    geographic_preference: "open",
+    actively_looking: false,
+    on_notice_period: false,
+  };
 }
 
 const EMPLOYMENT = ["employed", "self_employed", "unemployed", "student", "career_break"];
@@ -38,35 +58,36 @@ export function CareerContextForm({
   initial,
   currentAge,
   loading = false,
-  enrichLlm,
+  enrichLlm = true,
   onEnrichLlmChange,
   onSubmit,
+  embedded = false,
+  value,
+  onChange,
 }: Props) {
-  const [form, setForm] = useState<CareerContextInput>({
-    employment_status: initial?.employment_status ?? "employed",
-    designation: initial?.designation ?? "",
-    years_experience: initial?.years_experience ?? defaultYearsExperience(currentAge),
-    company_type: initial?.company_type ?? "mnc",
-    industry_sector: initial?.industry_sector ?? "software",
-    desired_outcome: initial?.desired_outcome ?? "promotion",
-    join_date: initial?.join_date ?? "",
-    last_promotion_date: initial?.last_promotion_date ?? "",
-    geographic_preference: initial?.geographic_preference ?? "open",
-    actively_looking: initial?.actively_looking ?? false,
-    on_notice_period: initial?.on_notice_period ?? false,
-  });
+  const isControlled = value !== undefined && onChange !== undefined;
+  const [internalForm, setInternalForm] = useState<CareerContextInput>(() =>
+    initial ?? defaultCareerContext(currentAge),
+  );
+  const form = isControlled ? value : internalForm;
 
-  const update = <K extends keyof CareerContextInput>(k: K, v: CareerContextInput[K]) =>
-    setForm((s) => ({ ...s, [k]: v }));
+  const update = <K extends keyof CareerContextInput>(k: K, v: CareerContextInput[K]) => {
+    const next = { ...form, [k]: v };
+    if (isControlled) {
+      onChange(next);
+    } else {
+      setInternalForm(next);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(form);
+    onSubmit?.(form);
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  const fields = (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
         <Field label="Employment status">
           <Select
             value={form.employment_status}
@@ -163,7 +184,7 @@ export function CareerContextForm({
         </Field>
       </div>
 
-      <div className="flex flex-wrap items-center gap-6 pt-2">
+      <div className="flex flex-wrap items-center gap-4 pt-2">
         <label className="flex items-center gap-2 text-sm">
           <Switch
             checked={!!form.actively_looking}
@@ -178,27 +199,40 @@ export function CareerContextForm({
           />
           On notice period
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Switch checked={enrichLlm} onCheckedChange={onEnrichLlmChange} />
-          Enrich narratives (slower, ~30-60s)
-        </label>
-
-        <div className="ml-auto">
-          <Button type="submit" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Building timeline…
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                Build Career Timeline
-              </>
-            )}
-          </Button>
-        </div>
+        {!embedded && onEnrichLlmChange ? (
+          <label className="flex items-center gap-2 text-sm">
+            <Switch checked={enrichLlm} onCheckedChange={onEnrichLlmChange} />
+            Enrich narratives (slower, ~30-60s)
+          </label>
+        ) : null}
+        {!embedded ? (
+          <div className="ml-auto w-full sm:w-auto">
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Building timeline…
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Build Career Timeline
+                </>
+              )}
+            </Button>
+          </div>
+        ) : null}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-4">{fields}</div>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {fields}
     </form>
   );
 }

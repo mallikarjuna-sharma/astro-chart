@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ReactNode } from "react";
 import {
   Sparkles, Star, BookOpen, Compass, ClipboardList, GraduationCap,
-  LineChart, MessageCircleQuestion, Briefcase, Bot, Store, Settings,
+  LineChart, MessageCircleQuestion, Bot, Settings,
   FileText, User2, Sun, Moon, LogIn, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,25 +14,20 @@ import { useAuthStore, useIsAuthenticated } from "@/stores/auth-store";
 interface NavItem { to: string; label: string; icon: any; group: string; }
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: Sparkles, group: "Overview" },
-  { to: "/birth-data", label: "Birth Data", icon: User2, group: "Overview" },
+  { to: "/", label: "Profiles", icon: User2, group: "Overview" },
   { to: "/panchanga", label: "Panchanga", icon: Sun, group: "Overview" },
 
   { to: "/charts", label: "Charts (D1–D81)", icon: Star, group: "Systems" },
   { to: "/kp", label: "KP Analysis", icon: Compass, group: "Systems" },
   { to: "/kn-rao", label: "KN Rao / Jaimini", icon: BookOpen, group: "Systems" },
   { to: "/parashari", label: "Parashari Strength", icon: ClipboardList, group: "Systems" },
-  { to: "/prashna", label: "Prashna (Horary)", icon: MessageCircleQuestion, group: "Systems" },
 
-  { to: "/education-analysis", label: "Education Analysis", icon: GraduationCap, group: "Intelligence" },
-  { to: "/confidence", label: "Four-System Score", icon: Star, group: "Intelligence" },
-  { to: "/student", label: "Student / Field", icon: GraduationCap, group: "Intelligence" },
-  { to: "/career-timeline", label: "Career Timeline", icon: LineChart, group: "Intelligence" },
-  { to: "/ai", label: "AI Assistant", icon: Bot, group: "Intelligence" },
+  { to: "/education-analysis", label: "Career Field", icon: GraduationCap, group: "Intelligence" },
+  { to: "/career-timeline", label: "Job Analysis", icon: LineChart, group: "Intelligence" },
+  { to: "/ai", label: "AI Assistant", icon: Bot, group: "AI Assistance" },
+  { to: "/prashna", label: "Prashna (Horary)", icon: MessageCircleQuestion, group: "AI Assistance" },
 
-  { to: "/workspace", label: "Astrologer Workspace", icon: Briefcase, group: "Practice" },
   { to: "/reports", label: "Reports", icon: FileText, group: "Practice" },
-  { to: "/marketplace", label: "Marketplace", icon: Store, group: "Practice" },
   { to: "/settings", label: "Settings", icon: Settings, group: "Practice" },
 ];
 

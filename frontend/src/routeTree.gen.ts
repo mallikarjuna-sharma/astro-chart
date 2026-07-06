@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
-import { Route as StudentRouteImport } from './routes/student'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -32,11 +31,6 @@ import { Route as IndexRouteImport } from './routes/index'
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StudentRoute = StudentRouteImport.update({
-  id: '/student',
-  path: '/student',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -143,7 +137,6 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/student': typeof StudentRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRoutesByTo {
@@ -164,7 +157,6 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/student': typeof StudentRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRoutesById {
@@ -186,7 +178,6 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/student': typeof StudentRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRouteTypes {
@@ -209,7 +200,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/signup'
-    | '/student'
     | '/workspace'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -230,7 +220,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/signup'
-    | '/student'
     | '/workspace'
   id:
     | '__root__'
@@ -251,7 +240,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/signup'
-    | '/student'
     | '/workspace'
   fileRoutesById: FileRoutesById
 }
@@ -273,7 +261,6 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
-  StudentRoute: typeof StudentRoute
   WorkspaceRoute: typeof WorkspaceRoute
 }
 
@@ -284,13 +271,6 @@ declare module '@tanstack/react-router' {
       path: '/workspace'
       fullPath: '/workspace'
       preLoaderRoute: typeof WorkspaceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/student': {
-      id: '/student'
-      path: '/student'
-      fullPath: '/student'
-      preLoaderRoute: typeof StudentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -433,7 +413,6 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
-  StudentRoute: StudentRoute,
   WorkspaceRoute: WorkspaceRoute,
 }
 export const routeTree = rootRouteImport
