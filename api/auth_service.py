@@ -37,9 +37,18 @@ class AuthServiceError(RuntimeError):
 
 def _jwt_secret() -> str:
     secret = os.getenv("JWT_SECRET", "").strip()
-    if not secret:
-        raise AuthServiceError("JWT_SECRET is not configured on the server.")
-    return secret
+    if secret:
+        return secret
+    if os.getenv("AUTH_FIXED_OTP", "").strip():
+        logger.warning(
+            "JWT_SECRET not set — using dev-only fallback. "
+            "Set JWT_SECRET in .env (local) or Render env (production)."
+        )
+        return "dev-jwt-secret-do-not-use-in-production"
+    raise AuthServiceError(
+        "JWT_SECRET is not configured on the server. "
+        "Add JWT_SECRET in your Render service environment (Site → Environment)."
+    )
 
 
 def _issue_token(payload: dict, expires_delta: timedelta) -> str:
