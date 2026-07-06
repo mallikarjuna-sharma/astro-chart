@@ -1,14 +1,5 @@
-import { defaultCareerContext } from "@/components/career/CareerContextForm";
-import { computeExtendedAnalysis } from "@/lib/pyjhora/pipeline";
-import { normalizeTableResponse } from "@/lib/pyjhora/normalize";
-import { defaultStudentContext } from "@/lib/pyjhora/session";
-import type {
-  BirthInput,
-  CareerContextInput,
-  ChartSession,
-  StudentContext,
-  UserInfo,
-} from "@/lib/pyjhora/types";
+import type { ChartSession } from "@/lib/pyjhora/types";
+import { profileIsFullyPersisted, profileToChartSession } from "./hydrate";
 import type { ProfileResponse } from "./types";
 
 /** True when extended APIs (KP, consolidated, etc.) are present in session. */
@@ -25,54 +16,19 @@ export function isProfileSessionReady(
 }
 
 /**
- * Build a full chart session from a saved profile: runs extended API calls
- * (KP, panchanga, consolidated, …) without re-persisting analyses to DynamoDB.
+ * Load chart session from saved profile (DynamoDB → API → UI).
+ * Does not re-run backend calculations.
  */
-export async function restoreProfileToChartSession(
+export function restoreProfileToChartSession(
   profile: ProfileResponse,
   onProgress?: (step: string) => void,
-): Promise<ChartSession> {
-  const birthInput = profile.birth_input as BirthInput;
-  const userInfo = profile.user_info as UserInfo;
-  const studentContext =
-    (profile.student_context as StudentContext | null) ?? defaultStudentContext();
-  const careerContext =
-    (profile.career_context as CareerContextInput | null) ??
-    defaultCareerContext(null);
-
-  const d1Table = profile.d1_table
-    ? normalizeTableResponse(
-        profile.d1_table as ChartSession["d1Table"],
-        profile.meta,
-      )
-    : undefined;
-  const divisionalBasic = profile.divisional_charts as ChartSession["divisionalBasic"];
-
-  onProgress?.("Loading extended chart data…");
-  const extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress);
-
-  let consolidated = extended.consolidated;
-  if (profile.career_context && Object.keys(profile.career_context).length > 0) {
-    consolidated = { ...consolidated, career_context: profile.career_context };
+): ChartSession {
+  if (!profileIsFullyPersisted(profile)) {
+    onProgress?.("Profile is missing saved chart data. Create the profile again.");
+    throw new Error(
+      "This profile was saved before full persistence was enabled. Please delete and recreate it.",
+    );
   }
-
-  return {
-    userId: profile.user_id,
-    chartId: profile.profile_id,
-    userInfo,
-    birthInput,
-    studentContext,
-    d1Table,
-    divisionalBasic,
-    divisionalExtended: extended.divisionalExtended,
-    panchanga: extended.panchanga,
-    ashtakavarga: extended.ashtakavarga,
-    shadbala: extended.shadbala,
-    jaimini: extended.jaimini,
-    vimshottari: extended.vimshottari,
-    kp: extended.kp,
-    consolidated,
-    careerContextInput: careerContext,
-    savedAt: profile.updated_at,
-  };
+  onProgress?.("Loading saved profile from database…");
+  return profileToChartSession(profile);
 }

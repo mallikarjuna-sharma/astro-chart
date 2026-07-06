@@ -14,7 +14,7 @@ class CreateProfileRequest(BaseModel):
     user_info: dict[str, Any] = Field(default_factory=dict)
     student_context: dict[str, Any] | None = None
     career_context: dict[str, Any] = Field(default_factory=dict)
-    enrich_llm_career: bool = True
+    enrich_llm_career: bool = False
 
     @field_validator("profile_name")
     @classmethod
@@ -47,6 +47,7 @@ class ProfileResponse(BaseModel):
     profile_name: str
     profile_key: str
     user_id: str
+    auth_username: str = ""
     birth_input: dict[str, Any]
     user_info: dict[str, Any]
     student_context: dict[str, Any] | None = None
@@ -54,6 +55,13 @@ class ProfileResponse(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
     d1_table: dict[str, Any] = Field(default_factory=dict)
     divisional_charts: dict[str, Any] = Field(default_factory=dict)
+    kp: dict[str, Any] | None = None
+    jaimini: dict[str, Any] | None = None
+    panchanga: dict[str, Any] | None = None
+    ashtakavarga: dict[str, Any] | None = None
+    shadbala: dict[str, Any] | None = None
+    vimshottari: dict[str, Any] | None = None
+    divisional_extended: dict[str, Any] | None = None
     consolidated: dict[str, Any] | None = None
     education_analysis: dict[str, Any] | None = None
     education_analysis_error: str | None = None
@@ -62,3 +70,14 @@ class ProfileResponse(BaseModel):
     created_at: str
     updated_at: str
     read_only: bool = True
+
+
+class PersistProfileSectionsRequest(BaseModel):
+    """Lazy-persist analysis chunks (write-once per section)."""
+
+    sections: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class PersistProfileSectionsResponse(BaseModel):
+    profile_id: str
+    saved_sections: list[str]

@@ -73,6 +73,8 @@ from api.schemas.auth import (
 from api.schemas.profiles import (
     CreateProfileRequest,
     DeleteProfileResponse,
+    PersistProfileSectionsRequest,
+    PersistProfileSectionsResponse,
     ProfileListResponse,
     ProfileResponse,
 )
@@ -90,6 +92,7 @@ from api.profile_service import (
     delete_user_profile,
     get_user_profile,
     list_user_profiles,
+    persist_user_profile_sections,
 )
 from api.auth_validation import format_validation_errors
 
@@ -448,6 +451,15 @@ def profiles_get(
     authorization: str | None = Header(default=None),
 ) -> ProfileResponse:
     return get_user_profile(authorization, profile_id)
+
+
+@app.post("/api/profiles/{profile_id}/sections", response_model=PersistProfileSectionsResponse)
+def profiles_persist_sections(
+    profile_id: str,
+    body: PersistProfileSectionsRequest,
+    authorization: str | None = Header(default=None),
+) -> PersistProfileSectionsResponse:
+    return persist_user_profile_sections(authorization, profile_id, body)
 
 
 @app.delete("/api/profiles/{profile_id}", response_model=DeleteProfileResponse)

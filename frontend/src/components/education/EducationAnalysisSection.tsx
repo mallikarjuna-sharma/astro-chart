@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { pyjhora } from "@/lib/pyjhora/client";
+import { ensureConsolidatedForEngine, consolidatedHasEngineData } from "@/lib/pyjhora/ensure-consolidated";
 import { patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { EducationCareerReport } from "@/components/education/EducationCareerReport";
@@ -16,7 +17,7 @@ export function EducationAnalysisSection() {
   const consolidated = session?.consolidated;
 
   const runAnalysis = useCallback(async () => {
-    if (!consolidated) {
+    if (!session?.birthInput) {
       patchChartSession({
         educationAnalysisError:
           "Consolidated chart JSON is not available. Open a profile from the Profiles page.",
@@ -26,7 +27,15 @@ export function EducationAnalysisSection() {
     setLoading(true);
     patchChartSession({ educationAnalysisError: undefined });
     try {
-      const result = await pyjhora.educationAnalysis(consolidated);
+      const engineJson = await ensureConsolidatedForEngine(
+        session.birthInput,
+        session.studentContext,
+        consolidated,
+      );
+      if (!consolidatedHasEngineData(consolidated)) {
+        patchChartSession({ consolidated: engineJson });
+      }
+      const result = await pyjhora.educationAnalysis(engineJson);
       patchChartSession({
         educationAnalysis: result,
         educationAnalysisError: undefined,
@@ -38,13 +47,13 @@ export function EducationAnalysisSection() {
     } finally {
       setLoading(false);
     }
-  }, [consolidated]);
+  }, [consolidated, session?.birthInput, session?.studentContext]);
 
   useEffect(() => {
-    if (!data && !loading && !error && consolidated) {
+    if (!data && !loading && !error && session?.birthInput) {
       void runAnalysis();
     }
-  }, [data, loading, error, consolidated, runAnalysis]);
+  }, [data, loading, error, session?.birthInput, runAnalysis]);
 
   if (!session) {
     return (
@@ -68,7 +77,7 @@ export function EducationAnalysisSection() {
         <Button
           variant="outline"
           size="sm"
-          disabled={loading || !consolidated}
+          disabled={loading || !session?.birthInput}
           onClick={() => void runAnalysis()}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
@@ -93,7 +102,7 @@ export function EducationAnalysisSection() {
 
         {!loading && !data && !error ? (
           <p className="text-sm text-muted-foreground py-4">
-            Consolidated JSON required. Open a profile from the Profiles page first.
+            Run analysis from consolidated chart data, or open a profile with saved charts first.
           </p>
         ) : null}
       </CardContent>

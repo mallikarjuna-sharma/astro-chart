@@ -17,6 +17,7 @@ import {
 } from "@/components/career/CareerContextForm";
 import { profilesApi } from "@/lib/profiles/client";
 import { restoreProfileToChartSession, isProfileSessionReady } from "@/lib/profiles/restore-session";
+import { ProfileConfirmReport } from "@/components/profile/ProfileConfirmReport";
 import type { ProfileSummary } from "@/lib/profiles/types";
 import {
   buildBirthInput,
@@ -41,7 +42,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type View = "list" | "create";
+type View = "list" | "create" | "confirm";
 
 const AYANAMSA_OPTIONS = [
   { value: "LAHIRI", label: "Lahiri (Chitrapaksha)" },
@@ -241,7 +242,7 @@ export function ProfileWizard() {
       return;
     }
     setLoading(true);
-    setProgress("Computing charts…");
+    setProgress("Computing and saving charts & analyses…");
     try {
       const dt = parseBirthDateTime(form.date, form.time);
       const birthInput = buildBirthInput(dt, {
@@ -277,15 +278,15 @@ export function ProfileWizard() {
         career_context: careerContext,
       });
 
-      setProgress("Loading extended chart data…");
-      const session = await restoreProfileToChartSession(profile, setProgress);
+      setProgress("Loading saved profile…");
+      const session = restoreProfileToChartSession(profile, setProgress);
       saveChartSession(session);
       setActiveProfileId(profile.profile_id);
       const list = await profilesApi.list();
       setLocalProfiles(list.profiles);
       setProfiles(list.profiles);
       toast.success("Profile created", {
-        description: `${profile.profile_name} — birth data and charts saved.`,
+        description: `${profile.profile_name} — all details saved to your account.`,
       });
       navigate({ to: "/charts" });
     } catch (err) {
@@ -302,7 +303,7 @@ export function ProfileWizard() {
         <CardHeader>
           <CardTitle>Sign in to manage profiles</CardTitle>
           <CardDescription>
-            Create up to four birth profiles. Each profile stores birth data and charts; analyses run on demand.
+            Create up to four birth profiles. Each profile is computed once, saved to your account, and loaded from the database when opened.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex gap-2">
@@ -321,7 +322,7 @@ export function ProfileWizard() {
           <CardHeader>
             <CardTitle>Your profiles</CardTitle>
             <CardDescription>
-              {profiles.length} of {maxProfiles} profiles used. Each profile is saved once and read-only after creation.
+              {profiles.length} of {maxProfiles} profiles used. Saved profiles are read-only and loaded from the database.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -388,6 +389,47 @@ export function ProfileWizard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      </div>
+    );
+  }
+
+  if (view === "confirm") {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 pb-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="ghost" size="sm" disabled={loading} onClick={() => setView("create")}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Edit details
+          </Button>
+          {progress ? <p className="text-sm text-gold">{progress}</p> : null}
+        </div>
+
+        <ProfileConfirmReport
+          form={form}
+          careerContext={careerContext}
+          accountEmail={authUser?.email}
+        />
+
+        <Card className="border-gold/20">
+          <CardContent className="flex flex-col sm:flex-row sm:justify-end gap-3 py-4">
+            <Button variant="outline" disabled={loading} onClick={() => setView("create")}>
+              Back to edit
+            </Button>
+            <Button
+              className="gradient-gold text-primary-foreground"
+              disabled={loading}
+              onClick={() => void submitProfile()}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving profile…
+                </>
+              ) : (
+                "Confirm & save profile"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -528,24 +570,15 @@ export function ProfileWizard() {
       <Card className="border-gold/20 bg-muted/20">
         <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-4">
           <p className="text-sm text-muted-foreground">
-            All three sections are saved together. Career field and job analysis run when you open those pages.
+            Review your inputs on the next step. Charts are computed once on confirm and saved with your details. Career and education reports run when you open those pages.
           </p>
           <Button
             className="gradient-gold text-primary-foreground shrink-0 w-full sm:w-auto"
             disabled={loading || !form.profileName.trim()}
-            onClick={() => void submitProfile()}
+            onClick={() => setView("confirm")}
           >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating profile…
-              </>
-            ) : (
-              <>
-                <UserRound className="w-4 h-4 mr-2" />
-                Create profile
-              </>
-            )}
+            <UserRound className="w-4 h-4 mr-2" />
+            Review & confirm
           </Button>
         </CardContent>
       </Card>

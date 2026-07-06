@@ -3,6 +3,8 @@ import { getStoredAuthToken } from "@/lib/auth/client";
 import { parseApiErrorBody } from "@/lib/api-errors";
 import type {
   CreateProfilePayload,
+  PersistProfileSectionsPayload,
+  PersistProfileSectionsResponse,
   ProfileListResponse,
   ProfileResponse,
 } from "./types";
@@ -43,6 +45,13 @@ export const profilesApi = {
   delete(profileId: string) {
     return request<{ status: string; profile_id: string }>(`/api/profiles/${profileId}`, {
       method: "DELETE",
+    });
+  },
+
+  persistSections(profileId: string, payload: PersistProfileSectionsPayload) {
+    return request<PersistProfileSectionsResponse>(`/api/profiles/${profileId}/sections`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 };

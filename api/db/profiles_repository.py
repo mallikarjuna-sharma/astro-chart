@@ -1,11 +1,12 @@
 """CRUD for birth profiles in JyotishProfiles (max 4 per auth user).
 
-DynamoDB item limit is 400 KB. Persisted shape (phase 1):
-  PROFILE#{id}         — header + birth/student/career context (GSI profile_key)
-  PROFILE#{id}#CHARTS — d1_table, divisional_charts, meta
+One logical profile spans multiple DynamoDB items (same table, different SK):
+  PROFILE#{id}              — header + birth/student/career inputs
+  PROFILE#{id}#CHARTS       — d1_table, divisional_charts, meta
+  PROFILE#{id}#ANALYSIS#*   — KP, Jaimini, extended, consolidated
+  PROFILE#{id}#CONTEXT#*    — education / career timeline outputs
 
-Career field and job analysis are computed on demand via dedicated API routes,
-not stored on the profile record.
+All calculations run once at profile create; reads merge chunks without recomputing.
 """
 from __future__ import annotations
 
@@ -16,11 +17,27 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
+from botocore.exceptions import ClientError
+
 from api.db.profiles_dynamo import get_profiles_table
+from api.db.chart_payload import d1_table_payload
 from api.schemas.chart import BirthChartBody, DivisionalChartsResponse, TableResponse
 
 MAX_PROFILES_PER_USER = 4
 _DYNAMO_MAX_BYTES = 400 * 1024
+
+# Lazy-persist chunk sort-key suffixes (after PROFILE#{profile_id}#).
+CHUNK_CHARTS = "CHARTS"
+CHUNK_KP = "ANALYSIS#KP"
+CHUNK_JAIMINI = "ANALYSIS#JAIMINI"
+CHUNK_EXTENDED = "ANALYSIS#EXTENDED"
+CHUNK_CONSOLIDATED = "ANALYSIS#CONSOLIDATED"
+CHUNK_EDUCATION = "CONTEXT#EDUCATION"
+CHUNK_CAREER = "CONTEXT#CAREER"
+
+_CHUNK_STRIP_KEYS = frozenset(
+    {"PK", "SK", "entity_type", "chunk", "profile_id", "user_id", "updated_at"}
+)
 
 
 class ProfilesRepositoryError(RuntimeError):
@@ -109,17 +126,9 @@ def _json_bytes(value: Any) -> int:
     return len(json.dumps(value, default=str, separators=(",", ":")).encode("utf-8"))
 
 
-def _d1_table_payload(d1: TableResponse) -> dict[str, Any]:
-    return {
-        "title": d1.title,
-        "columns": d1.columns,
-        "rows": [dict(zip(d1.columns, row)) for row in d1.rows],
-    }
-
-
 def _public_profile(merged: dict[str, Any]) -> dict[str, Any]:
     cleaned = _from_decimal(merged)
-    for key in ("PK", "SK", "entity_type", "chunk"):
+    for key in ("PK", "SK", "entity_type", "chunk", "sections"):
         cleaned.pop(key, None)
     cleaned["read_only"] = True
     return cleaned
@@ -139,34 +148,56 @@ def _public_summary(header: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _put_item(item: dict[str, Any]) -> None:
+def _put_item(item: dict[str, Any], *, part: str = "profile", condition: str | None = None) -> None:
     payload = _to_decimal(item)
-    if _json_bytes(payload) > _DYNAMO_MAX_BYTES:
+    size = _json_bytes(payload)
+    if size > _DYNAMO_MAX_BYTES:
         raise ProfilesRepositoryError(
-            "Profile data exceeds DynamoDB size limit. Contact support or reduce chart scope."
+            f"{part}: data exceeds DynamoDB size limit ({size // 1024} KB, max 400 KB)."
         )
-    get_profiles_table().put_item(Item=payload)
+    kwargs: dict[str, Any] = {"Item": payload}
+    if condition:
+        kwargs["ConditionExpression"] = condition
+    get_profiles_table().put_item(**kwargs)
 
 
-def _get_chunk(auth_user_id: str, profile_id: str, part: str) -> dict[str, Any] | None:
-    resp = get_profiles_table().get_item(
-        Key={"PK": _pk(auth_user_id), "SK": _sk_part(profile_id, part)},
-    )
-    item = resp.get("Item")
-    return _from_decimal(item) if item else None
+def _query_profile_items(auth_user_id: str, profile_id: str) -> list[dict[str, Any]]:
+    table = get_profiles_table()
+    items: list[dict[str, Any]] = []
+    query_kwargs: dict[str, Any] = {
+        "KeyConditionExpression": "PK = :pk AND begins_with(SK, :sk)",
+        "ExpressionAttributeValues": {
+            ":pk": _pk(auth_user_id),
+            ":sk": _sk_header(profile_id),
+        },
+    }
+    while True:
+        resp = table.query(**query_kwargs)
+        items.extend(resp.get("Items", []))
+        if not resp.get("LastEvaluatedKey"):
+            break
+        query_kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+    return items
 
 
-def _merge_profile_parts(
-    header: dict[str, Any],
-    charts: dict[str, Any] | None,
-) -> dict[str, Any]:
-    merged = dict(_from_decimal(header))
-    if charts:
-        cleaned = _from_decimal(charts)
-        for key in ("PK", "SK", "entity_type", "chunk", "profile_id", "user_id"):
-            cleaned.pop(key, None)
-        merged.update(cleaned)
-    return merged
+def _merge_profile_chunks(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    header: dict[str, Any] | None = None
+    merged: dict[str, Any] = {}
+    for raw in items:
+        item = _from_decimal(raw)
+        sk = item.get("SK", "")
+        if _is_profile_header(sk):
+            header = item
+            continue
+        for key, value in item.items():
+            if key in _CHUNK_STRIP_KEYS:
+                continue
+            merged[key] = value
+    if not header:
+        return None
+    out = dict(header)
+    out.update(merged)
+    return out
 
 
 def count_user_profiles(auth_user_id: str) -> int:
@@ -217,19 +248,16 @@ def list_profiles(auth_user_id: str) -> list[dict[str, Any]]:
 
 
 def get_profile(auth_user_id: str, profile_id: str) -> dict[str, Any] | None:
-    resp = get_profiles_table().get_item(
-        Key={"PK": _pk(auth_user_id), "SK": _sk_header(profile_id)},
-    )
-    header = resp.get("Item")
-    if not header:
+    items = _query_profile_items(auth_user_id, profile_id)
+    merged = _merge_profile_chunks(items)
+    if not merged:
         return None
-    charts = _get_chunk(auth_user_id, profile_id, "CHARTS")
-    merged = _merge_profile_parts(header, charts)
     return _public_profile(merged)
 
 
 def save_profile(
     auth_user_id: str,
+    auth_username: str,
     profile_name: str,
     profile_key: str,
     birth_input: BirthChartBody,
@@ -238,6 +266,7 @@ def save_profile(
     career_context: dict[str, Any],
     d1: TableResponse,
     divisional: DivisionalChartsResponse,
+    extra_sections: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if count_user_profiles(auth_user_id) >= MAX_PROFILES_PER_USER:
         raise ProfilesRepositoryError(
@@ -255,6 +284,10 @@ def save_profile(
     meta = dict(d1.meta)
     meta["computed_at"] = now
 
+    sections_manifest: dict[str, Any] = {CHUNK_CHARTS: {"saved_at": now}}
+    for part in extra_sections or {}:
+        sections_manifest[part] = {"saved_at": now}
+
     header = {
         "PK": _pk(auth_user_id),
         "SK": _sk_header(profile_id),
@@ -264,56 +297,115 @@ def save_profile(
         "profile_name": _normalize_profile_name(profile_name),
         "profile_key": profile_key,
         "user_id": auth_user_id,
+        "auth_username": auth_username,
         "birth_input": birth_input.model_dump(),
         "user_info": user_info,
         "student_context": student_context,
         "career_context": career_context,
         "meta": {"birth_local": meta.get("birth_local", ""), "place_label": birth_input.place_label},
+        "sections": sections_manifest,
         "created_at": now,
         "updated_at": now,
     }
 
     charts_item = {
         "PK": _pk(auth_user_id),
-        "SK": _sk_part(profile_id, "CHARTS"),
+        "SK": _sk_part(profile_id, CHUNK_CHARTS),
         "entity_type": "profile_chunk",
-        "chunk": "charts",
+        "chunk": CHUNK_CHARTS,
         "profile_id": profile_id,
         "user_id": auth_user_id,
         "meta": meta,
-        "d1_table": _d1_table_payload(d1),
+        "d1_table": d1_table_payload(d1),
         "divisional_charts": divisional.model_dump(),
         "updated_at": now,
     }
 
-    _put_item(header)
-    _put_item(charts_item)
+    chunk_items: list[dict[str, Any]] = [header, charts_item]
+    _put_item(header, part="header")
+    _put_item(charts_item, part=CHUNK_CHARTS)
 
-    merged = _merge_profile_parts(header, charts_item)
+    for part, payload in (extra_sections or {}).items():
+        if not payload:
+            continue
+        chunk_item = {
+            "PK": _pk(auth_user_id),
+            "SK": _sk_part(profile_id, part),
+            "entity_type": "profile_chunk",
+            "chunk": part,
+            "profile_id": profile_id,
+            "user_id": auth_user_id,
+            **payload,
+            "updated_at": now,
+        }
+        _put_item(chunk_item, part=part)
+        chunk_items.append(chunk_item)
+
+    merged = _merge_profile_chunks(chunk_items)
+    assert merged is not None
     return _public_profile(merged)
 
 
+def save_profile_sections(
+    auth_user_id: str,
+    profile_id: str,
+    sections: dict[str, dict[str, Any]],
+) -> list[str]:
+    """Write analysis/context chunks once (skip if chunk SK already exists)."""
+    items = _query_profile_items(auth_user_id, profile_id)
+    merged = _merge_profile_chunks(items)
+    if not merged:
+        raise ProfilesRepositoryError("Profile not found.")
+
+    saved: list[str] = []
+    now = _utc_now()
+    for part, payload in sections.items():
+        if not payload:
+            continue
+        sk = _sk_part(profile_id, part)
+        if any(item.get("SK") == sk for item in items):
+            continue
+        chunk_item = {
+            "PK": _pk(auth_user_id),
+            "SK": sk,
+            "entity_type": "profile_chunk",
+            "chunk": part,
+            "profile_id": profile_id,
+            "user_id": auth_user_id,
+            **payload,
+            "updated_at": now,
+        }
+        try:
+            _put_item(chunk_item, part=part, condition="attribute_not_exists(SK)")
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                continue
+            raise
+        saved.append(part)
+
+    if saved:
+        header_item = next(item for item in items if _is_profile_header(item["SK"]))
+        sections_map = dict(_from_decimal(header_item.get("sections") or {}))
+        for part in saved:
+            sections_map[part] = {"saved_at": now}
+        get_profiles_table().update_item(
+            Key={"PK": _pk(auth_user_id), "SK": _sk_header(profile_id)},
+            UpdateExpression="SET sections = :s, updated_at = :u",
+            ExpressionAttributeValues={
+                ":s": _to_decimal(sections_map),
+                ":u": now,
+            },
+        )
+
+    return saved
+
+
 def delete_profile(auth_user_id: str, profile_id: str) -> bool:
-    """Delete profile header and all chunks (CHARTS, legacy EDUCATION/CAREER, etc.)."""
+    """Delete profile header and all chunks."""
     table = get_profiles_table()
-    pk = _pk(auth_user_id)
-    sk_prefix = _sk_header(profile_id)
-
-    items: list[dict[str, Any]] = []
-    query_kwargs: dict[str, Any] = {
-        "KeyConditionExpression": "PK = :pk AND begins_with(SK, :sk)",
-        "ExpressionAttributeValues": {":pk": pk, ":sk": sk_prefix},
-    }
-    while True:
-        resp = table.query(**query_kwargs)
-        items.extend(resp.get("Items", []))
-        if not resp.get("LastEvaluatedKey"):
-            break
-        query_kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
-
+    items = _query_profile_items(auth_user_id, profile_id)
     if not any(_is_profile_header(item["SK"]) for item in items):
         return False
-
     for item in items:
         table.delete_item(Key={"PK": item["PK"], "SK": item["SK"]})
     return True

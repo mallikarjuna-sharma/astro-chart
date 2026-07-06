@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Info, Loader2, RefreshCw } from "lucide-react";
 import { defaultCareerContext } from "@/components/career/CareerContextForm";
 import { pyjhora } from "@/lib/pyjhora/client";
+import { ensureConsolidatedForEngine, consolidatedHasEngineData } from "@/lib/pyjhora/ensure-consolidated";
 import { ageFromConsolidated, patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export function CareerTimelineSection() {
   const isUnderAge = typeof currentAge === "number" && currentAge < MIN_CAREER_AGE;
 
   const run = useCallback(async () => {
-    if (!consolidated) {
+    if (!session?.birthInput) {
       patchChartSession({
         careerTimelineError:
           "Consolidated chart JSON is not available. Open a profile from the Profiles page.",
@@ -34,7 +35,16 @@ export function CareerTimelineSection() {
     setLoading(true);
     patchChartSession({ careerTimelineError: undefined, careerContextInput: ctx });
     try {
-      const result = await pyjhora.careerTimeline(consolidated, {
+      const engineJson = await ensureConsolidatedForEngine(
+        session.birthInput,
+        session.studentContext,
+        consolidated,
+        ctx,
+      );
+      if (!consolidatedHasEngineData(consolidated)) {
+        patchChartSession({ consolidated: engineJson });
+      }
+      const result = await pyjhora.careerTimeline(engineJson, {
         careerContext: ctx,
         enrichLlm: true,
       });
@@ -49,13 +59,13 @@ export function CareerTimelineSection() {
     } finally {
       setLoading(false);
     }
-  }, [consolidated, careerContext, currentAge]);
+  }, [consolidated, careerContext, currentAge, session?.birthInput, session?.studentContext]);
 
   useEffect(() => {
-    if (!data && !loading && !error && consolidated && !isUnderAge) {
+    if (!data && !loading && !error && session?.birthInput && !isUnderAge) {
       void run();
     }
-  }, [data, loading, error, consolidated, isUnderAge, run]);
+  }, [data, loading, error, session?.birthInput, isUnderAge, run]);
 
   if (!session) {
     return (
@@ -104,7 +114,7 @@ export function CareerTimelineSection() {
               {typeof currentAge === "number" ? ` (age ${currentAge.toFixed(1)})` : ""}.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" disabled={loading || !consolidated} onClick={() => void run()}>
+          <Button variant="outline" size="sm" disabled={loading || !session?.birthInput} onClick={() => void run()}>
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin mr-1" />
             ) : (
