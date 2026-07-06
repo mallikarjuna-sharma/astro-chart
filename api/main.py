@@ -30,6 +30,7 @@ from jhora.panchanga.drik import nakshatra_pada
 
 from api import extended
 from api.db import repository as chart_repository
+from api.db.chart_attach import attach_d1_table
 from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
 from api.geocode import GeocodeError, geocode_location, geocode_place_id, places_autocomplete
 from api.jhora_bootstrap import init_jhora
@@ -826,7 +827,7 @@ def create_saved_chart(user_id: str, body: SaveChartRequest) -> SavedChartRespon
         )
     except Exception as exc:
         raise _dynamo_http_error(exc) from exc
-    return SavedChartResponse.model_validate(item)
+    return SavedChartResponse.model_validate(attach_d1_table(item))
 
 
 @app.get("/api/users/{user_id}/charts", response_model=SavedChartListResponse)
@@ -853,7 +854,7 @@ def get_saved_chart(user_id: str, chart_id: str) -> SavedChartResponse:
         raise _dynamo_http_error(exc) from exc
     if item is None:
         raise HTTPException(status_code=404, detail="Chart not found")
-    return SavedChartResponse.model_validate(item)
+    return SavedChartResponse.model_validate(attach_d1_table(item))
 
 
 @app.delete("/api/users/{user_id}/charts/{chart_id}")

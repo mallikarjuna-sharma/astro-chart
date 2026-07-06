@@ -1,4 +1,4 @@
-"""DynamoDB client for the JyotishUsers auth table."""
+"""DynamoDB client for JyotishProfilesCharts (renamed from PyJHoraBirthCharts)."""
 from __future__ import annotations
 
 import os
@@ -9,21 +9,24 @@ import boto3
 from api.db.dynamo_common import DynamoDBNotConfiguredError
 
 
-def _users_table_name() -> str:
-    name = os.getenv("DYNAMODB_USERS_TABLE_NAME", "").strip()
+def _profiles_charts_table_name() -> str:
+    name = os.getenv("DYNAMODB_PROFILES_CHARTS_TABLE_NAME", "").strip()
+    if not name:
+        # Legacy env name / table (PyJHoraBirthCharts)
+        name = os.getenv("DYNAMODB_TABLE_NAME", "").strip()
     if not name:
         raise DynamoDBNotConfiguredError(
-            "Set DYNAMODB_USERS_TABLE_NAME (e.g. JyotishUsers)."
+            "Set DYNAMODB_PROFILES_CHARTS_TABLE_NAME (e.g. JyotishProfilesCharts)."
         )
     return name
 
 
 @lru_cache(maxsize=1)
-def get_users_table():
+def get_profiles_charts_table():
     region = os.getenv("AWS_REGION", "ap-south-1").strip() or "ap-south-1"
     kwargs: dict = {"region_name": region}
     endpoint = os.getenv("AWS_ENDPOINT_URL", "").strip()
     if endpoint:
         kwargs["endpoint_url"] = endpoint
     resource = boto3.resource("dynamodb", **kwargs)
-    return resource.Table(_users_table_name())
+    return resource.Table(_profiles_charts_table_name())

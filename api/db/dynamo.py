@@ -1,37 +1,10 @@
-"""DynamoDB client for PyJHoraBirthCharts."""
+"""DynamoDB client for JyotishProfilesCharts (legacy alias: PyJHoraBirthCharts)."""
 from __future__ import annotations
 
-import os
-from functools import lru_cache
+from api.db.dynamo_common import DynamoDBNotConfiguredError, dynamo_client_error
+from api.db.profiles_charts_dynamo import get_profiles_charts_table
 
-import boto3
-from botocore.exceptions import ClientError
+# Backward-compatible alias used by legacy chart_repository.
+get_table = get_profiles_charts_table
 
-
-class DynamoDBNotConfiguredError(RuntimeError):
-    """Raised when required DynamoDB environment variables are missing."""
-
-
-def _table_name() -> str:
-    name = os.getenv("DYNAMODB_TABLE_NAME", "").strip()
-    if not name:
-        raise DynamoDBNotConfiguredError(
-            "Set DYNAMODB_TABLE_NAME (e.g. PyJHoraBirthCharts)."
-        )
-    return name
-
-
-@lru_cache(maxsize=1)
-def get_table():
-    region = os.getenv("AWS_REGION", "ap-south-1").strip() or "ap-south-1"
-    kwargs: dict = {"region_name": region}
-    endpoint = os.getenv("AWS_ENDPOINT_URL", "").strip()
-    if endpoint:
-        kwargs["endpoint_url"] = endpoint
-    resource = boto3.resource("dynamodb", **kwargs)
-    return resource.Table(_table_name())
-
-
-def dynamo_client_error(exc: ClientError) -> str:
-    err = exc.response.get("Error", {})
-    return err.get("Message") or err.get("Code") or str(exc)
+__all__ = ["DynamoDBNotConfiguredError", "dynamo_client_error", "get_table", "get_profiles_charts_table"]

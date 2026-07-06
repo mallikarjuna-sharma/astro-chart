@@ -59,6 +59,7 @@ export function isDynamoUnavailableError(err: unknown): boolean {
   const msg = String((err as Error)?.message ?? err);
   return (
     msg.includes("503") ||
+    msg.includes("DYNAMODB_PROFILES_CHARTS_TABLE_NAME") ||
     msg.includes("DYNAMODB_TABLE_NAME") ||
     msg.includes("DynamoDBNotConfigured") ||
     msg.includes("AWS credentials not found")
