@@ -16,7 +16,7 @@ import {
   defaultYearsExperience,
 } from "@/components/career/CareerContextForm";
 import { profilesApi } from "@/lib/profiles/client";
-import { restoreProfileToChartSession } from "@/lib/profiles/restore-session";
+import { restoreProfileToChartSession, isProfileSessionReady } from "@/lib/profiles/restore-session";
 import type { ProfileSummary } from "@/lib/profiles/types";
 import {
   buildBirthInput,
@@ -28,6 +28,7 @@ import {
 import type { CareerContextInput, GeocodeResponse } from "@/lib/pyjhora/types";
 import { useAuthStore, useIsAuthenticated } from "@/stores/auth-store";
 import { useProfileStore } from "@/stores/profile-store";
+import { useChartSessionStore } from "@/stores/chart-session-store";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -191,12 +192,19 @@ export function ProfileWizard() {
   };
 
   const loadProfile = async (profileId: string) => {
+    const session = useChartSessionStore.getState().session;
+    if (isProfileSessionReady(profileId, session)) {
+      setActiveProfileId(profileId);
+      navigate({ to: "/charts" });
+      return;
+    }
+
     setLoading(true);
     setProgress("Loading profile charts…");
     try {
       const profile = await profilesApi.get(profileId);
-      const session = await restoreProfileToChartSession(profile, setProgress);
-      saveChartSession(session);
+      const fullSession = await restoreProfileToChartSession(profile, setProgress);
+      saveChartSession(fullSession);
       setActiveProfileId(profileId);
       toast.success(`Loaded profile: ${profile.profile_name}`);
       navigate({ to: "/charts" });

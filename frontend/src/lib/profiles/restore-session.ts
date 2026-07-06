@@ -16,6 +16,14 @@ export function isChartSessionHydrated(session: ChartSession | null | undefined)
   return !!(session?.birthInput && session.consolidated && session.kp);
 }
 
+/** Active profile is already loaded in the chart session — skip API restore. */
+export function isProfileSessionReady(
+  profileId: string,
+  session: ChartSession | null | undefined,
+): boolean {
+  return session?.chartId === profileId && isChartSessionHydrated(session);
+}
+
 /**
  * Build a full chart session from a saved profile: runs extended API calls
  * (KP, panchanga, consolidated, …) without re-persisting analyses to DynamoDB.

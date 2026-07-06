@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { profilesApi } from "@/lib/profiles/client";
 import {
-  isChartSessionHydrated,
+  isProfileSessionReady,
   restoreProfileToChartSession,
 } from "@/lib/profiles/restore-session";
 import { saveChartSession } from "@/lib/pyjhora/session";
@@ -19,7 +19,8 @@ export function ProfileSessionBootstrap() {
     if (!activeProfileId || hydratingRef.current) return;
 
     const profileMismatch = session?.chartId !== activeProfileId;
-    const needsHydrate = profileMismatch || !isChartSessionHydrated(session);
+    const needsHydrate =
+      profileMismatch || !isProfileSessionReady(activeProfileId, session);
     if (!needsHydrate) return;
 
     hydratingRef.current = true;
