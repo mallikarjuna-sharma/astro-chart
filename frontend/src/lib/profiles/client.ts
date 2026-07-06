@@ -1,5 +1,6 @@
 import { getPyJHoraApiBase } from "@/lib/pyjhora/config";
 import { getStoredAuthToken } from "@/lib/auth/client";
+import { parseApiErrorBody } from "@/lib/api-errors";
 import type {
   CreateProfilePayload,
   ProfileListResponse,
@@ -18,8 +19,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const detail = typeof body.detail === "string" ? body.detail : "Request failed";
-    throw new Error(detail);
+    throw new Error(parseApiErrorBody(body, `Request failed (${res.status})`));
   }
   return body as T;
 }

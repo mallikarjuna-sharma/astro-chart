@@ -13,6 +13,12 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { authApi } from "@/lib/auth/client";
+import {
+  AUTH_PASSWORD_MIN_LENGTH,
+  validateLoginInput,
+  validateOtp,
+  validateSignupCredentials,
+} from "@/lib/auth/validation";
 import { useAuthStore } from "@/stores/auth-store";
 
 type SignupStep = "email" | "otp" | "credentials";
@@ -56,8 +62,9 @@ function SignupPage() {
   };
 
   const verifyOtp = async () => {
-    if (otp.length !== 4) {
-      toast.error("Enter the 4-digit code");
+    const otpCheck = validateOtp(otp);
+    if (!otpCheck.ok) {
+      toast.error(otpCheck.message);
       return;
     }
     setLoading(true);
@@ -74,8 +81,9 @@ function SignupPage() {
   };
 
   const completeSignup = async () => {
-    if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
+    const check = validateSignupCredentials(username, password, confirmPassword);
+    if (!check.ok) {
+      toast.error(check.message);
       return;
     }
     setLoading(true);
@@ -112,7 +120,7 @@ function SignupPage() {
           <CardDescription>
             {step === "email" && "We will send a one-time code to your inbox."}
             {step === "otp" && `Enter the code sent to ${email} (dev: 0000)`}
-            {step === "credentials" && "Pick a unique username and a strong password."}
+            {step === "credentials" && "Pick a unique username and a strong password (min 8 characters)."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -188,9 +196,13 @@ function SignupPage() {
                   id="password"
                   type="password"
                   autoComplete="new-password"
+                  minLength={AUTH_PASSWORD_MIN_LENGTH}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  At least {AUTH_PASSWORD_MIN_LENGTH} characters.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm password</Label>
@@ -198,6 +210,7 @@ function SignupPage() {
                   id="confirmPassword"
                   type="password"
                   autoComplete="new-password"
+                  minLength={AUTH_PASSWORD_MIN_LENGTH}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authApi } from "@/lib/auth/client";
+import { validateLoginInput } from "@/lib/auth/validation";
 import { useAuthStore } from "@/stores/auth-store";
 
 export const Route = createFileRoute("/login")({
@@ -24,8 +25,9 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!identifier.trim() || !password) {
-      toast.error("Enter your email or username and password");
+    const check = validateLoginInput(identifier, password);
+    if (!check.ok) {
+      toast.error(check.message);
       return;
     }
     setLoading(true);

@@ -14,8 +14,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -75,12 +76,6 @@ from api.schemas.profiles import (
     ProfileListResponse,
     ProfileResponse,
 )
-from api.profile_service import (
-    create_user_profile,
-    delete_user_profile,
-    get_user_profile,
-    list_user_profiles,
-)
 from api.auth_service import (
     AuthServiceError,
     auth_http_error,
@@ -90,6 +85,13 @@ from api.auth_service import (
     send_signup_otp,
     verify_signup_otp,
 )
+from api.profile_service import (
+    create_user_profile,
+    delete_user_profile,
+    get_user_profile,
+    list_user_profiles,
+)
+from api.auth_validation import format_validation_errors
 
 _PLANET_NAMES = {
     0: "Sun",
@@ -213,6 +215,16 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_handler(_request, exc: RequestValidationError):
+    messages = format_validation_errors(exc.errors())
+    detail = messages[0] if len(messages) == 1 else messages
+    return JSONResponse(
+        status_code=422,
+        content={"detail": detail, "errors": messages},
+    )
 
 
 def _compute_birth_chart(body: BirthChartBody) -> TableResponse:
