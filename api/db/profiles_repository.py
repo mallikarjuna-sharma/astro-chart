@@ -1,12 +1,11 @@
 """CRUD for birth profiles in JyotishProfiles (max 4 per auth user).
 
-JyotishProfiles — profile metadata (header rows only):
-  PK USER#{auth_user_id}  SK PROFILE#{profile_id}
+DynamoDB item limit is 400 KB. Persisted shape (phase 1):
+  PROFILE#{id}         — header + birth/student/career context (GSI profile_key)
+  PROFILE#{id}#CHARTS — d1_table, divisional_charts, meta
 
-JyotishProfilesCharts — divisional chart snapshots (see profiles_charts_repository):
-  PK USER#{auth_user_id}  SK CHART#{profile_id}
-
-d1_table is not stored; it is derived on read from birth_input.
+Career field and job analysis are computed on demand via dedicated API routes,
+not stored on the profile record.
 """
 from __future__ import annotations
 
@@ -17,7 +16,6 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from api.db import profiles_charts_repository
 from api.db.profiles_dynamo import get_profiles_table
 from api.schemas.chart import BirthChartBody, DivisionalChartsResponse, TableResponse
 
@@ -111,11 +109,18 @@ def _json_bytes(value: Any) -> int:
     return len(json.dumps(value, default=str, separators=(",", ":")).encode("utf-8"))
 
 
+def _d1_table_payload(d1: TableResponse) -> dict[str, Any]:
+    return {
+        "title": d1.title,
+        "columns": d1.columns,
+        "rows": [dict(zip(d1.columns, row)) for row in d1.rows],
+    }
+
+
 def _public_profile(merged: dict[str, Any]) -> dict[str, Any]:
     cleaned = _from_decimal(merged)
-    for key in ("PK", "SK", "entity_type", "chunk", "auth_username"):
+    for key in ("PK", "SK", "entity_type", "chunk"):
         cleaned.pop(key, None)
-    cleaned.pop("d1_table", None)
     cleaned["read_only"] = True
     return cleaned
 
@@ -134,7 +139,7 @@ def _public_summary(header: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _put_header(item: dict[str, Any]) -> None:
+def _put_item(item: dict[str, Any]) -> None:
     payload = _to_decimal(item)
     if _json_bytes(payload) > _DYNAMO_MAX_BYTES:
         raise ProfilesRepositoryError(
@@ -143,24 +148,12 @@ def _put_header(item: dict[str, Any]) -> None:
     get_profiles_table().put_item(Item=payload)
 
 
-def _get_legacy_charts_chunk(auth_user_id: str, profile_id: str) -> dict[str, Any] | None:
-    """Pre-migration charts stored under JyotishProfiles PROFILE#{id}#CHARTS."""
+def _get_chunk(auth_user_id: str, profile_id: str, part: str) -> dict[str, Any] | None:
     resp = get_profiles_table().get_item(
-        Key={"PK": _pk(auth_user_id), "SK": _sk_part(profile_id, "CHARTS")},
+        Key={"PK": _pk(auth_user_id), "SK": _sk_part(profile_id, part)},
     )
     item = resp.get("Item")
     return _from_decimal(item) if item else None
-
-
-def _load_charts(auth_user_id: str, profile_id: str) -> dict[str, Any] | None:
-    charts = profiles_charts_repository.get_profile_charts(auth_user_id, profile_id)
-    if charts:
-        return charts
-    legacy = _get_legacy_charts_chunk(auth_user_id, profile_id)
-    if not legacy:
-        return None
-    legacy.pop("d1_table", None)
-    return legacy
 
 
 def _merge_profile_parts(
@@ -172,7 +165,6 @@ def _merge_profile_parts(
         cleaned = _from_decimal(charts)
         for key in ("PK", "SK", "entity_type", "chunk", "profile_id", "user_id"):
             cleaned.pop(key, None)
-        cleaned.pop("d1_table", None)
         merged.update(cleaned)
     return merged
 
@@ -231,14 +223,13 @@ def get_profile(auth_user_id: str, profile_id: str) -> dict[str, Any] | None:
     header = resp.get("Item")
     if not header:
         return None
-    charts = _load_charts(auth_user_id, profile_id)
+    charts = _get_chunk(auth_user_id, profile_id, "CHARTS")
     merged = _merge_profile_parts(header, charts)
     return _public_profile(merged)
 
 
 def save_profile(
     auth_user_id: str,
-    auth_username: str,
     profile_name: str,
     profile_key: str,
     birth_input: BirthChartBody,
@@ -268,11 +259,11 @@ def save_profile(
         "PK": _pk(auth_user_id),
         "SK": _sk_header(profile_id),
         "entity_type": "profile",
+        "chunk": "header",
         "profile_id": profile_id,
         "profile_name": _normalize_profile_name(profile_name),
         "profile_key": profile_key,
         "user_id": auth_user_id,
-        "auth_username": auth_username,
         "birth_input": birth_input.model_dump(),
         "user_info": user_info,
         "student_context": student_context,
@@ -282,23 +273,28 @@ def save_profile(
         "updated_at": now,
     }
 
-    _put_header(header)
-    charts = profiles_charts_repository.save_profile_charts(
-        auth_user_id=auth_user_id,
-        profile_id=profile_id,
-        profile_name=_normalize_profile_name(profile_name),
-        auth_username=auth_username,
-        divisional=divisional,
-        meta=meta,
-        created_at=now,
-    )
+    charts_item = {
+        "PK": _pk(auth_user_id),
+        "SK": _sk_part(profile_id, "CHARTS"),
+        "entity_type": "profile_chunk",
+        "chunk": "charts",
+        "profile_id": profile_id,
+        "user_id": auth_user_id,
+        "meta": meta,
+        "d1_table": _d1_table_payload(d1),
+        "divisional_charts": divisional.model_dump(),
+        "updated_at": now,
+    }
 
-    merged = _merge_profile_parts(header, charts)
+    _put_item(header)
+    _put_item(charts_item)
+
+    merged = _merge_profile_parts(header, charts_item)
     return _public_profile(merged)
 
 
 def delete_profile(auth_user_id: str, profile_id: str) -> bool:
-    """Delete profile header, charts row, and any legacy in-table chunks."""
+    """Delete profile header and all chunks (CHARTS, legacy EDUCATION/CAREER, etc.)."""
     table = get_profiles_table()
     pk = _pk(auth_user_id)
     sk_prefix = _sk_header(profile_id)
@@ -320,6 +316,4 @@ def delete_profile(auth_user_id: str, profile_id: str) -> bool:
 
     for item in items:
         table.delete_item(Key={"PK": item["PK"], "SK": item["SK"]})
-
-    profiles_charts_repository.delete_profile_charts(auth_user_id, profile_id)
     return True

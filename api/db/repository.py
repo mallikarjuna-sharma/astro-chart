@@ -8,8 +8,7 @@ from uuid import uuid4
 
 from botocore.exceptions import ClientError
 
-from api.db.chart_payload import d1_table_payload
-from api.db.profiles_charts_dynamo import get_profiles_charts_table
+from api.db.dynamo import get_table
 from api.schemas.chart import BirthChartBody, DivisionalChartsResponse, TableResponse
 
 
@@ -47,11 +46,18 @@ def _from_decimal(value: Any) -> Any:
     return value
 
 
+def _d1_table_payload(d1: TableResponse) -> dict[str, Any]:
+    return {
+        "title": d1.title,
+        "columns": d1.columns,
+        "rows": [dict(zip(d1.columns, row)) for row in d1.rows],
+    }
+
+
 def _public_item(item: dict[str, Any]) -> dict[str, Any]:
     cleaned = _from_decimal(item)
     for key in ("PK", "SK", "entity_type"):
         cleaned.pop(key, None)
-    cleaned.pop("d1_table", None)
     return cleaned
 
 
@@ -76,16 +82,17 @@ def save_birth_chart(
         "user_info": user_info,
         "birth_input": birth_input.model_dump(),
         "meta": meta,
+        "d1_table": _d1_table_payload(d1),
         "divisional_charts": divisional.model_dump(),
         "created_at": now,
         "updated_at": now,
     }
-    get_profiles_charts_table().put_item(Item=_to_decimal(item))
+    get_table().put_item(Item=_to_decimal(item))
     return _public_item(item)
 
 
 def list_user_charts(user_id: str) -> list[dict[str, Any]]:
-    resp = get_profiles_charts_table().query(
+    resp = get_table().query(
         KeyConditionExpression="PK = :pk AND begins_with(SK, :sk_prefix)",
         ExpressionAttributeValues={
             ":pk": _pk(user_id),
@@ -96,8 +103,6 @@ def list_user_charts(user_id: str) -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     for raw in resp.get("Items", []):
         item = _from_decimal(raw)
-        if "chart_id" not in item:
-            continue
         birth_input = item.get("birth_input", {})
         meta = item.get("meta", {})
         summaries.append(
@@ -116,7 +121,7 @@ def list_user_charts(user_id: str) -> list[dict[str, Any]]:
 
 
 def get_birth_chart(user_id: str, chart_id: str) -> dict[str, Any] | None:
-    resp = get_profiles_charts_table().get_item(
+    resp = get_table().get_item(
         Key={"PK": _pk(user_id), "SK": _sk(chart_id)},
     )
     item = resp.get("Item")
@@ -127,7 +132,7 @@ def get_birth_chart(user_id: str, chart_id: str) -> dict[str, Any] | None:
 
 def delete_birth_chart(user_id: str, chart_id: str) -> bool:
     try:
-        resp = get_profiles_charts_table().delete_item(
+        resp = get_table().delete_item(
             Key={"PK": _pk(user_id), "SK": _sk(chart_id)},
             ConditionExpression="attribute_exists(PK)",
             ReturnValues="ALL_OLD",

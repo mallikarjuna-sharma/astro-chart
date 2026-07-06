@@ -6,7 +6,7 @@ from functools import lru_cache
 
 import boto3
 
-from api.db.dynamo_common import DynamoDBNotConfiguredError
+from api.db.dynamo import DynamoDBNotConfiguredError
 
 
 def _users_table_name() -> str:

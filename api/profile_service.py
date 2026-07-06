@@ -10,8 +10,7 @@ from fastapi import HTTPException
 
 from api.db import profiles_repository
 from api.db.profiles_repository import ProfilesRepositoryError, build_profile_key
-from api.db.chart_attach import attach_d1_table
-from api.db.dynamo_common import DynamoDBNotConfiguredError
+from api.db.dynamo import DynamoDBNotConfiguredError
 from api.schemas.profiles import (
     CreateProfileRequest,
     ProfileListResponse,
@@ -61,21 +60,20 @@ def get_user_profile(authorization: str | None, profile_id: str) -> ProfileRespo
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     if not item:
         raise HTTPException(status_code=404, detail="Profile not found.")
-    return ProfileResponse.model_validate(attach_d1_table(item))
+    return ProfileResponse.model_validate(item)
 
 
 def create_user_profile(
     authorization: str | None,
     body: CreateProfileRequest,
 ) -> ProfileResponse:
-    me = get_current_user(authorization)
-    user_id = me.user.user_id
+    user_id = _require_user_id(authorization)
     profile_key = build_profile_key(body.profile_name, body.birth_input)
 
     try:
         existing = profiles_repository.find_by_profile_key(profile_key)
         if existing and existing.get("user_id") == user_id:
-            return ProfileResponse.model_validate(attach_d1_table(existing))
+            return ProfileResponse.model_validate(existing)
         if existing:
             raise ProfilesRepositoryError(
                 "A profile with this name, date of birth, and location already exists."
@@ -96,7 +94,6 @@ def create_user_profile(
     try:
         item = profiles_repository.save_profile(
             auth_user_id=user_id,
-            auth_username=me.user.username,
             profile_name=body.profile_name,
             profile_key=profile_key,
             birth_input=body.birth_input,
@@ -113,7 +110,7 @@ def create_user_profile(
     except ClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return ProfileResponse.model_validate(attach_d1_table(item))
+    return ProfileResponse.model_validate(item)
 
 
 def delete_user_profile(authorization: str | None, profile_id: str) -> dict[str, str]:

@@ -13,8 +13,8 @@ services:
         value: "*"
       - key: AWS_REGION
         value: ap-south-1
-      - key: DYNAMODB_PROFILES_CHARTS_TABLE_NAME
-        value: JyotishProfilesCharts
+      - key: DYNAMODB_TABLE_NAME
+        value: PyJHoraBirthCharts
       - key: DYNAMODB_USERS_TABLE_NAME
         value: JyotishUsers
       - key: DYNAMODB_PROFILES_TABLE_NAME
