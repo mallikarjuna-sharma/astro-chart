@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/AppShell";
+import { AiAssistanceTabs } from "@/components/ai/AiAssistanceTabs";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { PlaceAutocomplete } from "@/components/charts/PlaceAutocomplete";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -87,7 +88,8 @@ function PrashnaPage() {
 
   return (
     <div>
-      <PageHeader title="Prashna (Horary)" subtitle="The moment of your question becomes the chart. No birth data required." />
+      <PageHeader title="AI Assistance" subtitle="Horary chart for the moment of your question — no birth data required." />
+      <AiAssistanceTabs />
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>

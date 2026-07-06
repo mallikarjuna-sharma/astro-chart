@@ -14,9 +14,9 @@ function EmptyState() {
   return (
     <Card>
       <CardContent className="py-8 text-center text-muted-foreground">
-        <p className="mb-3">KP data loads after Save & generate charts on Birth Data.</p>
-        <Link to="/birth-data">
-          <Button variant="outline">Enter birth data</Button>
+        <p className="mb-3">KP data loads after you open a profile.</p>
+        <Link to="/">
+          <Button variant="outline">Go to Profiles</Button>
         </Link>
       </CardContent>
     </Card>

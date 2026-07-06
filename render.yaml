@@ -15,6 +15,10 @@ services:
         value: ap-south-1
       - key: DYNAMODB_TABLE_NAME
         value: PyJHoraBirthCharts
+      - key: DYNAMODB_USERS_TABLE_NAME
+        value: JyotishUsers
+      - key: DYNAMODB_PROFILES_TABLE_NAME
+        value: JyotishProfiles
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY

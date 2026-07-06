@@ -69,6 +69,18 @@ from api.schemas.auth import (
     VerifyOtpRequest,
     VerifyOtpResponse,
 )
+from api.schemas.profiles import (
+    CreateProfileRequest,
+    DeleteProfileResponse,
+    ProfileListResponse,
+    ProfileResponse,
+)
+from api.profile_service import (
+    create_user_profile,
+    delete_user_profile,
+    get_user_profile,
+    list_user_profiles,
+)
 from api.auth_service import (
     AuthServiceError,
     auth_http_error,
@@ -181,14 +193,25 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="PyJHora table API", lifespan=lifespan)
 
-_cors_raw = os.getenv("CORS_ORIGINS", "*").strip()
-_cors_list = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
+_cors_raw = os.getenv("CORS_ORIGINS", "").strip()
+if not _cors_raw:
+    _cors_list = [
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+elif _cors_raw == "*":
+    _cors_list = ["*"]
+else:
+    _cors_list = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_list,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -392,6 +415,36 @@ def auth_login(body: LoginRequest) -> AuthResponse:
 @app.get("/api/auth/me", response_model=MeResponse)
 def auth_me(authorization: str | None = Header(default=None)) -> MeResponse:
     return get_current_user(authorization)
+
+
+@app.get("/api/profiles", response_model=ProfileListResponse)
+def profiles_list(authorization: str | None = Header(default=None)) -> ProfileListResponse:
+    return list_user_profiles(authorization)
+
+
+@app.post("/api/profiles", response_model=ProfileResponse)
+def profiles_create(
+    body: CreateProfileRequest,
+    authorization: str | None = Header(default=None),
+) -> ProfileResponse:
+    return create_user_profile(authorization, body)
+
+
+@app.get("/api/profiles/{profile_id}", response_model=ProfileResponse)
+def profiles_get(
+    profile_id: str,
+    authorization: str | None = Header(default=None),
+) -> ProfileResponse:
+    return get_user_profile(authorization, profile_id)
+
+
+@app.delete("/api/profiles/{profile_id}", response_model=DeleteProfileResponse)
+def profiles_delete(
+    profile_id: str,
+    authorization: str | None = Header(default=None),
+) -> DeleteProfileResponse:
+    result = delete_user_profile(authorization, profile_id)
+    return DeleteProfileResponse(**result)
 
 
 @app.get("/api/geocode", response_model=GeocodeResponse)

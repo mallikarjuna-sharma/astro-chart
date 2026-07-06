@@ -56,7 +56,7 @@ function ReportsPage() {
           <ConsolidatedExportPanel data={session?.consolidated} chartLabel={chartLabel} />
           {!session?.consolidated && (
             <div className="mt-4">
-              <Link to="/birth-data">
+              <Link to="/">
                 <Button variant="outline" size="sm">
                   Generate from Birth Data
                 </Button>

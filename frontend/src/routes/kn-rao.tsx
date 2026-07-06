@@ -15,8 +15,8 @@ function EmptyState() {
     <Card>
       <CardContent className="py-8 text-center text-muted-foreground">
         <p className="mb-3">Jaimini data loads after Save & generate charts.</p>
-        <Link to="/birth-data">
-          <Button variant="outline">Enter birth data</Button>
+        <Link to="/">
+          <Button variant="outline">Go to Profiles</Button>
         </Link>
       </CardContent>
     </Card>

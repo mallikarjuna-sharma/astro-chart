@@ -49,9 +49,9 @@ function ChartsPage() {
         />
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            <p className="mb-4">Charts load from the PyJHora API after birth data is saved.</p>
-            <Link to="/birth-data">
-              <Button className="gradient-gold text-primary-foreground">Go to Birth Data</Button>
+            <p className="mb-4">Charts load from your saved profile. Open or create one on the Profiles page.</p>
+            <Link to="/">
+              <Button className="gradient-gold text-primary-foreground">Go to Profiles</Button>
             </Link>
           </CardContent>
         </Card>

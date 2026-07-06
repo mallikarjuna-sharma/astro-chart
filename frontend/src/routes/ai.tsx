@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/AppShell";
+import { AiAssistanceTabs } from "@/components/ai/AiAssistanceTabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,7 +38,8 @@ function AIPage() {
 
   return (
     <div>
-      <PageHeader title="JyotishAI Assistant" subtitle="Natural language across all four systems. Answers always carry a Four-System score." />
+      <PageHeader title="AI Assistance" subtitle="Natural language chat and horary (Prashna) questions across all four systems." />
+      <AiAssistanceTabs />
 
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 flex flex-col h-[70vh]">

@@ -19,10 +19,11 @@ export interface GenerateChartsResult {
   persisted: boolean;
 }
 
-async function computeExtendedAnalysis(
+export async function computeExtendedAnalysis(
   birthInput: BirthInput,
   studentContext: StudentContext,
   onProgress?: (step: string) => void,
+  options?: { runEducationAnalysis?: boolean },
 ) {
   onProgress?.("Loading extended vargas (D10, D16, D24, D60, D81)…");
   const divisionalExtended = await pyjhora.divisionalCharts(birthInput, "10,16,24,60,81");
@@ -53,11 +54,13 @@ async function computeExtendedAnalysis(
 
   let educationAnalysis;
   let educationAnalysisError: string | undefined;
-  onProgress?.("Career & education analysis (LLM)…");
-  try {
-    educationAnalysis = await pyjhora.educationAnalysis(consolidated);
-  } catch (err) {
-    educationAnalysisError = String((err as Error)?.message ?? err);
+  if (options?.runEducationAnalysis) {
+    onProgress?.("Career & education analysis (LLM)…");
+    try {
+      educationAnalysis = await pyjhora.educationAnalysis(consolidated);
+    } catch (err) {
+      educationAnalysisError = String((err as Error)?.message ?? err);
+    }
   }
 
   return {
@@ -82,7 +85,9 @@ async function computeAllCharts(
   onProgress?.("Loading divisional charts (D1–D9)…");
   const divisionalBasic = await pyjhora.divisionalCharts(birthInput);
 
-  const extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress);
+  const extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress, {
+    runEducationAnalysis: true,
+  });
 
   return { divisionalBasic, ...extended };
 }
@@ -122,7 +127,9 @@ export async function saveAndGenerateCharts(opts: GenerateChartsOptions): Promis
       sessionBirthInput = saved.birth_input;
       d1Table = normalizeTableResponse(saved.d1_table, saved.meta);
       divisionalBasic = saved.divisional_charts;
-      extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress);
+      extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress, {
+        runEducationAnalysis: true,
+      });
     } catch (err) {
       if (!isDynamoUnavailableError(err)) throw err;
       onProgress?.("Database unavailable — computing charts locally…");
@@ -203,7 +210,9 @@ export async function fetchAndRestoreCharts(
 
   const d1Table = normalizeTableResponse(saved.d1_table, saved.meta);
   const divisionalBasic = saved.divisional_charts;
-  const extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress);
+  const extended = await computeExtendedAnalysis(birthInput, studentContext, onProgress, {
+    runEducationAnalysis: true,
+  });
 
   const session: ChartSession = {
     userId: trimmedId,

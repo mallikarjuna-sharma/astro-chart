@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/AppShell";
+import { ProfileSessionBootstrap } from "@/components/profile/ProfileSessionBootstrap";
 import { useChartSessionStore } from "@/stores/chart-session-store";
 import { syncUserProfileFromSession } from "@/stores/profile-sync";
 import { getStoredDisplayName } from "@/stores/user-store";
@@ -139,6 +140,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ProfileBootstrap />
+      <ProfileSessionBootstrap />
       {isAuthPage ? (
         <Outlet />
       ) : (
