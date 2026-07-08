@@ -471,9 +471,15 @@ export interface EducationAnalysisResponse {
     parent_overview?: string;
     astro_overview?: string;
     active_dasha_lord?: string;
+    peak_career_dasha?: string;
+    macro_identity?: string;
+    confidence?: string;
+    career_phase?: string;
   };
   fields: EducationFieldResult[];
   report: Record<string, unknown>;
+  report_html?: string | null;
+  career_field_report?: Record<string, unknown> | null;
 }
 
 export interface ChartSession {

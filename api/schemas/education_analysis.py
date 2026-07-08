@@ -32,3 +32,11 @@ class EducationAnalysisResponse(BaseModel):
         ...,
         description="Structured report payload (includes payload + fields for client-side HTML rendering).",
     )
+    report_html: str | None = Field(
+        default=None,
+        description="Full career field recommendation report HTML (v2 rich layout).",
+    )
+    career_field_report: dict[str, Any] | None = Field(
+        default=None,
+        description="Macro clusters, chart facts, and LLM narrative sections for the v2 report.",
+    )

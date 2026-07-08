@@ -31,6 +31,8 @@ export function EducationAnalysisSection() {
         session.birthInput,
         session.studentContext,
         consolidated,
+        undefined,
+        session.userInfo?.display_name,
       );
       if (!consolidatedHasEngineData(consolidated)) {
         patchChartSession({ consolidated: engineJson });

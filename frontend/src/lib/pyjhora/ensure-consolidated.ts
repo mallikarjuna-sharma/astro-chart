@@ -20,6 +20,7 @@ export async function ensureConsolidatedForEngine(
   studentContext: StudentContext | undefined,
   consolidated: Record<string, unknown> | null | undefined,
   careerContext?: CareerContextInput | null,
+  displayName?: string | null,
 ): Promise<Record<string, unknown>> {
   let out: Record<string, unknown>;
   if (consolidatedHasEngineData(consolidated)) {
@@ -29,6 +30,16 @@ export async function ensureConsolidatedForEngine(
       birth_input: birthInput,
       student_context: studentContext ?? null,
     });
+  }
+  const name = displayName?.trim();
+  if (name) {
+    const sc = (out.student_context as Record<string, unknown> | undefined) ?? {};
+    out = {
+      ...out,
+      profile_name: name,
+      user_info: { ...((out.user_info as Record<string, unknown> | undefined) ?? {}), display_name: name },
+      student_context: { ...sc, student_name: name, name },
+    };
   }
   if (careerContext && Object.keys(careerContext).length > 0) {
     out = { ...out, career_context: careerContext };

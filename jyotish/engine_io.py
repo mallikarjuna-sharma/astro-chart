@@ -77,7 +77,14 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
     ctx = data.get("student_context", {})
     sys_cfg = data.get("system_config", {})
     if student_name in ("Unknown", "Student", ""):
-        student_name = ctx.get("student_name") or ctx.get("name") or ctx.get("Name") or student_name
+        student_name = (
+            ctx.get("student_name")
+            or ctx.get("name")
+            or ctx.get("Name")
+            or (data.get("user_info") or {}).get("display_name")
+            or data.get("profile_name")
+            or student_name
+        )
     
     lagna_sign = pyh.get("d1_lagna", "")
     lagna_deg  = pyh.get("d1_lagna_degree", 15.0) 

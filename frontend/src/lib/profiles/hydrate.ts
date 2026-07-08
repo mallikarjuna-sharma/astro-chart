@@ -32,6 +32,16 @@ export function profileToChartSession(profile: ProfileResponse): ChartSession {
     : undefined;
 
   let consolidated = profile.consolidated as ChartSession["consolidated"];
+  const profileName = profile.profile_name?.trim() || userInfo.display_name?.trim();
+  if (consolidated && profileName) {
+    const sc = (consolidated.student_context as Record<string, unknown> | undefined) ?? {};
+    consolidated = {
+      ...consolidated,
+      profile_name: profileName,
+      user_info: userInfo,
+      student_context: { ...sc, student_name: profileName, name: profileName },
+    };
+  }
   if (consolidated && profile.career_context && Object.keys(profile.career_context).length > 0) {
     consolidated = { ...consolidated, career_context: profile.career_context };
   }
