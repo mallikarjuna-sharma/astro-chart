@@ -63,8 +63,8 @@ class ProfileResponse(BaseModel):
     vimshottari: dict[str, Any] | None = None
     divisional_extended: dict[str, Any] | None = None
     consolidated: dict[str, Any] | None = None
-    education_analysis: dict[str, Any] | None = None
-    education_analysis_error: str | None = None
+    # Education analysis is stored in the dedicated JyotishEducationAnalysis
+    # table (see api/db/education_repository.py), not on the profile.
     career_timeline: dict[str, Any] | None = None
     career_timeline_error: str | None = None
     created_at: str

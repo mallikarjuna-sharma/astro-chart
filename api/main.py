@@ -34,9 +34,17 @@ from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
 from api.geocode import GeocodeError, geocode_location, geocode_place_id, places_autocomplete
 from api.jhora_bootstrap import init_jhora
 from api.education_analysis import EducationAnalysisError, run_education_analysis
+from api.education_service import (
+    delete_education_analysis as delete_profile_education_analysis,
+    get_or_create_education_analysis,
+)
 from api.career_timeline import CareerTimelineError, run_career_timeline
 from api.prashna import PrashnaError, list_prashna_categories, run_prashna_analysis, run_prashna_batch
-from api.schemas.education_analysis import EducationAnalysisRequest, EducationAnalysisResponse
+from api.schemas.education_analysis import (
+    EducationAnalysisRequest,
+    EducationAnalysisResponse,
+    ProfileEducationAnalysisRequest,
+)
 from api.schemas.career_timeline import CareerTimelineRequest, CareerTimelineResponse
 from api.schemas.prashna import (
     PrashnaBatchRequest,
@@ -987,6 +995,61 @@ def education_analysis_endpoint(body: EducationAnalysisRequest) -> EducationAnal
             status_code=502, detail=f"Education analysis failed: {exc}"
         ) from exc
     return EducationAnalysisResponse.model_validate(result)
+
+
+@app.post(
+    "/api/profiles/{profile_id}/education-analysis",
+    response_model=EducationAnalysisResponse,
+)
+async def profile_education_analysis_endpoint(
+    profile_id: str,
+    body: ProfileEducationAnalysisRequest,
+    refresh: bool = Query(False, description="Force recompute and overwrite the stored payloads."),
+    authorization: str | None = Header(default=None),
+) -> EducationAnalysisResponse:
+    """Cache-or-compute the career field report for a logged-in user's profile.
+
+    On the first call (or with ``?refresh=true``) the JyotishAI engine runs, the
+    four report payloads (results / macro_clusters / report / chart_facts) plus the
+    rendered HTML are stored in DynamoDB keyed by ``profile_id``, and the analysis
+    is returned. Later calls are served straight from the table without recomputing.
+
+    Requires an ``Authorization: Bearer <token>`` header. ``user_json`` (the
+    consolidated chart) is only needed when there is no cached result yet.
+    """
+    from fastapi.concurrency import run_in_threadpool
+
+    try:
+        result = await run_in_threadpool(
+            get_or_create_education_analysis,
+            authorization,
+            profile_id,
+            body.user_json or {},
+            refresh,
+        )
+    except HTTPException:
+        raise
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502, detail=f"Education analysis failed: {exc}"
+        ) from exc
+    return EducationAnalysisResponse.model_validate(result)
+
+
+@app.delete("/api/profiles/{profile_id}/education-analysis")
+def profile_education_analysis_delete(
+    profile_id: str,
+    authorization: str | None = Header(default=None),
+) -> dict[str, str]:
+    """Delete the stored education analysis for a profile (forces recompute next time)."""
+    try:
+        return delete_profile_education_analysis(authorization, profile_id)
+    except HTTPException:
+        raise
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
 
 
 @app.post("/api/career-timeline", response_model=CareerTimelineResponse)

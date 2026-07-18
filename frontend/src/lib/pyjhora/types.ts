@@ -476,10 +476,19 @@ export interface EducationAnalysisResponse {
     confidence?: string;
     career_phase?: string;
   };
-  fields: EducationFieldResult[];
-  report: Record<string, unknown>;
-  report_html?: string | null;
+  // Frozen html-payload-contract v1 — four JSON payloads (rendered as React,
+  // no server-side HTML):
+  results: EducationFieldResult[]; // payload 1
+  macro_clusters?: Record<string, unknown>[]; // payload 2
+  report: Record<string, unknown>; // payload 3 — 14-section narrative
+  chart_facts?: Record<string, unknown>; // payload 4
+  // Back-compat / convenience:
+  fields: EducationFieldResult[]; // alias of `results`
+  report_bundle?: Record<string, unknown> | null;
   career_field_report?: Record<string, unknown> | null;
+  profile_id?: string | null;
+  user_id?: string | null;
+  cached?: boolean | null;
 }
 
 export interface ChartSession {

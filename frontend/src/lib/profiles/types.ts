@@ -34,8 +34,8 @@ export interface ProfileResponse {
   vimshottari?: Record<string, unknown> | null;
   divisional_extended?: Record<string, unknown> | null;
   consolidated?: Record<string, unknown> | null;
-  education_analysis?: Record<string, unknown> | null;
-  education_analysis_error?: string | null;
+  // Education analysis lives in the dedicated JyotishEducationAnalysis table,
+  // fetched via profilesApi.educationAnalysis(profileId) — not on the profile.
   career_timeline?: Record<string, unknown> | null;
   career_timeline_error?: string | null;
   created_at: string;
@@ -58,7 +58,6 @@ export const PROFILE_SECTION = {
   JAIMINI: "ANALYSIS#JAIMINI",
   EXTENDED: "ANALYSIS#EXTENDED",
   CONSOLIDATED: "ANALYSIS#CONSOLIDATED",
-  EDUCATION: "CONTEXT#EDUCATION",
   CAREER: "CONTEXT#CAREER",
 } as const;
 

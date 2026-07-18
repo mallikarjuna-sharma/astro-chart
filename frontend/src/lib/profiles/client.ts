@@ -1,6 +1,7 @@
 import { getPyJHoraApiBase } from "@/lib/pyjhora/config";
 import { getStoredAuthToken } from "@/lib/auth/client";
 import { parseApiErrorBody } from "@/lib/api-errors";
+import type { EducationAnalysisResponse } from "@/lib/pyjhora/types";
 import type {
   CreateProfilePayload,
   PersistProfileSectionsPayload,
@@ -53,5 +54,26 @@ export const profilesApi = {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  /**
+   * Cache-or-compute the career field report for a profile. Returns the stored
+   * analysis when present; otherwise the engine runs (30-60s), the four LLM
+   * payloads are persisted in DynamoDB, and the fresh result is returned.
+   * `userJson` (consolidated chart) is only needed on a cache miss.
+   */
+  educationAnalysis(
+    profileId: string,
+    userJson?: Record<string, unknown>,
+    opts?: { refresh?: boolean },
+  ) {
+    const q = opts?.refresh ? "?refresh=true" : "";
+    return request<EducationAnalysisResponse>(
+      `/api/profiles/${profileId}/education-analysis${q}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ user_json: userJson ?? null }),
+      },
+    );
   },
 };

@@ -1073,8 +1073,14 @@ def _build_career_field_report_bundle(
     data: Dict[str, Any],
     student_name: Optional[str] = None,
     use_new_renderer: bool = True,
+    render_html: bool = True,
 ) -> Dict[str, Any]:
-    """Run engine + SBC + LLM narrative and render the career field report HTML."""
+    """Run engine + SBC + LLM narrative and render the career field report HTML.
+
+    ``render_html=False`` skips HTML generation entirely (``html`` is ``None`` in
+    the returned bundle). The API/web path renders the report with React
+    components from the four JSON payloads, so it does not need server-side HTML.
+    """
     payload = parse_json_payload(data)
     name = student_name or getattr(payload, "name", "Unknown")
 
@@ -1104,7 +1110,7 @@ def _build_career_field_report_bundle(
         report = _fallback_report_json(results, macro_clusters, name)
 
     html = None
-    if use_new_renderer:
+    if use_new_renderer and render_html:
         _timeline_periods = getattr(payload, "career_timeline", None)
         if _timeline_periods:
             try:
@@ -1132,7 +1138,7 @@ def _build_career_field_report_bundle(
                 "report has no period-level view model to build)."
             )
 
-    if html is None:
+    if html is None and render_html:
         try:
             html = render_report_html_rich(name, career_phase, active_lord, peak_lord, results, macro_clusters, report, chart_facts)
         except Exception as _rich_err:
@@ -1159,9 +1165,16 @@ def _build_career_field_report_bundle(
 def build_career_field_report_from_chart(
     chart: Dict[str, Any],
     student_name: Optional[str] = None,
+    render_html: bool = True,
 ) -> Dict[str, Any]:
-    """Build the career field report from consolidated chart JSON (API / web use)."""
-    return _build_career_field_report_bundle(chart, student_name=student_name)
+    """Build the career field report from consolidated chart JSON (API / web use).
+
+    Pass ``render_html=False`` to skip server-side HTML generation when the
+    client renders the report from the JSON payloads (React components).
+    """
+    return _build_career_field_report_bundle(
+        chart, student_name=student_name, render_html=render_html
+    )
 
 
 def generate_career_field_report_v2(

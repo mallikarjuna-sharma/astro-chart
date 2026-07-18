@@ -4,7 +4,9 @@ One logical profile spans multiple DynamoDB items (same table, different SK):
   PROFILE#{id}              — header + birth/student/career inputs
   PROFILE#{id}#CHARTS       — d1_table, divisional_charts, meta
   PROFILE#{id}#ANALYSIS#*   — KP, Jaimini, extended, consolidated
-  PROFILE#{id}#CONTEXT#*    — education / career timeline outputs
+  PROFILE#{id}#CONTEXT#*    — career timeline outputs
+                              (education analysis lives in its own table,
+                               JyotishEducationAnalysis, keyed by profile_id)
 
 All calculations run once at profile create; reads merge chunks without recomputing.
 """
@@ -32,7 +34,6 @@ CHUNK_KP = "ANALYSIS#KP"
 CHUNK_JAIMINI = "ANALYSIS#JAIMINI"
 CHUNK_EXTENDED = "ANALYSIS#EXTENDED"
 CHUNK_CONSOLIDATED = "ANALYSIS#CONSOLIDATED"
-CHUNK_EDUCATION = "CONTEXT#EDUCATION"
 CHUNK_CAREER = "CONTEXT#CAREER"
 
 _CHUNK_STRIP_KEYS = frozenset(

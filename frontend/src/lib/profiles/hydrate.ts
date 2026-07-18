@@ -62,10 +62,9 @@ export function profileToChartSession(profile: ProfileResponse): ChartSession {
     vimshottari: profile.vimshottari as ChartSession["vimshottari"],
     kp: profile.kp as ChartSession["kp"],
     consolidated,
-    educationAnalysis: profile.education_analysis as ChartSession["educationAnalysis"],
-    educationAnalysisError: profile.education_analysis
-      ? undefined
-      : profile.education_analysis_error ?? undefined,
+    // Education analysis is fetched on demand from the dedicated
+    // JyotishEducationAnalysis table by EducationAnalysisSection, not hydrated
+    // from the profile record.
     careerTimeline: profile.career_timeline as ChartSession["careerTimeline"],
     careerTimelineError: profile.career_timeline
       ? undefined

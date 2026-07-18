@@ -57,9 +57,8 @@ def _report_payload(
     payload: NatalPayloadV2,
     narrative: dict[str, Any],
     bundle: dict[str, Any],
-    report_html: str,
 ) -> dict[str, Any]:
-    """JSON bundle sufficient to rebuild or display the career field report."""
+    """JSON bundle sufficient to display the career field report (no HTML)."""
     sorted_results = sorted(results, key=lambda x: (-x["final_score"], x["field_id"]))
     match_fields = [
         r for r in sorted_results
@@ -82,26 +81,29 @@ def _report_payload(
         "fields": sorted_results,
         "payload": payload.model_dump(),
         "career_field_report": career_field_report,
-        "report_html": report_html,
     }
 
 
 def run_education_analysis(chart: dict[str, Any]) -> dict[str, Any]:
-    """Parse chart JSON, run the career engine, and return structured + HTML report."""
+    """Parse chart JSON, run the career engine, and return the JSON report payloads.
+
+    No HTML is produced or returned — the client renders the report from the four
+    JSON payloads (results / macro_clusters / report / chart_facts) with React
+    components.
+    """
     if not _llm_configured():
         raise EducationAnalysisError(
             "No LLM API key configured. Set GEMINI_API_KEY (or OPENAI_API_KEY / "
             "ANTHROPIC_API_KEY) in .env before calling /api/education-analysis."
         )
 
-    bundle = build_career_field_report_from_chart(chart)
+    bundle = build_career_field_report_from_chart(chart, render_html=False)
     payload = bundle["payload"]
     results = bundle.get("results") or []
     if not results:
         raise EducationAnalysisError("Engine returned no career field results.")
 
     narrative = bundle.get("report") or {}
-    report_html = bundle.get("html") or ""
     generated_at = datetime.now(timezone.utc).isoformat()
 
     career_field_report = {
@@ -113,15 +115,22 @@ def run_education_analysis(chart: dict[str, Any]) -> dict[str, Any]:
         "peak_lord": bundle.get("peak_lord", ""),
     }
 
-    report = _report_payload(results, payload, narrative, bundle, report_html)
+    report_bundle = _report_payload(results, payload, narrative, bundle)
 
     return {
         "engine_version": ENGINE_VERSION,
         "generated_at": generated_at,
         "student": _student_summary(payload),
         "summary": _summary_from_report(narrative, bundle),
-        "fields": results,
-        "report": report,
-        "report_html": report_html,
+        # --- frozen html-payload-contract v1: the four LLM/report payloads,
+        # exposed as top-level keys with their contract names (see
+        # Job_Career/html_payload_contract.py in the LLM engine repo). ---
+        "results": results,                                # payload 1
+        "macro_clusters": bundle.get("macro_clusters", []),  # payload 2
+        "report": narrative,                               # payload 3 (14-section narrative)
+        "chart_facts": bundle.get("chart_facts", {}),      # payload 4
+        # --- back-compat / convenience ---
+        "fields": results,                                 # alias of `results`
+        "report_bundle": report_bundle,                    # structured bundle (prev. `report`)
         "career_field_report": career_field_report,
     }
