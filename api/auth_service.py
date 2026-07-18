@@ -16,18 +16,24 @@ from api.db.dynamo import DynamoDBNotConfiguredError
 from api.schemas.auth import (
     AuthResponse,
     AuthUser,
+    ForgotPasswordRequest,
     LoginRequest,
     MeResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
     SendOtpRequest,
     SendOtpResponse,
     SignupRequest,
     VerifyOtpRequest,
     VerifyOtpResponse,
+    VerifyResetOtpRequest,
+    VerifyResetOtpResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 VERIFICATION_TOKEN_MINUTES = 15
+RESET_TOKEN_MINUTES = 15
 ACCESS_TOKEN_DAYS = 7
 
 
@@ -79,17 +85,22 @@ def _dev_expose_otp() -> bool:
     return os.getenv("AUTH_DEV_EXPOSE_OTP", "").strip().lower() in {"1", "true", "yes"}
 
 
-def _send_otp_email(email: str, otp: str) -> None:
+def _send_otp_email(email: str, otp: str, purpose: str = "signup") -> None:
     from_email = os.getenv("SES_FROM_EMAIL", "").strip()
     if not from_email:
-        logger.warning("SES_FROM_EMAIL not set — OTP for %s: %s", email, otp)
+        logger.warning("SES_FROM_EMAIL not set — OTP for %s (%s): %s", email, purpose, otp)
         return
 
     region = os.getenv("SES_REGION", os.getenv("AWS_REGION", "ap-south-1")).strip()
     client = boto3.client("ses", region_name=region)
-    subject = "Your JyotishAI verification code"
+    if purpose == "password_reset":
+        subject = "Your JyotishAI password reset code"
+        intro = "Your password reset code is"
+    else:
+        subject = "Your JyotishAI verification code"
+        intro = "Your verification code is"
     body = (
-        f"Your verification code is {otp}.\n\n"
+        f"{intro} {otp}.\n\n"
         f"It expires in {auth_repository.OTP_TTL_SECONDS // 60} minutes.\n"
         "If you did not request this, you can ignore this email."
     )
@@ -169,6 +180,70 @@ def complete_signup(body: SignupRequest) -> AuthResponse:
         timedelta(days=ACCESS_TOKEN_DAYS),
     )
     return AuthResponse(access_token=access_token, user=AuthUser.model_validate(user))
+
+
+def send_password_reset_otp(body: ForgotPasswordRequest) -> SendOtpResponse:
+    email = body.email.strip().lower()
+    try:
+        user = auth_repository.get_user_by_email(email)
+        if not user:
+            # Do not reveal whether the email is registered.
+            return SendOtpResponse(
+                message="If an account exists for this email, a reset code has been sent.",
+                expires_in_seconds=auth_repository.OTP_TTL_SECONDS,
+                dev_otp=None,
+            )
+        otp = auth_repository.save_otp_challenge(email, purpose="password_reset")
+    except DynamoDBNotConfiguredError as exc:
+        raise AuthServiceError(str(exc)) from exc
+    except AuthRepositoryError as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+    _send_otp_email(email, otp, purpose="password_reset")
+    return SendOtpResponse(
+        message="If an account exists for this email, a reset code has been sent.",
+        expires_in_seconds=auth_repository.OTP_TTL_SECONDS,
+        dev_otp=otp if _dev_expose_otp() else None,
+    )
+
+
+def verify_password_reset_otp(body: VerifyResetOtpRequest) -> VerifyResetOtpResponse:
+    email = body.email.strip().lower()
+    try:
+        auth_repository.verify_otp_challenge(email, body.otp, purpose="password_reset")
+    except DynamoDBNotConfiguredError as exc:
+        raise AuthServiceError(str(exc)) from exc
+    except AuthRepositoryError as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+    token = _issue_token(
+        {"type": "password_reset", "email": email},
+        timedelta(minutes=RESET_TOKEN_MINUTES),
+    )
+    return VerifyResetOtpResponse(reset_token=token)
+
+
+def reset_password(body: ResetPasswordRequest) -> ResetPasswordResponse:
+    email = body.email.strip().lower()
+    try:
+        payload = _decode_token(body.reset_token, "password_reset")
+    except AuthServiceError as exc:
+        raise AuthServiceError("Reset code expired. Request a new one.") from exc
+
+    if payload.get("email") != email:
+        raise AuthServiceError("Reset token does not match this email.")
+
+    try:
+        user = auth_repository.get_user_by_email(email)
+        if not user:
+            raise AuthServiceError("No account found for this email.")
+        auth_repository.update_password(user["user_id"], body.new_password)
+    except DynamoDBNotConfiguredError as exc:
+        raise AuthServiceError(str(exc)) from exc
+    except AuthRepositoryError as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+    return ResetPasswordResponse()
 
 
 def login(body: LoginRequest) -> AuthResponse:

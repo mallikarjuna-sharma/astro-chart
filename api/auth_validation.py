@@ -18,6 +18,9 @@ FIELD_LABELS: dict[str, str] = {
     "confirm_password": "Confirm password",
     "identifier": "Email or username",
     "verification_token": "Verification token",
+    "new_password": "New password",
+    "confirm_new_password": "Confirm new password",
+    "reset_token": "Reset token",
 }
 
 

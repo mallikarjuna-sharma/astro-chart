@@ -62,13 +62,18 @@ from api.schemas.storage import (
 )
 from api.schemas.auth import (
     AuthResponse,
+    ForgotPasswordRequest,
     LoginRequest,
     MeResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
     SendOtpRequest,
     SendOtpResponse,
     SignupRequest,
     VerifyOtpRequest,
     VerifyOtpResponse,
+    VerifyResetOtpRequest,
+    VerifyResetOtpResponse,
 )
 from api.schemas.profiles import (
     CreateProfileRequest,
@@ -84,7 +89,10 @@ from api.auth_service import (
     complete_signup,
     get_current_user,
     login,
+    reset_password,
+    send_password_reset_otp,
     send_signup_otp,
+    verify_password_reset_otp,
     verify_signup_otp,
 )
 from api.profile_service import (
@@ -430,6 +438,36 @@ def auth_login(body: LoginRequest) -> AuthResponse:
 @app.get("/api/auth/me", response_model=MeResponse)
 def auth_me(authorization: str | None = Header(default=None)) -> MeResponse:
     return get_current_user(authorization)
+
+
+@app.post("/api/auth/password/forgot", response_model=SendOtpResponse)
+def auth_forgot_password(body: ForgotPasswordRequest) -> SendOtpResponse:
+    try:
+        return send_password_reset_otp(body)
+    except AuthServiceError as exc:
+        raise auth_http_error(exc) from exc
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+
+
+@app.post("/api/auth/password/otp/verify", response_model=VerifyResetOtpResponse)
+def auth_verify_reset_otp(body: VerifyResetOtpRequest) -> VerifyResetOtpResponse:
+    try:
+        return verify_password_reset_otp(body)
+    except AuthServiceError as exc:
+        raise auth_http_error(exc) from exc
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+
+
+@app.post("/api/auth/password/reset", response_model=ResetPasswordResponse)
+def auth_reset_password(body: ResetPasswordRequest) -> ResetPasswordResponse:
+    try:
+        return reset_password(body)
+    except AuthServiceError as exc:
+        raise auth_http_error(exc) from exc
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
 
 
 @app.get("/api/profiles", response_model=ProfileListResponse)

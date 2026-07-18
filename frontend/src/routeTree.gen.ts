@@ -20,6 +20,7 @@ import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as KpRouteImport } from './routes/kp'
 import { Route as KnRaoRouteImport } from './routes/kn-rao'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as EducationAnalysisRouteImport } from './routes/education-analysis'
 import { Route as ConfidenceRouteImport } from './routes/confidence'
 import { Route as ChartsRouteImport } from './routes/charts'
@@ -83,6 +84,11 @@ const KnRaoRoute = KnRaoRouteImport.update({
   path: '/kn-rao',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EducationAnalysisRoute = EducationAnalysisRouteImport.update({
   id: '/education-analysis',
   path: '/education-analysis',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
   '/education-analysis': typeof EducationAnalysisRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
   '/login': typeof LoginRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
   '/education-analysis': typeof EducationAnalysisRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
   '/login': typeof LoginRoute
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
   '/education-analysis': typeof EducationAnalysisRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
   '/login': typeof LoginRoute
@@ -190,6 +199,7 @@ export interface FileRouteTypes {
     | '/charts'
     | '/confidence'
     | '/education-analysis'
+    | '/forgot-password'
     | '/kn-rao'
     | '/kp'
     | '/login'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/charts'
     | '/confidence'
     | '/education-analysis'
+    | '/forgot-password'
     | '/kn-rao'
     | '/kp'
     | '/login'
@@ -230,6 +241,7 @@ export interface FileRouteTypes {
     | '/charts'
     | '/confidence'
     | '/education-analysis'
+    | '/forgot-password'
     | '/kn-rao'
     | '/kp'
     | '/login'
@@ -251,6 +263,7 @@ export interface RootRouteChildren {
   ChartsRoute: typeof ChartsRoute
   ConfidenceRoute: typeof ConfidenceRoute
   EducationAnalysisRoute: typeof EducationAnalysisRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   KnRaoRoute: typeof KnRaoRoute
   KpRoute: typeof KpRoute
   LoginRoute: typeof LoginRoute
@@ -343,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KnRaoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/education-analysis': {
       id: '/education-analysis'
       path: '/education-analysis'
@@ -403,6 +423,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChartsRoute: ChartsRoute,
   ConfidenceRoute: ConfidenceRoute,
   EducationAnalysisRoute: EducationAnalysisRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   KnRaoRoute: KnRaoRoute,
   KpRoute: KpRoute,
   LoginRoute: LoginRoute,

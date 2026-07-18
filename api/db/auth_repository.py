@@ -62,14 +62,14 @@ def generate_otp_code() -> str:
     return f"{secrets.randbelow(10_000):04d}"
 
 
-def save_otp_challenge(email: str) -> str:
+def save_otp_challenge(email: str, purpose: str = "signup") -> str:
     normalized = _normalize_email(email)
     code = generate_otp_code()
     now = datetime.now(timezone.utc)
     ttl = int(now.timestamp()) + OTP_TTL_SECONDS
     item = {
         "PK": _email_pk(normalized),
-        "SK": "OTP#signup",
+        "SK": f"OTP#{purpose}",
         "entity_type": "otp",
         "email": normalized,
         "otp_hash": _hash_otp(normalized, code),
@@ -83,11 +83,11 @@ def save_otp_challenge(email: str) -> str:
     return code
 
 
-def verify_otp_challenge(email: str, otp: str) -> None:
+def verify_otp_challenge(email: str, otp: str, purpose: str = "signup") -> None:
     normalized = _normalize_email(email)
     otp = otp.strip()
     table = get_users_table()
-    key = {"PK": _email_pk(normalized), "SK": "OTP#signup"}
+    key = {"PK": _email_pk(normalized), "SK": f"OTP#{purpose}"}
     resp = table.get_item(Key=key)
     item = resp.get("Item")
     if not item:
@@ -173,6 +173,23 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
     resp = get_users_table().get_item(Key={"PK": _user_pk(user_id), "SK": "PROFILE"})
     item = resp.get("Item")
     return _public_user(item) if item else None
+
+
+def update_password(user_id: str, new_password: str) -> None:
+    password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    table = get_users_table()
+    key = {"PK": _user_pk(user_id), "SK": "PROFILE"}
+    try:
+        table.update_item(
+            Key=key,
+            UpdateExpression="SET password_hash = :ph, updated_at = :ua",
+            ConditionExpression="attribute_exists(PK)",
+            ExpressionAttributeValues={":ph": password_hash, ":ua": _utc_now()},
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise AuthRepositoryError("User not found.") from exc
+        raise
 
 
 def _public_user(item: dict[str, Any]) -> dict[str, Any]:

@@ -22,3 +22,12 @@ export interface VerifyOtpResponse {
   verification_token: string;
   message: string;
 }
+
+export interface VerifyResetOtpResponse {
+  reset_token: string;
+  message: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}

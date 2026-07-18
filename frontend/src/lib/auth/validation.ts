@@ -90,6 +90,25 @@ export function validateLoginInput(identifier: string, password: string): Valida
   return validatePassword(password);
 }
 
+export function validateNewPassword(
+  password: string,
+  confirmPassword: string,
+): ValidationResult {
+  const passwordResult = validatePassword(password);
+  if (!passwordResult.ok) return passwordResult;
+
+  const confirmResult = validatePassword(confirmPassword);
+  if (!confirmResult.ok) {
+    return { ok: false, message: "Confirm password must meet the same requirements." };
+  }
+
+  if (password !== confirmPassword) {
+    return { ok: false, message: "Passwords do not match." };
+  }
+
+  return { ok: true };
+}
+
 export function validateOtp(otp: string): ValidationResult {
   if (otp.length !== AUTH_OTP_LENGTH) {
     return { ok: false, message: `Enter the ${AUTH_OTP_LENGTH}-digit verification code.` };

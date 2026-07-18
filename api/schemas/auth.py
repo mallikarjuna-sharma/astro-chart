@@ -78,6 +78,53 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetOtpRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=OTP_LENGTH, max_length=OTP_LENGTH)
+
+    @field_validator("otp")
+    @classmethod
+    def otp_digits(cls, value: str) -> str:
+        if not value.isdigit():
+            raise ValueError("Verification code must be 4 digits.")
+        return value
+
+
+class VerifyResetOtpResponse(BaseModel):
+    reset_token: str
+    message: str = "Code verified. Choose a new password."
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    reset_token: str
+    new_password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+    confirm_new_password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+
+    @field_validator("new_password")
+    @classmethod
+    def password_length(cls, value: str) -> str:
+        if len(value) < PASSWORD_MIN_LENGTH:
+            raise ValueError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters.")
+        return value
+
+    @field_validator("confirm_new_password")
+    @classmethod
+    def passwords_match(cls, value: str, info) -> str:
+        password = info.data.get("new_password")
+        if password is not None and value != password:
+            raise ValueError("Passwords do not match.")
+        return value
+
+
+class ResetPasswordResponse(BaseModel):
+    message: str = "Password updated. You can now log in with your new password."
+
+
 class AuthUser(BaseModel):
     user_id: str
     email: str

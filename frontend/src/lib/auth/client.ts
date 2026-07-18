@@ -1,6 +1,12 @@
 import { getPyJHoraApiBase } from "@/lib/pyjhora/config";
 import { parseApiErrorBody } from "@/lib/api-errors";
-import type { AuthResponse, SendOtpResponse, VerifyOtpResponse } from "./types";
+import type {
+  AuthResponse,
+  ResetPasswordResponse,
+  SendOtpResponse,
+  VerifyOtpResponse,
+  VerifyResetOtpResponse,
+} from "./types";
 
 const AUTH_TOKEN_KEY = "jyotish:authToken";
 
@@ -67,6 +73,32 @@ export const authApi = {
   me(token: string) {
     return request<{ user: AuthResponse["user"] }>("/api/auth/me", {
       headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  forgotPassword(email: string) {
+    return request<SendOtpResponse>("/api/auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  verifyResetOtp(email: string, otp: string) {
+    return request<VerifyResetOtpResponse>("/api/auth/password/otp/verify", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    });
+  },
+
+  resetPassword(payload: {
+    email: string;
+    reset_token: string;
+    new_password: string;
+    confirm_new_password: string;
+  }) {
+    return request<ResetPasswordResponse>("/api/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 };
