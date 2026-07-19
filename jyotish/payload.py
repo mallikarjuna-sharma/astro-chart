@@ -74,6 +74,10 @@ class NatalPayloadV2(BaseModel):
     # ── Socio-educational context ─────────────────────────────────────────────
     family_income_tier: str = "middle"
     school_board: str = "CBSE"
+    # Per-chart consent for external LLM narrative generation. Set from
+    # student_context.external_llm_consent in the chart JSON. The report path
+    # ORs this with the LLM_REPORT_CONSENT env var (global blanket consent).
+    external_llm_consent: bool = False
     current_age: float = 0.0
     sun_moon_degrees_apart: float = 0.0
 

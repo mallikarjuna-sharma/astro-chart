@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { authApi, getStoredAuthToken, setStoredAuthToken } from "@/lib/auth/client";
 import type { AuthUser } from "@/lib/auth/types";
 import { useUserStore } from "@/stores/user-store";
+import { useProfileStore } from "@/stores/profile-store";
 import { PYJHORA_LS_USER } from "@/lib/pyjhora/client";
 
 interface AuthState {
@@ -34,6 +35,8 @@ export const useAuthStore = create<AuthState>()(
 
       clearSession: () => {
         setStoredAuthToken(null);
+        // Drop the cached profiles list so it can't leak into the next session.
+        useProfileStore.getState().reset();
         set({ accessToken: null, user: null, hydrated: true });
       },
 

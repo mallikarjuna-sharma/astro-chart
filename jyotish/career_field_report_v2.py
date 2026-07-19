@@ -281,7 +281,7 @@ def _call_llm_for_report(
 ) -> Optional[Dict]:
     """Single structured LLM call producing every narrative/judgement field in the report."""
     try:
-        from .engine_io import _maybe_load_dotenv as _dotenv_fn
+        from .llm import _maybe_load_dotenv as _dotenv_fn
         _dotenv_fn()
     except Exception:
         pass
@@ -1084,6 +1084,16 @@ def _build_career_field_report_bundle(
     payload = parse_json_payload(data)
     name = student_name or getattr(payload, "name", "Unknown")
 
+    # LLM usage can be granted per-chart (student_context.external_llm_consent
+    # in the chart JSON) or globally via the LLM_REPORT_CONSENT env var (.env).
+    # The env var is a blanket on/off switch for every report run in this
+    # environment; the per-chart flag still works on its own for callers who
+    # want consent scoped to a single student rather than the whole box.
+    _env_llm_consent = str(os.getenv("LLM_REPORT_CONSENT", "")).strip().lower() in {"1", "true", "yes", "on"}
+    _llm_consent = bool(getattr(payload, "external_llm_consent", False)) or _env_llm_consent
+    if _env_llm_consent:
+        logger.info("[career_field_report_v2] LLM consent granted via LLM_REPORT_CONSENT env var.")
+
     logger.info("[career_field_report_v2] Running engine for %s...", name)
     results = run_engine(payload)
 
@@ -1102,7 +1112,14 @@ def _build_career_field_report_bundle(
     chart_facts = _build_chart_signature_facts(payload, active_lord, peak_lord)
     macro_clusters = _macro_cluster_ranking(results, top_n=20)
 
-    report = _call_llm_for_report(name, career_phase, active_lord, peak_lord, chart_facts, results, macro_clusters)
+    report = None
+    if _llm_consent:
+        report = _call_llm_for_report(name, career_phase, active_lord, peak_lord, chart_facts, results, macro_clusters)
+    else:
+        logger.warning(
+            "[PRIVACY] LLM narrative disabled: external_llm_consent is false and "
+            "LLM_REPORT_CONSENT env var is not set — using deterministic fallback."
+        )
     if not report:
         logger.warning(
             "[career_field_report_v2] LLM report generation failed/unavailable — using deterministic fallback."

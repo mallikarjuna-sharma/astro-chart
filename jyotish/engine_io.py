@@ -578,6 +578,7 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         planets_d1=planets_d1, divisional_charts=div_charts, nakshatra_data=nakshatra_data,
         d9_lagna_sign=d9.get("Lagna", ""), karakamsha_occupants=[p for p, s in d9.items() if p != "Lagna" and s == jaimini.get("karakamsha_sign","")],
         neecha_bhanga_planets=list(neecha_bhanga_set), gender=ctx.get("gender", ""),
+        external_llm_consent=bool(ctx.get("external_llm_consent", False)),
         interested_in=ctx.get("student_preference", {}).get("interested_in", []),
         already_excel_at=ctx.get("student_preference", {}).get("already_excel_at", []),
         brahma_lord=jaimini.get("jaimini_special_lords", {}).get("brahma", ""),

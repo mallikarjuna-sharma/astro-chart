@@ -12,6 +12,7 @@ numpy
 requests
 certifi>=2024.0.0
 google-genai>=1.0.0
+openai>=1.40.0
 python-dotenv>=1.0.0
 ephem>=4.1.0
 bcrypt>=4.2.0

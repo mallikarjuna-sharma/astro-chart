@@ -137,12 +137,12 @@ export function ProfileWizard() {
   const navigate = useNavigate();
   const isAuthenticated = useIsAuthenticated();
   const authUser = useAuthStore((s) => s.user);
-  const setProfiles = useProfileStore((s) => s.setProfiles);
+  const profiles = useProfileStore((s) => s.profiles);
+  const maxProfiles = useProfileStore((s) => s.maxProfiles);
+  const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const setActiveProfileId = useProfileStore((s) => s.setActiveProfileId);
 
   const [view, setView] = useState<View>("list");
-  const [profiles, setLocalProfiles] = useState<ProfileSummary[]>([]);
-  const [maxProfiles, setMaxProfiles] = useState(4);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [form, setForm] = useState<FormState>(defaultForm);
@@ -158,15 +158,12 @@ export function ProfileWizard() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    profilesApi
-      .list()
-      .then((res) => {
-        setLocalProfiles(res.profiles);
-        setMaxProfiles(res.max_profiles);
-        setProfiles(res.profiles);
-      })
-      .catch((err) => toast.error(String(err.message ?? err)));
-  }, [isAuthenticated, setProfiles]);
+    // Cached in the profile store — only calls the API on first load or when
+    // the signed-in user changes. Create/delete force a refresh explicitly.
+    void fetchProfiles(authUser?.user_id ?? null).catch((err) =>
+      toast.error(err instanceof Error ? err.message : String(err)),
+    );
+  }, [isAuthenticated, authUser?.user_id, fetchProfiles]);
 
   useEffect(() => {
     const years = defaultYearsExperience(ageFromDate(form.date));
@@ -221,9 +218,7 @@ export function ProfileWizard() {
     setLoading(true);
     try {
       await profilesApi.delete(profile.profile_id);
-      const list = await profilesApi.list();
-      setLocalProfiles(list.profiles);
-      setProfiles(list.profiles);
+      await fetchProfiles(authUser?.user_id ?? null, { force: true });
       if (useProfileStore.getState().activeProfileId === profile.profile_id) {
         setActiveProfileId(null);
       }
@@ -282,9 +277,7 @@ export function ProfileWizard() {
       const session = restoreProfileToChartSession(profile, setProgress);
       saveChartSession(session);
       setActiveProfileId(profile.profile_id);
-      const list = await profilesApi.list();
-      setLocalProfiles(list.profiles);
-      setProfiles(list.profiles);
+      await fetchProfiles(authUser?.user_id ?? null, { force: true });
       toast.success("Profile created", {
         description: `${profile.profile_name} — all details saved to your account.`,
       });

@@ -596,48 +596,99 @@ class _ProviderClientWrapper:
         self._api_key = api_key
         self._model   = model
     def call(self, messages: list, schema: dict) -> str:
-        # Build a single-string prompt from messages for non-OpenAI providers
+        # Build a single-string prompt including ALL roles (system/user/assistant)
+        # so retry attempts preserve the full conversation context.
+        role_labels = {"system": "[SYSTEM INSTRUCTIONS]", "user": "[USER]", "assistant": "[PREVIOUS RESPONSE]"}
         parts = []
         for m in messages:
-            if m.get('role') == 'system': parts.append(f"[SYSTEM]\n{m['content']}")
-            elif m.get('role') == 'user': parts.append(f"[USER]\n{m['content']}")
-        prompt = "\n\n".join(parts) + "\n\nRespond with valid JSON only."
+            label = role_labels.get(m.get("role", ""), "[MSG]")
+            parts.append(f"{label}\n{m.get('content', '')}")
+
+        # Embed the required JSON output structure so the model knows exactly
+        # what fields to return — critical for non-OpenAI providers that don't
+        # receive a response_format schema natively through this path.
+        schema_props    = schema.get("schema", {}).get("properties", {})
+        schema_required = schema.get("schema", {}).get("required", [])
+        structure_hint  = json.dumps(
+            {"type": "object", "required": schema_required, "properties": schema_props},
+            indent=2,
+        )
+        parts.append(
+            f"[OUTPUT INSTRUCTIONS]\n"
+            f"Return ONLY a single valid JSON object — no markdown fences, no extra text.\n"
+            f"The JSON MUST conform to this schema:\n{structure_hint}"
+        )
+        prompt = "\n\n".join(parts)
         return self._call_fn(prompt, self._api_key, self._model)
 
 
 def _run_llm_with_retry(client, messages: List[Dict], schema: Dict, validation_fn, max_retries: int = 3) -> Optional[Dict]:
-    """Generic self-correcting retry loop for Structured Outputs."""
+    """Generic self-correcting retry loop — works with both OpenAI client and _ProviderClientWrapper."""
+    _is_wrapper = isinstance(client, _ProviderClientWrapper)
+    content = ""
     for attempt in range(1, max_retries + 1):
         try:
             logger.info(f"LLM Call Attempt {attempt}/{max_retries}...")
-            response = client.chat.completions.create(
-                model="gpt-5.4-mini",
-                temperature=0.0,  # CRITICAL: 0.0 removes all token randomness
-                seed=108,         # CRITICAL: Forces backend deterministic sampling
-                messages=messages,
-                response_format={"type": "json_schema", "json_schema": schema}
-            )
-            content = response.choices[0].message.content
+            if _is_wrapper:
+                # Gemini / Anthropic path — wrapper flattens messages → single prompt → returns raw text
+                content = client.call(messages, schema)
+                # Robust JSON extraction:
+                # 1. Strip markdown fences (```json ... ```)
+                _stripped = content.strip()
+                if _stripped.startswith("```"):
+                    _lines = _stripped.splitlines()
+                    _stripped = "\n".join(_lines[1:])
+                    if _stripped.rstrip().endswith("```"):
+                        _stripped = _stripped[: _stripped.rfind("```")]
+                # 2. Extract outermost JSON object — find first { and last }
+                _brace_start = _stripped.find("{")
+                _brace_end   = _stripped.rfind("}")
+                if _brace_start != -1 and _brace_end != -1 and _brace_end > _brace_start:
+                    _stripped = _stripped[_brace_start : _brace_end + 1]
+                content = _stripped.strip()
+            else:
+                # OpenAI path (legacy — only reached if client is an openai.OpenAI instance)
+                response = client.chat.completions.create(
+                    model="gpt-5.4-mini",
+                    temperature=0.0,  # CRITICAL: 0.0 removes all token randomness
+                    seed=108,         # CRITICAL: Forces backend deterministic sampling
+                    messages=messages,
+                    response_format={"type": "json_schema", "json_schema": schema},
+                )
+                content = response.choices[0].message.content
+
             parsed_data = json.loads(content)
-            
             # Run the stage-specific validation gate
             validation_fn(parsed_data)
             return parsed_data
 
+        except json.JSONDecodeError as je:
+            logger.warning(f"JSON Parse Error on attempt {attempt}: {je} | raw snippet: {content[max(0, je.pos-40):je.pos+40]!r}")
+            messages.append({"role": "assistant", "content": content or ""})
+            messages.append({"role": "user", "content": "Output was not valid JSON. Return ONLY a raw JSON object — no markdown, no prose, no code fences."})
+
         except ValueError as ve:
             logger.warning(f"Validation Error on attempt {attempt}: {ve}")
-            messages.append({"role": "assistant", "content": content if 'content' in locals() and content else "{}"})
-            messages.append({"role": "user", "content": f"Validation Error: {str(ve)}. Correct this and try again."})
-            
-        except json.JSONDecodeError as je:
-            logger.error(f"JSON Parse Error: {je}")
-            messages.append({"role": "assistant", "content": content if 'content' in locals() and content else ""})
-            messages.append({"role": "user", "content": "Output was not valid JSON. Return only structured JSON."})
-            
+            messages.append({"role": "assistant", "content": content or "{}"})
+            messages.append({"role": "user", "content": f"Validation Error: {str(ve)}. Correct this and return only a valid JSON object."})
+
         except Exception as e:
+            err_str = str(e)
+            # 503 / UNAVAILABLE — transient overload; retry with exponential backoff
+            if "503" in err_str or "UNAVAILABLE" in err_str.upper():
+                import time
+                wait = min(10 * attempt, 60)  # 10s, 20s, 30s … capped at 60s
+                logger.warning(f"503 UNAVAILABLE on attempt {attempt}. Retrying in {wait}s...")
+                # On attempt 3+ try a lighter model variant
+                if attempt >= 3 and hasattr(client, "_model") and "2.5-flash" in str(getattr(client, "_model", "")):
+                    _alt = "gemini-2.0-flash-lite"
+                    logger.warning(f"Switching to fallback model: {_alt}")
+                    client._model = _alt
+                time.sleep(wait)
+                continue
             logger.error(f"Unexpected LLM failure: {e}")
             break
-            
+
     return None
 
 # =============================================================================

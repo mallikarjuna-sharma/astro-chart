@@ -59,20 +59,37 @@ def get_or_create_education_analysis(
     user_json: dict[str, Any],
     refresh: bool = False,
 ) -> dict[str, Any]:
-    """Return the stored analysis for a profile, computing + persisting on first use.
+    """Return the stored analysis for a profile, computing + persisting only on first use.
 
-    - ``refresh=True`` forces a recompute and overwrites the stored payloads.
-    - Requires a valid bearer token (owner scoping via ``user_id``).
+    The career-field report is computed exactly once per profile and then always
+    served from DynamoDB. Because the compute path calls the LLM (non-deterministic
+    output), we never recompute an analysis that already exists — doing so would
+    silently change a profile's stored recommendations between reads.
+
+    ``refresh`` is therefore honoured only when nothing is stored yet; a stored
+    analysis is always returned, even when ``refresh=True``. To intentionally
+    discard a stored analysis and accept a fresh (possibly different) LLM result,
+    delete it first via ``DELETE /api/profiles/{profile_id}/education-analysis``.
+
+    Requires a valid bearer token (owner scoping via ``user_id``).
     """
     user_id = _require_user_id(authorization)
     profile_id = profile_id.strip()
     if not profile_id:
         raise HTTPException(status_code=400, detail="profile_id is required")
 
-    if not refresh:
-        hit = _cached(profile_id, user_id)
-        if hit is not None:
-            return hit
+    # Cache is the source of truth. Once an analysis exists for the profile we
+    # always return it — even with refresh=True — so the LLM-backed report stays
+    # deterministic across reads. The only way to recompute is to delete first.
+    hit = _cached(profile_id, user_id)
+    if hit is not None:
+        if refresh:
+            logger.info(
+                "[education_service] refresh=true ignored for %s: returning the stored "
+                "analysis to preserve deterministic LLM output (delete it to recompute).",
+                profile_id,
+            )
+        return hit
 
     if not user_json:
         raise HTTPException(

@@ -1004,15 +1004,25 @@ def education_analysis_endpoint(body: EducationAnalysisRequest) -> EducationAnal
 async def profile_education_analysis_endpoint(
     profile_id: str,
     body: ProfileEducationAnalysisRequest,
-    refresh: bool = Query(False, description="Force recompute and overwrite the stored payloads."),
+    refresh: bool = Query(
+        False,
+        description=(
+            "No-op when an analysis already exists: the stored payloads are always "
+            "returned to keep the LLM-backed report deterministic. Delete the analysis "
+            "(DELETE this route) to force a recompute."
+        ),
+    ),
     authorization: str | None = Header(default=None),
 ) -> EducationAnalysisResponse:
     """Cache-or-compute the career field report for a logged-in user's profile.
 
-    On the first call (or with ``?refresh=true``) the JyotishAI engine runs, the
-    four report payloads (results / macro_clusters / report / chart_facts) plus the
-    rendered HTML are stored in DynamoDB keyed by ``profile_id``, and the analysis
-    is returned. Later calls are served straight from the table without recomputing.
+    On the first call the JyotishAI engine runs, the four report payloads
+    (results / macro_clusters / report / chart_facts) are stored in DynamoDB keyed
+    by ``profile_id``, and the analysis is returned. Every later call — including
+    ``?refresh=true`` — is served straight from the table without recomputing,
+    because the compute path calls the LLM and re-running it would change the
+    profile's stored recommendations. To intentionally recompute, delete the
+    stored analysis first via ``DELETE`` on this route.
 
     Requires an ``Authorization: Bearer <token>`` header. ``user_json`` (the
     consolidated chart) is only needed when there is no cached result yet.
