@@ -19,11 +19,11 @@ interface Props {
 }
 
 const CONF_BARS = [
-  { key: "knrao_pct" as const, label: "KN Rao (Classical)", color: "#4f46e5" },
-  { key: "kp_pct" as const, label: "KP (Micro-Timing)", color: "#7c3aed" },
-  { key: "jaimini_pct" as const, label: "Jaimini (Aptitude)", color: "#0891b2" },
-  { key: "parashara_pct" as const, label: "Parashara (Strength)", color: "#059669" },
-  { key: "sbc_pct" as const, label: "SBC", color: "#d97706" },
+  { key: "knrao_pct" as const, label: "KN Rao (Classical)", color: "#818cf8" },
+  { key: "kp_pct" as const, label: "KP (Micro-Timing)", color: "#a78bfa" },
+  { key: "jaimini_pct" as const, label: "Jaimini (Aptitude)", color: "#22d3ee" },
+  { key: "parashara_pct" as const, label: "Parashara (Strength)", color: "#34d399" },
+  { key: "sbc_pct" as const, label: "SBC", color: "#fbbf24" },
 ];
 
 function InsightBadge({
@@ -92,23 +92,23 @@ export function EducationFieldCard({ rank, field }: Props) {
   const burnoutLevel = br.burnout_risk ?? "";
 
   return (
-    <article className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+    <article className="panel panel-hover p-5">
       <header className="flex flex-wrap justify-between items-start gap-3 mb-4">
-        <div className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
-          <span className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm shrink-0">
+        <div className="flex items-center gap-2.5 text-lg font-semibold text-foreground">
+          <span className="w-8 h-8 rounded-full gradient-gold text-primary-foreground flex items-center justify-center text-sm font-bold shrink-0">
             {rank}
           </span>
           {field.field_label}
         </div>
         <div className="flex flex-wrap gap-2">
-          <span className="text-[0.85rem] font-semibold text-white px-2.5 py-1 rounded-md" style={{ background: color }}>
+          <span className="text-[0.8rem] font-semibold text-white px-2.5 py-1 rounded-md shadow-sm" style={{ background: color }}>
             {icon} {field.domain.charAt(0).toUpperCase() + field.domain.slice(1)}
           </span>
-          <span className="text-[0.85rem] font-semibold text-white px-2.5 py-1 rounded-md bg-slate-500">
+          <span className="text-[0.8rem] font-semibold px-2.5 py-1 rounded-md bg-secondary text-secondary-foreground">
             {field.final_score.toFixed(1)} pts
           </span>
           {alignment > 0 ? (
-            <span className="text-[9.5px] font-semibold px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-900">
+            <span className="text-[10px] font-semibold px-2.5 py-1 rounded-md bg-royal/15 text-royal border border-royal/25">
               {alignment}% Aligned
             </span>
           ) : null}
@@ -116,30 +116,30 @@ export function EducationFieldCard({ rank, field }: Props) {
       </header>
 
       <div className="space-y-3">
-        <section className="bg-emerald-50 border border-emerald-200 rounded-[10px] px-4 py-3.5">
-          <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider mb-2">
+        <section className="bg-success/8 border border-success/25 rounded-xl px-4 py-3.5">
+          <div className="text-[11px] font-bold text-success uppercase tracking-wider mb-2">
             Why this field suits your child
           </div>
-          <p className="text-[1.02rem] text-slate-800 leading-relaxed whitespace-pre-line">{parentReason(field)}</p>
+          <p className="text-[0.98rem] text-foreground leading-relaxed whitespace-pre-line">{parentReason(field)}</p>
         </section>
 
-        <section className="bg-slate-100 border-l-4 border-slate-400 rounded-r-lg px-4 py-3.5">
-          <div className="text-[0.85rem] uppercase tracking-wide font-bold text-slate-500 mb-1">
-            Astrological Signature:
+        <section className="bg-muted/60 border-l-2 border-gold rounded-r-lg px-4 py-3">
+          <div className="text-[0.8rem] uppercase tracking-wide font-bold text-muted-foreground mb-1">
+            Astrological Signature
           </div>
-          <p className="text-[0.95rem] font-mono text-slate-600">{astroReason(field)}</p>
+          <p className="text-[0.9rem] font-mono text-foreground/75">{astroReason(field)}</p>
         </section>
 
         {vf.positive.length || vf.negative.length ? (
           <div className="flex flex-wrap gap-1 items-center">
-            <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mr-1">Boosts</span>
+            <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground mr-1">Boosts</span>
             {vf.positive.map((p) => (
-              <span key={p} className="text-[9.5px] font-semibold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-300">
+              <span key={p} className="text-[9.5px] font-semibold px-2 py-0.5 rounded-lg bg-success/12 text-success border border-success/25">
                 {p}
               </span>
             ))}
             {vf.negative.map((p) => (
-              <span key={p} className="text-[9.5px] font-semibold px-2 py-0.5 rounded-lg bg-rose-50 text-rose-900 border border-rose-300">
+              <span key={p} className="text-[9.5px] font-semibold px-2 py-0.5 rounded-lg bg-danger/12 text-danger border border-danger/25">
                 {p}
               </span>
             ))}
@@ -148,41 +148,38 @@ export function EducationFieldCard({ rank, field }: Props) {
 
         <div className="flex flex-wrap gap-1.5">
           {field.boost_pct ? (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-green-100 text-green-800 border border-green-300">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-success/12 text-success border border-success/25">
               +{Math.round(field.boost_pct)}% gap boost
             </span>
           ) : null}
           {field.timing_band ? (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-blue-50 text-blue-900 border border-blue-300">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-info/12 text-info border border-info/25">
               ⏱ {field.timing_band}
             </span>
           ) : null}
           {sbcScore != null ? (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-violet-50 text-violet-900 border border-violet-300">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-royal/12 text-royal border border-royal/25">
               SBC {Math.round(sbcScore)}
             </span>
           ) : null}
           {field.pre_norm_score != null ? (
             <span
               title={field.norm_note}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded-[10px] bg-slate-50 text-slate-600 border border-slate-300 cursor-help"
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-muted text-muted-foreground border border-border cursor-help"
             >
               pre-norm {field.pre_norm_score.toFixed(1)}
             </span>
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-1.5 pt-2.5 border-t border-black/5">
+        <div className="flex flex-wrap gap-1.5 pt-2.5 border-t border-border/60">
           {wealthLevel ? (
             <InsightBadge className={wealthBadgeClass(wealthLevel)} title={wp.wealth_note}>
               {wealthLevel === "High" ? "▲" : wealthLevel === "Low" ? "▼" : "●"} Wealth: {wealthLevel}
             </InsightBadge>
           ) : null}
           {(geo.geo_foreign_pct ?? 0) > 0 || geoLabel ? (
-            <InsightBadge
-              className={geoBadgeClass(geoLabel)}
-              title={geo.geo_note}
-            >
+            <InsightBadge className={geoBadgeClass(geoLabel)} title={geo.geo_note}>
               ✈ {geoLabel.includes("International") ? "International" : geoLabel.includes("Domestic") ? "Domestic" : "Hybrid"}
             </InsightBadge>
           ) : null}
@@ -194,41 +191,41 @@ export function EducationFieldCard({ rank, field }: Props) {
         </div>
 
         {(wp.wealth_connections?.length || geo.geo_foreign_pct != null || br.stress_flags?.length) ? (
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-border/60">
             {wp.wealth_connections?.length || wp.wealth_note ? (
-              <div className="flex-1 min-w-[150px] bg-slate-50 rounded-lg p-2.5 border border-slate-200">
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Wealth Drivers</div>
+              <div className="flex-1 min-w-[150px] bg-surface-soft/60 rounded-lg p-2.5 border border-border">
+                <div className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground mb-1">Wealth Drivers</div>
                 {wp.wealth_connections?.length ? (
-                  <p className="text-[10.5px] text-slate-700 leading-snug">
+                  <p className="text-[10.5px] text-foreground/80 leading-snug">
                     {wp.wealth_connections.slice(0, 4).join(" • ")}
                   </p>
                 ) : null}
-                {wp.wealth_note ? <p className="text-[10px] text-slate-500 italic mt-1">{wp.wealth_note}</p> : null}
+                {wp.wealth_note ? <p className="text-[10px] text-muted-foreground italic mt-1">{wp.wealth_note}</p> : null}
               </div>
             ) : null}
             {(geo.geo_foreign_pct ?? 0) > 0 || (geo.geo_domestic_pct ?? 0) > 0 ? (
-              <div className="flex-1 min-w-[150px] bg-slate-50 rounded-lg p-2.5 border border-slate-200">
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Geography Split</div>
-                <div className="flex items-center gap-1.5 text-[9.5px] text-slate-600">
+              <div className="flex-1 min-w-[150px] bg-surface-soft/60 rounded-lg p-2.5 border border-border">
+                <div className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground mb-1">Geography Split</div>
+                <div className="flex items-center gap-1.5 text-[9.5px] text-muted-foreground">
                   <span className="min-w-[55px]">🌍 {geo.geo_foreign_pct ?? 0}% intl</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${geo.geo_foreign_pct ?? 0}%` }} />
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-info rounded-full" style={{ width: `${geo.geo_foreign_pct ?? 0}%` }} />
                   </div>
                   <span>🏠 {geo.geo_domestic_pct ?? 0}%</span>
                 </div>
-                {geo.geo_note ? <p className="text-[10px] text-slate-500 italic mt-1">{geo.geo_note}</p> : null}
+                {geo.geo_note ? <p className="text-[10px] text-muted-foreground italic mt-1">{geo.geo_note}</p> : null}
               </div>
             ) : null}
             {br.stress_flags?.length || br.burnout_note ? (
-              <div className="flex-1 min-w-[150px] bg-slate-50 rounded-lg p-2.5 border border-slate-200">
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Stress Flags</div>
+              <div className="flex-1 min-w-[150px] bg-surface-soft/60 rounded-lg p-2.5 border border-border">
+                <div className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground mb-1">Stress Flags</div>
                 {br.stress_flags?.slice(0, 3).map((f) => (
-                  <p key={f} className="text-[10px] text-amber-900 leading-snug">
+                  <p key={f} className="text-[10px] text-warn leading-snug">
                     ⚡ {f}
                   </p>
                 ))}
                 {br.burnout_note ? (
-                  <p className="text-[10px] text-amber-800 italic mt-1">{br.burnout_note}</p>
+                  <p className="text-[10px] text-warn/80 italic mt-1">{br.burnout_note}</p>
                 ) : null}
               </div>
             ) : null}
@@ -240,7 +237,7 @@ export function EducationFieldCard({ rank, field }: Props) {
             {field.top_karakas.map((k) => (
               <span
                 key={k}
-                className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-xl bg-blue-50 text-blue-900 border border-blue-200"
+                className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-xl bg-info/12 text-info border border-info/25"
               >
                 {k}
               </span>
@@ -249,12 +246,12 @@ export function EducationFieldCard({ rank, field }: Props) {
         ) : null}
 
         {em.structural_friction_flag ? (
-          <div className="flex gap-2 bg-orange-50 border-l-[3px] border-orange-500 rounded-r-lg px-3 py-2 text-[11px] text-orange-900">
+          <div className="flex gap-2 bg-warn/8 border-l-2 border-warn rounded-r-lg px-3 py-2 text-[11px] text-warn">
             <span className="shrink-0">⚠</span>
             <span>
               {em.structural_friction_flag}
               {em.paradigm_spread ? (
-                <span className="text-amber-700 text-[9.5px] font-semibold ml-1">
+                <span className="text-warn/70 text-[9.5px] font-semibold ml-1">
                   (paradigm spread {em.paradigm_spread.toFixed(1)})
                 </span>
               ) : null}
@@ -268,22 +265,22 @@ export function EducationFieldCard({ rank, field }: Props) {
               {mn.micro_niches.map((n) => (
                 <span
                   key={n}
-                  className="text-[10.5px] font-semibold px-2.5 py-0.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300/50"
+                  className="text-[10.5px] font-semibold px-2.5 py-0.5 rounded-xl bg-warn/10 text-warn border border-warn/25"
                 >
                   {n}
                 </span>
               ))}
             </div>
             {mn.niche_driver ? (
-              <p className="text-[10px] text-slate-400 mt-1">Sub-specialisation driver: {mn.niche_driver}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Sub-specialisation driver: {mn.niche_driver}</p>
             ) : null}
           </div>
         ) : null}
 
         {Object.keys(cm).length > 0 ? (
-          <div className="bg-slate-50 rounded-lg p-3 border border-black/5">
-            <div className="text-xs font-bold text-slate-600 mb-1.5">
-              {confLabel}: <span className="text-blue-800 text-sm">{alignment}%</span>
+          <div className="bg-surface-soft/60 rounded-lg p-3 border border-border">
+            <div className="text-xs font-bold text-muted-foreground mb-1.5">
+              {confLabel}: <span className="text-royal text-sm">{alignment}%</span>
             </div>
             <div className="flex flex-col gap-1.5">
               {CONF_BARS.map(({ key, label, color: barColor }) => {
@@ -294,13 +291,13 @@ export function EducationFieldCard({ rank, field }: Props) {
                     : label;
                 return (
                   <div key={key} className="flex items-center gap-2">
-                    <span className="text-[10.5px] font-semibold text-slate-500 w-[110px] shrink-0">
+                    <span className="text-[10.5px] font-semibold text-muted-foreground w-[110px] shrink-0">
                       {sbcLabel}
                     </span>
-                    <div className="flex-1 h-[7px] bg-slate-200 rounded-full overflow-hidden">
+                    <div className="flex-1 h-[7px] bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }} />
                     </div>
-                    <span className="text-[10.5px] font-bold text-slate-600 w-8 text-right shrink-0">{pct}%</span>
+                    <span className="text-[10.5px] font-bold text-muted-foreground w-8 text-right shrink-0">{pct}%</span>
                   </div>
                 );
               })}
@@ -309,22 +306,22 @@ export function EducationFieldCard({ rank, field }: Props) {
         ) : null}
 
         {sbc.career_nakshatras?.length || sbc.key_protections?.length || sbc.key_obstructions?.length ? (
-          <details className="rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 text-[10.5px]">
-            <summary className="font-bold text-violet-800 cursor-pointer list-none flex items-center gap-1.5">
+          <details className="rounded-lg bg-royal/8 border border-royal/25 px-3 py-2 text-[10.5px]">
+            <summary className="font-bold text-royal cursor-pointer list-none flex items-center gap-1.5">
               SBC Timing Detail — {field.sbc_exam_date ?? "Boards"}
             </summary>
             {sbc.career_nakshatras?.length ? (
-              <p className="text-violet-900 font-semibold mt-1.5">
+              <p className="text-royal font-semibold mt-1.5">
                 Career Nakshatras: {sbc.career_nakshatras.join(" • ")}
               </p>
             ) : null}
             {sbc.key_protections?.map((p) => (
-              <p key={p} className="text-emerald-800 pl-1">
+              <p key={p} className="text-success pl-1">
                 ✓ {p}
               </p>
             ))}
             {sbc.key_obstructions?.map((o) => (
-              <p key={o} className="text-rose-800 pl-1">
+              <p key={o} className="text-danger pl-1">
                 ✗ {o}
               </p>
             ))}
@@ -332,8 +329,8 @@ export function EducationFieldCard({ rank, field }: Props) {
         ) : null}
 
         {ap.path_stages?.length ? (
-          <div className="pt-3 border-t border-black/5">
-            <div className="text-[10.5px] font-bold text-amber-800 uppercase tracking-wider mb-2">
+          <div className="pt-3 border-t border-border/60">
+            <div className="text-[10.5px] font-bold text-gold uppercase tracking-wider mb-2">
               🎓 Academic Execution Path
             </div>
             <div className="flex flex-wrap items-center gap-0">
@@ -344,7 +341,7 @@ export function EducationFieldCard({ rank, field }: Props) {
                 const subNiche = nicheMap[stg];
                 return (
                   <div key={stg} className="flex items-center">
-                    {i > 0 ? <span className="text-slate-400 px-1 text-sm">→</span> : null}
+                    {i > 0 ? <span className="text-muted-foreground px-1 text-sm">→</span> : null}
                     <div
                       className={cn(
                         "px-3 py-1.5 rounded-lg border text-center text-[11px]",
@@ -359,28 +356,28 @@ export function EducationFieldCard({ rank, field }: Props) {
                         <small className="block text-[9px] font-normal opacity-75">{stage.strength_label}</small>
                       ) : null}
                       {subNiche ? (
-                        <div className="text-[9.5px] text-gray-500 italic mt-0.5 leading-snug">{subNiche}</div>
+                        <div className="text-[9.5px] text-muted-foreground italic mt-0.5 leading-snug">{subNiche}</div>
                       ) : null}
                     </div>
                   </div>
                 );
               })}
             </div>
-            {ap.depth_label ? <p className="text-[10px] text-slate-400 mt-1.5">{ap.depth_label}</p> : null}
+            {ap.depth_label ? <p className="text-[10px] text-muted-foreground mt-1.5">{ap.depth_label}</p> : null}
           </div>
         ) : null}
 
         {it.tier ? (
-          <div className="flex gap-2 items-start bg-orange-50 rounded-lg border border-orange-300 px-3 py-2.5">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-orange-900 bg-orange-200 rounded-md px-2 py-0.5 shrink-0 whitespace-nowrap">
+          <div className="flex gap-2 items-start bg-warn/8 rounded-lg border border-warn/25 px-3 py-2.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-warn bg-warn/15 rounded-md px-2 py-0.5 shrink-0 whitespace-nowrap">
               {it.tier}
             </span>
-            <div className="text-[11px] text-slate-700 leading-snug">
-              {it.archetype ? <strong className="text-slate-900">{it.archetype}</strong> : null}
+            <div className="text-[11px] text-foreground/80 leading-snug">
+              {it.archetype ? <strong className="text-foreground">{it.archetype}</strong> : null}
               {instExamples.length ? (
                 <>
                   <br />
-                  <span className="text-slate-600">{instExamples.join(" • ")}</span>
+                  <span className="text-muted-foreground">{instExamples.join(" • ")}</span>
                 </>
               ) : null}
             </div>

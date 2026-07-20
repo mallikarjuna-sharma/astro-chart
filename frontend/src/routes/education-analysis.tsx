@@ -30,8 +30,9 @@ function EducationAnalysisPage() {
     return (
       <div>
         <PageHeader
+          eyebrow="Field guidance"
           title="Career Field"
-          subtitle="JyotishAI deterministic engine + Gemini field selection."
+          subtitle="Which fields and study routes best fit this chart."
         />
         <EmptyState />
       </div>
@@ -41,8 +42,9 @@ function EducationAnalysisPage() {
   return (
     <div>
       <PageHeader
-        title="Education Analysis"
-        subtitle="Ranked career fields from consolidated chart JSON · parent & astrologer views."
+        eyebrow="Field guidance"
+        title="Career Field"
+        subtitle="Which fields and study routes best fit this chart — ranked with parent & astrologer views."
       />
       <EducationAnalysisSection />
     </div>
