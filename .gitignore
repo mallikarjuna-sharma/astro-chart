@@ -21,3 +21,9 @@ frontend/.nitro/
 # Generated career field HTML reports (use CLI or in-app view)
 career_field_report_*.html
 educational_records/
+
+# Ephemeris data (large binaries, fetched at runtime)
+*.bsp
+
+# Local scratch/test artifacts
+jyotish/mnttest_probe.txt

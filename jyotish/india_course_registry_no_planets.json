@@ -3,55 +3,55 @@
     "version": "v5.1_deep_validated_fixed",
     "schema_version": "v3.1_no_planet_affinity",
     "generated_year": "2026",
-    "total_branches": 188,
+    "total_branches": 199,
     "branch_count_by_domain": {
-      "agriculture": 5,
-      "arts": 8,
-      "commerce": 7,
-      "education": 3,
-      "engineering": 32,
-      "humanities": 13,
-      "interdisciplinary": 5,
-      "law": 4,
+      "agriculture": 8,
+      "arts": 14,
+      "commerce": 15,
+      "education": 6,
+      "engineering": 54,
+      "humanities": 22,
+      "interdisciplinary": 11,
+      "law": 6,
       "media": 2,
-      "medicine": 11,
-      "public": 4,
-      "science": 12,
-      "technology": 8
+      "medicine": 20,
+      "public": 5,
+      "science": 25,
+      "technology": 11
     },
     "institution_types": [
-      "IIT \u2014 23 campuses (JEE Advanced / JoSAA)",
-      "NIT \u2014 31 campuses (JEE Main / JoSAA)",
-      "IISER \u2014 7 campuses (IAT)",
-      "NISER \u2014 Bhubaneswar (NEST)",
-      "IISE / UM-DAE CEBS \u2014 Mumbai (NEST)",
-      "ISI \u2014 5 centres (ISI Admission Test)",
-      "BITS Pilani \u2014 4 campuses (BITSAT)",
-      "IIITs \u2014 25 NIT-equivalent (JEE Main)",
-      "Liberal Arts Private \u2014 Ashoka, OP Jindal Global, FLAME, Krea, Shiv Nadar, Azim Premji",
-      "Central Universities \u2014 48 incl. JNU, DU, BHU, AMU, JMI, UoH (CUET)",
-      "State Universities \u2014 all state engineering, science, arts, law, agricultural colleges",
-      "Deemed Private Universities \u2014 Amrita, VIT, Manipal, Symbiosis, NMIMS etc.",
-      "Professional Bodies \u2014 ICAI (CA), ICMAI (CMA), ICSI (CS), IMU (Marine), NCHMCT (Hotels)"
+      "IIT — 23 campuses (JEE Advanced / JoSAA)",
+      "NIT — 31 campuses (JEE Main / JoSAA)",
+      "IISER — 7 campuses (IAT)",
+      "NISER — Bhubaneswar (NEST)",
+      "IISE / UM-DAE CEBS — Mumbai (NEST)",
+      "ISI — 5 centres (ISI Admission Test)",
+      "BITS Pilani — 4 campuses (BITSAT)",
+      "IIITs — 25 NIT-equivalent (JEE Main)",
+      "Liberal Arts Private — Ashoka, OP Jindal Global, FLAME, Krea, Shiv Nadar, Azim Premji",
+      "Central Universities — 48 incl. JNU, DU, BHU, AMU, JMI, UoH (CUET)",
+      "State Universities — all state engineering, science, arts, law, agricultural colleges",
+      "Deemed Private Universities — Amrita, VIT, Manipal, Symbiosis, NMIMS etc.",
+      "Professional Bodies — ICAI (CA), ICMAI (CMA), ICSI (CS), IMU (Marine), NCHMCT (Hotels)"
     ],
     "admission_exam_legend": {
-      "JEE_Advanced": "Joint Entrance Examination Advanced \u2014 IITs",
-      "JEE_Main": "Joint Entrance Examination Mains \u2014 NITs, IIITs, GFTIs",
+      "JEE_Advanced": "Joint Entrance Examination Advanced — IITs",
+      "JEE_Main": "Joint Entrance Examination Mains — NITs, IIITs, GFTIs",
       "BITSAT": "BITS Pilani Aptitude Test",
       "IAT": "IISER Aptitude Test",
       "NEST": "NISER + UM-DAE CEBS entrance",
       "ISI_Exam": "ISI Admission Test",
       "NEET_UG": "National Eligibility cum Entrance Test UG",
-      "CLAT": "Common Law Admission Test \u2014 NLUs",
-      "AILET": "All India Law Entrance Test \u2014 NLU Delhi",
+      "CLAT": "Common Law Admission Test — NLUs",
+      "AILET": "All India Law Entrance Test — NLU Delhi",
       "LSAT_India": "Law School Admission Test India",
       "CUET": "Common University Entrance Test",
       "IIT_JAM": "Joint Admission Test for M.Sc",
       "GATE": "Graduate Aptitude Test in Engineering",
-      "CSIR_NET": "CSIR National Eligibility Test \u2014 science JRF",
-      "UGC_NET": "UGC National Eligibility Test \u2014 humanities JRF",
-      "JEST": "Joint Entrance Screening Test \u2014 Physics research",
-      "ICAR_AIEEA": "ICAR All India Entrance Exam \u2014 Agriculture",
+      "CSIR_NET": "CSIR National Eligibility Test — science JRF",
+      "UGC_NET": "UGC National Eligibility Test — humanities JRF",
+      "JEST": "Joint Entrance Screening Test — Physics research",
+      "ICAR_AIEEA": "ICAR All India Entrance Exam — Agriculture",
       "UPSC_CSE": "Union Public Service Commission Civil Services Exam",
       "NDA_NA": "National Defence Academy Exam",
       "CDS": "Combined Defence Services Exam",
@@ -70,8 +70,8 @@
       "State_BEd_Entrance": "State B.Ed entrance",
       "State_Ag_Entrance": "State agriculture entrance",
       "TISS_NET": "Tata Institute of Social Sciences Entrance",
-      "IPM_Entrance": "Integrated Programme in Management \u2014 IIMs",
-      "CAT": "Common Admission Test \u2014 IIMs",
+      "IPM_Entrance": "Integrated Programme in Management — IIMs",
+      "CAT": "Common Admission Test — IIMs",
       "XAT": "Xavier Aptitude Test",
       "DSE_Entrance": "Delhi School of Economics M.A. entrance",
       "IIMC_Entrance": "Indian Institute of Mass Communication entrance",
@@ -155,13 +155,7 @@
         "Airlines",
         "Defence R&D",
         "Space Startups"
-      ],
-      "planet_affinity": {
-        "Rahu": 0.35,
-        "Mars": 0.3,
-        "Sun": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "agricultural_food_engineering": {
       "label": "Agricultural & Food Engineering",
@@ -218,13 +212,7 @@
         "Food Processing Industry",
         "Agri-machinery",
         "Irrigation Dept"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.3,
-        "Mars": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "automotive_engineering": {
       "label": "Automobile / Automotive Engineering",
@@ -287,13 +275,7 @@
         "Bosch",
         "Hyundai R&D",
         "EV Startups"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Mars": 0.3,
-        "Saturn": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "biomedical_engineering": {
       "label": "Biomedical Engineering",
@@ -358,13 +340,7 @@
         "Hospitals",
         "AIIMS R&D",
         "Siemens Healthineers"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Sun": 0.25,
-        "Moon": 0.25,
-        "Mercury": 0.2
-      }
+      ]
     },
     "biotechnology_biochemical_engineering": {
       "label": "Biotechnology & Biochemical Engineering",
@@ -436,13 +412,7 @@
         "Serum Institute",
         "CSIR Labs",
         "Biopharma Startups"
-      ],
-      "planet_affinity": {
-        "Moon": 0.3,
-        "Mercury": 0.25,
-        "Ketu": 0.25,
-        "Mars": 0.2
-      }
+      ]
     },
     "ceramic_engineering": {
       "label": "Ceramic Engineering",
@@ -499,13 +469,7 @@
         "Refractory Industry",
         "Glass Industry",
         "Electronic Components"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.3,
-        "Mercury": 0.2,
-        "Ketu": 0.1
-      }
+      ]
     },
     "chemical_engineering": {
       "label": "Chemical Engineering",
@@ -582,13 +546,7 @@
         "Pidilite",
         "Coromandel",
         "Dyes Industry"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Saturn": 0.25,
-        "Mercury": 0.25,
-        "Ketu": 0.2
-      }
+      ]
     },
     "civil_engineering": {
       "label": "Civil Engineering",
@@ -665,13 +623,7 @@
         "PWD",
         "Urban Planning",
         "Infrastructure PSUs"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.35,
-        "Sun": 0.15,
-        "Mercury": 0.1
-      }
+      ]
     },
     "computer_science_engineering": {
       "label": "Computer Science Engineering",
@@ -743,13 +695,7 @@
         "TCS",
         "Startups",
         "FAANG"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Rahu": 0.3,
-        "Saturn": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "electrical_engineering": {
       "label": "Electrical Engineering",
@@ -819,13 +765,7 @@
         "ABB",
         "Siemens",
         "L&T ECC"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mars": 0.3,
-        "Saturn": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "electronics_communication_engineering": {
       "label": "Electronics & Communication Engineering",
@@ -895,13 +835,7 @@
         "Intel",
         "TI",
         "Lam Research"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Mars": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "energy_engineering": {
       "label": "Energy Engineering / Science",
@@ -970,13 +904,7 @@
         "SECI",
         "MNRE",
         "Energy Startups"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Rahu": 0.25,
-        "Mars": 0.25,
-        "Saturn": 0.15
-      }
+      ]
     },
     "engineering_physics": {
       "label": "Engineering Physics",
@@ -1041,13 +969,7 @@
         "DAE Labs",
         "Semiconductor Industry",
         "Photonics Startups"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mercury": 0.25,
-        "Ketu": 0.25,
-        "Rahu": 0.15
-      }
+      ]
     },
     "environmental_engineering": {
       "label": "Environmental Engineering",
@@ -1115,13 +1037,7 @@
         "NEERI",
         "Infrastructure Cos",
         "EIA Consultants"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.25,
-        "Mars": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "fire_safety_engineering": {
       "label": "Fire & Safety Engineering",
@@ -1179,13 +1095,7 @@
         "Airports",
         "NDRF",
         "Insurance ERM"
-      ],
-      "planet_affinity": {
-        "Mars": 0.4,
-        "Sun": 0.3,
-        "Saturn": 0.2,
-        "Mercury": 0.1
-      }
+      ]
     },
     "industrial_engineering": {
       "label": "Industrial & Systems Engineering",
@@ -1254,13 +1164,7 @@
         "Manufacturing Cos",
         "Consultancy",
         "NITI Aayog"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mercury": 0.3,
-        "Mars": 0.25,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "instrumentation_engineering": {
       "label": "Instrumentation & Control Engineering",
@@ -1327,13 +1231,7 @@
         "Refineries",
         "ISRO Ground Systems",
         "PSUs"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Mars": 0.3,
-        "Saturn": 0.2,
-        "Rahu": 0.15
-      }
+      ]
     },
     "marine_engineering": {
       "label": "Marine Engineering",
@@ -1389,13 +1287,7 @@
         "L&T Shipbuilding",
         "Mazagon Dock",
         "Offshore Oil Companies"
-      ],
-      "planet_affinity": {
-        "Moon": 0.3,
-        "Mars": 0.3,
-        "Saturn": 0.25,
-        "Rahu": 0.15
-      }
+      ]
     },
     "materials_science_engineering": {
       "label": "Materials Science & Engineering",
@@ -1468,13 +1360,7 @@
         "Aerospace Composites",
         "Steel Industry",
         "Battery Startups"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mars": 0.3,
-        "Rahu": 0.2,
-        "Ketu": 0.15
-      }
+      ]
     },
     "mathematics_computing": {
       "label": "Mathematics & Computing",
@@ -1483,7 +1369,7 @@
       "track": "Mathematics and Computing",
       "specialization": "Math + CS Hybrid",
       "niche": "Combinatorics / Cryptography / ML Theory / Computational Math",
-      "description": "Combined mathematics and computing \u2014 algorithms, cryptography, computational science",
+      "description": "Combined mathematics and computing — algorithms, cryptography, computational science",
       "degree_types": [
         "BTech",
         "BS+MS_Dual"
@@ -1540,13 +1426,7 @@
         "Google DeepMind",
         "Research Labs",
         "IIT Faculty"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Saturn": 0.25,
-        "Rahu": 0.25,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "mechanical_engineering": {
       "label": "Mechanical Engineering",
@@ -1616,13 +1496,7 @@
         "Tata Steel",
         "Auto OEMs",
         "Core Mfg"
-      ],
-      "planet_affinity": {
-        "Mars": 0.4,
-        "Saturn": 0.35,
-        "Sun": 0.15,
-        "Mercury": 0.1
-      }
+      ]
     },
     "metallurgical_engineering": {
       "label": "Metallurgical Engineering",
@@ -1692,13 +1566,7 @@
         "RINL",
         "JSW",
         "DRDO Materials"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.35,
-        "Sun": 0.15,
-        "Mercury": 0.1
-      }
+      ]
     },
     "microelectronics_vlsi": {
       "label": "Microelectronics & VLSI Design",
@@ -1775,13 +1643,7 @@
         "Synopsys",
         "Cadence",
         "DRDO"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Rahu": 0.3,
-        "Saturn": 0.2,
-        "Mars": 0.1
-      }
+      ]
     },
     "mining_engineering": {
       "label": "Mining Engineering",
@@ -1845,13 +1707,7 @@
         "SCCL",
         "Rio Tinto India",
         "DGMS"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.45,
-        "Mars": 0.3,
-        "Rahu": 0.15,
-        "Sun": 0.1
-      }
+      ]
     },
     "naval_architecture": {
       "label": "Naval Architecture & Ocean Engineering",
@@ -1914,13 +1770,7 @@
         "GRSE",
         "Offshore E&P",
         "Classification Societies"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Mars": 0.3,
-        "Saturn": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "nuclear_engineering": {
       "label": "Nuclear Engineering",
@@ -1980,13 +1830,7 @@
         "AERB",
         "ITER India",
         "IGCAR"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mars": 0.3,
-        "Ketu": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "petroleum_engineering": {
       "label": "Petroleum Engineering",
@@ -2050,13 +1894,7 @@
         "Schlumberger",
         "Halliburton",
         "Baker Hughes"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Rahu": 0.25,
-        "Mars": 0.25,
-        "Mercury": 0.1
-      }
+      ]
     },
     "polymer_plastics_engineering": {
       "label": "Polymer & Plastics Engineering",
@@ -2118,13 +1956,7 @@
         "Asian Paints",
         "Reliance Industries",
         "Atul Ltd"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mars": 0.3,
-        "Mercury": 0.2,
-        "Rahu": 0.15
-      }
+      ]
     },
     "production_manufacturing_engineering": {
       "label": "Production & Manufacturing Engineering",
@@ -2190,13 +2022,7 @@
         "Bharat Forge",
         "Toyota Kirloskar",
         "DRDO"
-      ],
-      "planet_affinity": {
-        "Mars": 0.35,
-        "Saturn": 0.35,
-        "Mercury": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "robotics_automation": {
       "label": "Robotics & Automation Engineering",
@@ -2269,13 +2095,7 @@
         "Ati Motors",
         "Tesla India",
         "Grey Orange"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.3,
-        "Rahu": 0.3,
-        "Mars": 0.25,
-        "Saturn": 0.15
-      }
+      ]
     },
     "space_sciences_engineering": {
       "label": "Space Sciences & Technology",
@@ -2344,13 +2164,7 @@
         "Space Startups",
         "Skyroot",
         "Agnikul"
-      ],
-      "planet_affinity": {
-        "Rahu": 0.4,
-        "Sun": 0.25,
-        "Mars": 0.25,
-        "Ketu": 0.1
-      }
+      ]
     },
     "textile_technology": {
       "label": "Textile Technology",
@@ -2414,13 +2228,7 @@
         "Grasim",
         "Textile Export Houses",
         "NIFT"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Saturn": 0.3,
-        "Mercury": 0.2,
-        "Moon": 0.15
-      }
+      ]
     },
     "transportation_engineering": {
       "label": "Transportation Engineering",
@@ -2489,13 +2297,7 @@
         "MRVC",
         "Urban Local Bodies",
         "Smart City Projects"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mars": 0.3,
-        "Venus": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "artificial_intelligence": {
       "label": "Artificial Intelligence",
@@ -2570,13 +2372,7 @@
         "NVIDIA",
         "TCS AI",
         "Startups"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.35,
-        "Saturn": 0.2,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "blockchain_web3": {
       "label": "Blockchain & Web3 Technology",
@@ -2636,13 +2432,7 @@
         "Web3 Startups",
         "Crypto Exchanges",
         "Infosys Blockchain"
-      ],
-      "planet_affinity": {
-        "Rahu": 0.4,
-        "Mercury": 0.3,
-        "Saturn": 0.2,
-        "Mars": 0.1
-      }
+      ]
     },
     "cloud_devops": {
       "label": "Cloud Computing & DevOps",
@@ -2703,13 +2493,7 @@
         "Infosys Cloud",
         "Wipro",
         "Platform Startups"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Saturn": 0.25,
-        "Mars": 0.1
-      }
+      ]
     },
     "cybersecurity": {
       "label": "Cybersecurity & Information Security",
@@ -2777,13 +2561,7 @@
         "Palo Alto",
         "CrowdStrike",
         "TCS CyberSec"
-      ],
-      "planet_affinity": {
-        "Rahu": 0.35,
-        "Mercury": 0.3,
-        "Mars": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "data_science_engineering": {
       "label": "Data Science & Engineering",
@@ -2856,13 +2634,7 @@
         "Amazon Analytics",
         "BCG Gamma",
         "McKinsey Analytics"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Rahu": 0.3,
-        "Saturn": 0.2,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "game_design_technology": {
       "label": "Game Design & Technology",
@@ -2929,13 +2701,7 @@
         "Games24x7",
         "ubisoft India",
         "Global Gaming Cos"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.3,
-        "Rahu": 0.25,
-        "Venus": 0.25,
-        "Mars": 0.2
-      }
+      ]
     },
     "information_technology": {
       "label": "Information Technology",
@@ -3002,13 +2768,7 @@
         "HCL",
         "Capgemini",
         "Accenture India"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Rahu": 0.25,
-        "Saturn": 0.25,
-        "Mars": 0.1
-      }
+      ]
     },
     "internet_of_things": {
       "label": "Internet of Things (IoT)",
@@ -3074,13 +2834,7 @@
         "IoT Startups",
         "ERICSSON India",
         "Smart City Projects"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Mars": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "biochemistry": {
       "label": "Biochemistry",
@@ -3155,13 +2909,7 @@
         "IISER Research",
         "Diagnostics",
         "Biotech Industry"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.3,
-        "Moon": 0.25,
-        "Ketu": 0.25,
-        "Mars": 0.2
-      }
+      ]
     },
     "biology": {
       "label": "Biological Sciences",
@@ -3239,22 +2987,16 @@
         "IISER Research",
         "DBT Institutes",
         "Pharma Research"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Ketu": 0.25,
-        "Mercury": 0.25,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "biotechnology_bsc": {
       "label": "Biotechnology (BSc / BSc+MSc)",
       "domain": "science",
-      "field": "Biotechnology \u2014 Pure Science",
+      "field": "Biotechnology — Pure Science",
       "track": "Biotechnology",
       "specialization": "Biotechnology BSc",
       "niche": "Recombinant DNA / Cell Culture / PCR / Bioinformatics / Gene Therapy",
-      "description": "Pure-science biotechnology degree \u2014 central university / IISER route (not engineering)",
+      "description": "Pure-science biotechnology degree — central university / IISER route (not engineering)",
       "degree_types": [
         "BSc",
         "BSc+MSc_Int",
@@ -3323,13 +3065,7 @@
         "Sun Pharma Research",
         "CSIR IMTECH",
         "Biotech Startups"
-      ],
-      "planet_affinity": {
-        "Moon": 0.3,
-        "Rahu": 0.25,
-        "Mercury": 0.25,
-        "Ketu": 0.2
-      }
+      ]
     },
     "chemistry": {
       "label": "Chemistry",
@@ -3403,13 +3139,7 @@
         "Chemical Industry",
         "Academic Research",
         "TIFR"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.3,
-        "Mars": 0.25,
-        "Saturn": 0.25,
-        "Ketu": 0.2
-      }
+      ]
     },
     "earth_sciences": {
       "label": "Earth Sciences / Geosciences",
@@ -3489,13 +3219,7 @@
         "NCAOR",
         "Weather Forecasting",
         "Mining Companies"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Moon": 0.3,
-        "Mars": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "forensic_science": {
       "label": "Forensic Science",
@@ -3561,13 +3285,7 @@
         "Courts",
         "Interpol India",
         "Cyber Forensics Units"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Ketu": 0.3,
-        "Mercury": 0.25,
-        "Rahu": 0.15
-      }
+      ]
     },
     "mathematics": {
       "label": "Mathematics",
@@ -3647,13 +3365,7 @@
         "IIT Faculty",
         "Quantitative Finance",
         "Cryptography Research"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.45,
-        "Saturn": 0.25,
-        "Jupiter": 0.2,
-        "Ketu": 0.1
-      }
+      ]
     },
     "microbiology": {
       "label": "Microbiology",
@@ -3662,7 +3374,7 @@
       "track": "Microbiology",
       "specialization": "Microbiology",
       "niche": "Bacteriology / Virology / Mycology / Medical Microbiology / Environmental Microbiology",
-      "description": "Study of microorganisms: bacteria, viruses, fungi \u2014 medical, industrial and environmental applications",
+      "description": "Study of microorganisms: bacteria, viruses, fungi — medical, industrial and environmental applications",
       "degree_types": [
         "BSc",
         "MSc"
@@ -3718,13 +3430,7 @@
         "Food Safety Labs",
         "Vaccine Industry",
         "AIIMS Micro Dept"
-      ],
-      "planet_affinity": {
-        "Moon": 0.3,
-        "Mercury": 0.25,
-        "Ketu": 0.25,
-        "Mars": 0.2
-      }
+      ]
     },
     "nutrition_dietetics": {
       "label": "Nutrition & Dietetics",
@@ -3790,13 +3496,7 @@
         "Public Health Programmes",
         "Sports Teams",
         "Startups"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Jupiter": 0.3,
-        "Mercury": 0.2,
-        "Sun": 0.15
-      }
+      ]
     },
     "physics": {
       "label": "Physics",
@@ -3873,13 +3573,7 @@
         "DAE Labs",
         "Semiconductor R&D",
         "Quant Finance"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mercury": 0.3,
-        "Ketu": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "statistics_data_science": {
       "label": "Statistics & Data Science",
@@ -3964,13 +3658,7 @@
         "Insurance Actuarial",
         "Data Science Roles",
         "Quant Finance"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Saturn": 0.25,
-        "Jupiter": 0.2,
-        "Rahu": 0.15
-      }
+      ]
     },
     "medicine_mbbs": {
       "label": "Medicine (MBBS)",
@@ -3979,7 +3667,7 @@
       "track": "Medical Doctor (MBBS)",
       "specialization": "MBBS",
       "niche": "General Medicine / Surgery / Paediatrics / Gynaecology / Psychiatry",
-      "description": "Allopathic medical degree \u2014 foundation for clinical practice and specialisation",
+      "description": "Allopathic medical degree — foundation for clinical practice and specialisation",
       "degree_types": [
         "MBBS"
       ],
@@ -4011,15 +3699,15 @@
       "tier_map": {
         "UG": {
           "spec": "MBBS",
-          "niche": "Clinical Rotations \u2014 Medicine / Surgery / OBG / Paeds"
+          "niche": "Clinical Rotations — Medicine / Surgery / OBG / Paeds"
         },
         "PG": {
-          "spec": "MD / MS \u2014 various specialisations",
+          "spec": "MD / MS — various specialisations",
           "niche": "Internal Medicine / Surgery / Radiology / Anaesthesia"
         },
         "PhD": {
           "spec": "DM / MCh / PhD Medicine",
-          "niche": "Superspeciality \u2014 Cardiology / Neuro / Oncology"
+          "niche": "Superspeciality — Cardiology / Neuro / Oncology"
         }
       },
       "career_signature": [
@@ -4028,20 +3716,14 @@
         "Corporate Hospitals",
         "UPSC (Medical)",
         "Medical Research"
-      ],
-      "planet_affinity": {
-        "Sun": 0.3,
-        "Mars": 0.25,
-        "Moon": 0.25,
-        "Mercury": 0.2
-      }
+      ]
     },
     "dentistry": {
       "label": "Dentistry (BDS)",
       "domain": "medicine",
       "field": "Dental Medicine",
       "track": "Dentistry",
-      "specialization": "BDS \u2014 Dentistry",
+      "specialization": "BDS — Dentistry",
       "niche": "Orthodontics / Oral Surgery / Periodontics / Prosthodontics / Endodontics",
       "description": "Dental medicine: diagnosis and treatment of oral health, orthodontics, oral surgery",
       "degree_types": [
@@ -4073,7 +3755,7 @@
           "niche": "Clinical Dentistry / Oral Diagnosis / Radiology"
         },
         "PG": {
-          "spec": "MDS \u2014 Orthodontics / Oral Surgery / Periodontics",
+          "spec": "MDS — Orthodontics / Oral Surgery / Periodontics",
           "niche": "Implantology / Cosmetic Dentistry / Maxillofacial Surgery"
         },
         "PhD": {
@@ -4087,22 +3769,16 @@
         "Armed Forces Dentistry",
         "Dental Product Companies",
         "Academia"
-      ],
-      "planet_affinity": {
-        "Mars": 0.35,
-        "Mercury": 0.3,
-        "Sun": 0.25,
-        "Moon": 0.1
-      }
+      ]
     },
     "homeopathy": {
       "label": "Homeopathy (BHMS)",
       "domain": "medicine",
-      "field": "Alternative Medicine \u2014 Homeopathy",
+      "field": "Alternative Medicine — Homeopathy",
       "track": "Homeopathic Medicine",
       "specialization": "BHMS",
       "niche": "Materia Medica / Homeopathic Pharmacy / Chronic Disease Management",
-      "description": "Homeopathic medicine and surgery \u2014 holistic approach to healing chronic conditions",
+      "description": "Homeopathic medicine and surgery — holistic approach to healing chronic conditions",
       "degree_types": [
         "BHMS"
       ],
@@ -4128,11 +3804,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "BHMS \u2014 Bachelor of Homeopathic Medicine & Surgery",
+          "spec": "BHMS — Bachelor of Homeopathic Medicine & Surgery",
           "niche": "Organon / Materia Medica / Homeopathic Pharmacy"
         },
         "PG": {
-          "spec": "MD (Hom) \u2014 Homeopathic Medicine",
+          "spec": "MD (Hom) — Homeopathic Medicine",
           "niche": "Repertory / Practice of Medicine / Homeopathic Pharmacy"
         },
         "PhD": {
@@ -4145,20 +3821,14 @@
         "Homeopathic Hospitals",
         "CCRH",
         "Pharma Homeopathy Companies"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Ketu": 0.3,
-        "Jupiter": 0.25,
-        "Mercury": 0.1
-      }
+      ]
     },
     "ayurveda": {
       "label": "Ayurveda (BAMS)",
       "domain": "medicine",
-      "field": "Traditional Medicine \u2014 Ayurveda",
+      "field": "Traditional Medicine — Ayurveda",
       "track": "Ayurvedic Medicine",
-      "specialization": "BAMS \u2014 Ayurvedic Medicine & Surgery",
+      "specialization": "BAMS — Ayurvedic Medicine & Surgery",
       "niche": "Panchakarma / Dravyaguna / Kayachikitsa / Rasayana",
       "description": "Traditional Indian medicine: herbal formulations, Panchakarma, classical Ayurveda",
       "degree_types": [
@@ -4192,7 +3862,7 @@
           "niche": "Dravyaguna / Panchakarma / Kayachikitsa / Shalya"
         },
         "PG": {
-          "spec": "MD Ayurveda \u2014 various specialisations",
+          "spec": "MD Ayurveda — various specialisations",
           "niche": "Panchakarma / Neonatal Ayurveda / Rasayana"
         },
         "PhD": {
@@ -4207,13 +3877,7 @@
         "AYUSH Hospitals",
         "Research Councils",
         "Yoga Centres"
-      ],
-      "planet_affinity": {
-        "Ketu": 0.35,
-        "Moon": 0.3,
-        "Jupiter": 0.25,
-        "Mercury": 0.1
-      }
+      ]
     },
     "pharmacy": {
       "label": "Pharmacy (B.Pharm / Pharm.D)",
@@ -4278,13 +3942,7 @@
         "Biocon",
         "Clinical Trials",
         "Hospitals"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Saturn": 0.25,
-        "Mars": 0.25,
-        "Moon": 0.15
-      }
+      ]
     },
     "nursing": {
       "label": "Nursing (B.Sc Nursing)",
@@ -4344,13 +4002,7 @@
         "Fortis",
         "Armed Forces Nursing",
         "WHO India Programmes"
-      ],
-      "planet_affinity": {
-        "Moon": 0.4,
-        "Sun": 0.25,
-        "Jupiter": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "occupational_therapy": {
       "label": "Occupational Therapy",
@@ -4389,11 +4041,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.O.T \u2014 Occupational Therapy",
+          "spec": "B.O.T — Occupational Therapy",
           "niche": "Neuro Rehab / Paed OT / Mental Health OT"
         },
         "PG": {
-          "spec": "M.O.T \u2014 Occupational Therapy",
+          "spec": "M.O.T — Occupational Therapy",
           "niche": "Ergonomics / Sensory Integration / Hand Therapy"
         },
         "PhD": {
@@ -4407,13 +4059,7 @@
         "Schools (SEN)",
         "Corporate Ergonomics",
         "Geriatric Care Centres"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Mars": 0.25,
-        "Mercury": 0.25,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "optometry": {
       "label": "Optometry",
@@ -4453,7 +4099,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.Optom \u2014 Optometry",
+          "spec": "B.Optom — Optometry",
           "niche": "Refraction / Contact Lens / Low Vision / Amblyopia"
         },
         "PG": {
@@ -4472,13 +4118,7 @@
         "Aravind Eye Care",
         "LVPEI",
         "Bausch Lomb"
-      ],
-      "planet_affinity": {
-        "Sun": 0.3,
-        "Mercury": 0.3,
-        "Moon": 0.25,
-        "Mars": 0.15
-      }
+      ]
     },
     "physiotherapy": {
       "label": "Physiotherapy (BPT)",
@@ -4518,11 +4158,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.P.T \u2014 Bachelor of Physiotherapy",
+          "spec": "B.P.T — Bachelor of Physiotherapy",
           "niche": "Ortho / Neuro / Cardio / Sports Physiotherapy"
         },
         "PG": {
-          "spec": "M.P.T \u2014 Physiotherapy",
+          "spec": "M.P.T — Physiotherapy",
           "niche": "Sports Rehab / Geriatric Physio / Neuro Physiotherapy"
         },
         "PhD": {
@@ -4538,13 +4178,7 @@
         "Rehab Clinics",
         "WHO",
         "NGOs"
-      ],
-      "planet_affinity": {
-        "Mars": 0.35,
-        "Moon": 0.3,
-        "Sun": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "veterinary_science": {
       "label": "Veterinary Science (B.VSc & AH)",
@@ -4588,7 +4222,7 @@
           "niche": "Animal Medicine / Surgery / Livestock / Poultry"
         },
         "PG": {
-          "spec": "M.V.Sc \u2014 various specialisations",
+          "spec": "M.V.Sc — various specialisations",
           "niche": "Veterinary Pathology / Epidemiology / Wildlife Health"
         },
         "PhD": {
@@ -4603,22 +4237,16 @@
         "Zoos",
         "Food Safety Authority",
         "Pharma Vet Division"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Mars": 0.3,
-        "Saturn": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "unani_medicine": {
       "label": "Unani Medicine (BUMS)",
       "domain": "medicine",
-      "field": "Traditional Medicine \u2014 Unani",
+      "field": "Traditional Medicine — Unani",
       "track": "Unani Medicine",
       "specialization": "BUMS",
       "niche": "Ilaj-bil-Dawa / Ilaj-bil-Tadbir / Unani Pharmacopoeia / Temperament Theory",
-      "description": "Greco-Arabic traditional medicine system \u2014 herbal, dietary, regimenal therapy",
+      "description": "Greco-Arabic traditional medicine system — herbal, dietary, regimenal therapy",
       "degree_types": [
         "BUMS"
       ],
@@ -4666,20 +4294,14 @@
         "Unani Pharma",
         "AMU Faculty",
         "Private Practice"
-      ],
-      "planet_affinity": {
-        "Moon": 0.3,
-        "Ketu": 0.25,
-        "Jupiter": 0.25,
-        "Saturn": 0.2
-      }
+      ]
     },
     "law_llb": {
       "label": "Law (LLB / BA LLB)",
       "domain": "law",
       "field": "General Law Practice",
       "track": "Legal Studies",
-      "specialization": "Law \u2014 General / Constitutional / Civil / Criminal",
+      "specialization": "Law — General / Constitutional / Civil / Criminal",
       "niche": "Constitutional / Civil / Criminal / Contract / Family Law",
       "description": "General legal education covering constitutional, civil, criminal and commercial law",
       "degree_types": [
@@ -4725,7 +4347,7 @@
           "niche": "Constitutional / Contract / Torts / Property Law"
         },
         "PG": {
-          "spec": "LLM \u2014 various specialisations",
+          "spec": "LLM — various specialisations",
           "niche": "IPR / Corporate / International / Criminal"
         },
         "PhD": {
@@ -4740,13 +4362,7 @@
         "Judiciary",
         "Legal Aid",
         "Government Law"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.4,
-        "Mercury": 0.3,
-        "Sun": 0.2,
-        "Saturn": 0.1
-      }
+      ]
     },
     "corporate_law": {
       "label": "Corporate & Commercial Law",
@@ -4812,13 +4428,7 @@
         "SEBI",
         "RBI Legal",
         "Big 4 Tax Law"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Mercury": 0.35,
-        "Saturn": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "criminal_law": {
       "label": "Criminal Law & Criminology",
@@ -4884,13 +4494,7 @@
         "NIA",
         "Judiciary",
         "Legal Aid Clinics"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Jupiter": 0.3,
-        "Mercury": 0.25,
-        "Sun": 0.15
-      }
+      ]
     },
     "international_law": {
       "label": "International & Public Law",
@@ -4955,13 +4559,7 @@
         "International Arbitration",
         "Diplomatic Service",
         "Global Law Firms"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.4,
-        "Mercury": 0.3,
-        "Sun": 0.2,
-        "Saturn": 0.1
-      }
+      ]
     },
     "actuarial_science": {
       "label": "Actuarial Science",
@@ -5029,13 +4627,7 @@
         "Aon Hewitt",
         "Milliman India",
         "Willis Towers Watson"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Saturn": 0.3,
-        "Jupiter": 0.25,
-        "Rahu": 0.1
-      }
+      ]
     },
     "business_management": {
       "label": "Business Management (BBA / MBA)",
@@ -5090,7 +4682,7 @@
           "niche": "Management Fundamentals / Marketing / Strategy / Analytics"
         },
         "PG": {
-          "spec": "MBA \u2014 IIMs / Top B-Schools",
+          "spec": "MBA — IIMs / Top B-Schools",
           "niche": "Strategy / Finance / Marketing / Operations / Consulting"
         },
         "PhD": {
@@ -5106,13 +4698,7 @@
         "Startups",
         "Banks",
         "Consulting Firms"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Mercury": 0.25,
-        "Sun": 0.25,
-        "Saturn": 0.15
-      }
+      ]
     },
     "ca_cma_cs_professional": {
       "label": "Chartered Accountant / CMA / Company Secretary",
@@ -5121,7 +4707,7 @@
       "track": "CA / CMA / CS",
       "specialization": "Chartered Accountancy / Cost Accounting / Secretarial Practice",
       "niche": "Audit / Taxation / IFRS / MCA Compliance / GST / Transfer Pricing",
-      "description": "Professional qualifications: CA (ICAI), CMA (ICMAI), CS (ICSI) \u2014 audit, tax, compliance",
+      "description": "Professional qualifications: CA (ICAI), CMA (ICMAI), CS (ICSI) — audit, tax, compliance",
       "degree_types": [
         "CA_Foundation",
         "CA_Intermediate",
@@ -5162,7 +4748,7 @@
           "niche": "Cost Audit / Transfer Pricing / SEBI Compliance / IFRS"
         },
         "PhD": {
-          "spec": "N/A \u2014 Professional Track",
+          "spec": "N/A — Professional Track",
           "niche": "N/A"
         }
       },
@@ -5173,13 +4759,7 @@
         "SEBI",
         "NCLT Practice",
         "Finance Roles in Industry"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Saturn": 0.3,
-        "Jupiter": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "commerce_accounting": {
       "label": "Commerce & Accounting (B.Com)",
@@ -5246,13 +4826,7 @@
         "GST Firms",
         "Finance Roles",
         "Commerce Teaching"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Saturn": 0.3,
-        "Jupiter": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "economics": {
       "label": "Economics",
@@ -5337,13 +4911,7 @@
         "Consulting",
         "Policy Think-Tanks",
         "Academia"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Mercury": 0.3,
-        "Saturn": 0.2,
-        "Sun": 0.15
-      }
+      ]
     },
     "finance_banking": {
       "label": "Finance & Banking",
@@ -5413,13 +4981,7 @@
         "HDFC Bank",
         "Kotak IB",
         "FinTech Startups"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Saturn": 0.3,
-        "Jupiter": 0.25,
-        "Sun": 0.1
-      }
+      ]
     },
     "hotel_hospitality_management": {
       "label": "Hotel & Hospitality Management",
@@ -5484,13 +5046,7 @@
         "Marriott India",
         "Airbnb",
         "Tourism Ministry"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Venus": 0.3,
-        "Jupiter": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "criminology_penology": {
       "label": "Criminology & Penology",
@@ -5557,13 +5113,7 @@
         "Legal Aid",
         "Think-Tanks",
         "Research"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Ketu": 0.25,
-        "Saturn": 0.25,
-        "Jupiter": 0.2
-      }
+      ]
     },
     "development_studies": {
       "label": "Development Studies",
@@ -5633,13 +5183,7 @@
         "Action Aid",
         "IIPA",
         "State Govts Policy Roles"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Moon": 0.3,
-        "Saturn": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "gender_studies": {
       "label": "Gender Studies",
@@ -5708,13 +5252,7 @@
         "Journalism",
         "Policy Advocacy",
         "Academia"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Venus": 0.3,
-        "Jupiter": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "history_archaeology": {
       "label": "History & Archaeology",
@@ -5783,13 +5321,7 @@
         "Museums",
         "Documentary Making",
         "Academia"
-      ],
-      "planet_affinity": {
-        "Ketu": 0.35,
-        "Saturn": 0.3,
-        "Jupiter": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "international_relations": {
       "label": "International Relations & Diplomacy",
@@ -5861,13 +5393,7 @@
         "UN Bodies",
         "Journalism",
         "Corporate Govt Affairs"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Sun": 0.3,
-        "Mercury": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "liberal_arts_interdisciplinary": {
       "label": "Liberal Arts & Interdisciplinary Studies",
@@ -5945,13 +5471,7 @@
         "NGO",
         "Entrepreneurship",
         "Arts"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Mercury": 0.25,
-        "Venus": 0.25,
-        "Moon": 0.15
-      }
+      ]
     },
     "linguistics": {
       "label": "Linguistics",
@@ -6020,13 +5540,7 @@
         "Language Policy",
         "Academia",
         "UN Language Services"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Jupiter": 0.3,
-        "Rahu": 0.2,
-        "Moon": 0.1
-      }
+      ]
     },
     "literature_languages": {
       "label": "Literature & Language Studies",
@@ -6098,13 +5612,7 @@
         "Academia",
         "Creative Writing",
         "Translation"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Venus": 0.3,
-        "Moon": 0.2,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "philosophy": {
       "label": "Philosophy",
@@ -6174,13 +5682,7 @@
         "Journalism",
         "Think-Tanks",
         "Policy Analysis"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.4,
-        "Ketu": 0.3,
-        "Mercury": 0.2,
-        "Saturn": 0.1
-      }
+      ]
     },
     "political_science": {
       "label": "Political Science",
@@ -6252,13 +5754,7 @@
         "Journalism",
         "Parliament Secretariat",
         "UN"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Jupiter": 0.3,
-        "Mercury": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "psychology": {
       "label": "Psychology",
@@ -6333,13 +5829,7 @@
         "TISS",
         "NGOs",
         "Private Practice"
-      ],
-      "planet_affinity": {
-        "Moon": 0.4,
-        "Mercury": 0.3,
-        "Jupiter": 0.2,
-        "Ketu": 0.1
-      }
+      ]
     },
     "social_work": {
       "label": "Social Work",
@@ -6385,11 +5875,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.S.W \u2014 Bachelor of Social Work",
+          "spec": "B.S.W — Bachelor of Social Work",
           "niche": "Community Organisation / Child Welfare / Field Practicum"
         },
         "PG": {
-          "spec": "M.S.W \u2014 Master of Social Work",
+          "spec": "M.S.W — Master of Social Work",
           "niche": "Psychiatric SW / Rural Development / Tribal Welfare"
         },
         "PhD": {
@@ -6405,13 +5895,7 @@
         "PRADAN",
         "Govt Social Welfare Dept",
         "NGOs"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Jupiter": 0.3,
-        "Saturn": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "sociology_anthropology": {
       "label": "Sociology & Social Anthropology",
@@ -6483,13 +5967,7 @@
         "Think-Tanks",
         "TISS",
         "IDS"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.25,
-        "Jupiter": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "animation_multimedia": {
       "label": "Animation & Multimedia",
@@ -6556,13 +6034,7 @@
         "DreamWorks India",
         "Zee VFX",
         "Advertising Agencies"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Mercury": 0.3,
-        "Rahu": 0.25,
-        "Moon": 0.1
-      }
+      ]
     },
     "architecture": {
       "label": "Architecture",
@@ -6634,16 +6106,10 @@
         "CPWD",
         "Smart City Consultants",
         "Ar Firms"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.3,
-        "Venus": 0.3,
-        "Mars": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "design_ux_product": {
-      "label": "Design \u2014 UX / Product / Industrial",
+      "label": "Design — UX / Product / Industrial",
       "domain": "arts",
       "field": "Design Studies",
       "track": "UX / Product / Industrial Design",
@@ -6712,13 +6178,7 @@
         "NID Faculty",
         "Global Design Firms",
         "Startups"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Mercury": 0.3,
-        "Moon": 0.2,
-        "Rahu": 0.15
-      }
+      ]
     },
     "fashion_design": {
       "label": "Fashion Design",
@@ -6782,13 +6242,7 @@
         "Manish Malhotra",
         "Export Houses",
         "Styling"
-      ],
-      "planet_affinity": {
-        "Venus": 0.45,
-        "Moon": 0.25,
-        "Mercury": 0.2,
-        "Rahu": 0.1
-      }
+      ]
     },
     "film_television_production": {
       "label": "Film & Television Production",
@@ -6855,13 +6309,7 @@
         "Netflix India",
         "Documentary Makers",
         "Ad Films"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Moon": 0.25,
-        "Mercury": 0.25,
-        "Rahu": 0.15
-      }
+      ]
     },
     "fine_arts": {
       "label": "Fine Arts",
@@ -6914,7 +6362,7 @@
           "niche": "Studio Practice / Art History / Art Critique"
         },
         "PG": {
-          "spec": "MFA \u2014 Fine Arts / Painting / Sculpture",
+          "spec": "MFA — Fine Arts / Painting / Sculpture",
           "niche": "Contemporary Art / Installation / Performance Art"
         },
         "PhD": {
@@ -6929,13 +6377,7 @@
         "Corporate Art",
         "Design Studios",
         "Art Teaching"
-      ],
-      "planet_affinity": {
-        "Venus": 0.45,
-        "Moon": 0.3,
-        "Mercury": 0.15,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "interior_design": {
       "label": "Interior Design",
@@ -7001,16 +6443,10 @@
         "Real Estate Cos",
         "Furniture Brands",
         "Self Practice"
-      ],
-      "planet_affinity": {
-        "Venus": 0.4,
-        "Mercury": 0.25,
-        "Moon": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "performing_arts": {
-      "label": "Performing Arts \u2014 Music / Dance / Theatre",
+      "label": "Performing Arts — Music / Dance / Theatre",
       "domain": "arts",
       "field": "Performing Arts",
       "track": "Music / Dance / Theatre",
@@ -7078,13 +6514,7 @@
         "CCRT Artists",
         "Teaching",
         "Film/OTT Acting"
-      ],
-      "planet_affinity": {
-        "Venus": 0.4,
-        "Moon": 0.3,
-        "Mercury": 0.2,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "education_teaching": {
       "label": "Education & Teaching",
@@ -7154,13 +6584,7 @@
         "Azim Premji Found",
         "State Govt Teaching",
         "DIET"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.4,
-        "Mercury": 0.3,
-        "Moon": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "educational_technology": {
       "label": "Educational Technology & e-Learning",
@@ -7230,13 +6654,7 @@
         "NPTEL",
         "IGNOU EdTech",
         "Instructional Design Cos"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Jupiter": 0.3,
-        "Rahu": 0.25,
-        "Moon": 0.1
-      }
+      ]
     },
     "research_academia": {
       "label": "Research & Academia",
@@ -7293,7 +6711,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "N/A \u2014 begins at PhD level",
+          "spec": "N/A — begins at PhD level",
           "niche": "N/A"
         },
         "PG": {
@@ -7301,7 +6719,7 @@
           "niche": "Research Methodology / Scientific Writing / Conference Publication"
         },
         "PhD": {
-          "spec": "Post-Doc \u2192 Assistant Professor \u2192 Professor",
+          "spec": "Post-Doc → Assistant Professor → Professor",
           "niche": "Discipline-specific research / Grant PI / Academic Leadership"
         }
       },
@@ -7312,13 +6730,7 @@
         "DBT Institutes",
         "UGC Scholars",
         "INSA Fellowship"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Ketu": 0.3,
-        "Jupiter": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "civil_services": {
       "label": "Civil Services (UPSC / State PSC)",
@@ -7362,7 +6774,7 @@
           "niche": "IFoS / IRS / State PCS Mains"
         },
         "PhD": {
-          "spec": "N/A \u2014 exam route",
+          "spec": "N/A — exam route",
           "niche": "N/A"
         }
       },
@@ -7376,13 +6788,7 @@
         "DM",
         "SP",
         "Collector"
-      ],
-      "planet_affinity": {
-        "Sun": 0.4,
-        "Jupiter": 0.3,
-        "Mercury": 0.2,
-        "Saturn": 0.1
-      }
+      ]
     },
     "defence_military": {
       "label": "Defence & Military Services",
@@ -7391,7 +6797,7 @@
       "track": "Defence Services",
       "specialization": "Indian Army / Navy / Air Force",
       "niche": "Combat Arms / Technical Services / Signal / Engineers Corps / Aviation",
-      "description": "Military service: Army, Navy, Air Force \u2014 officer entry through NDA/CDS/AFCAT/TES",
+      "description": "Military service: Army, Navy, Air Force — officer entry through NDA/CDS/AFCAT/TES",
       "degree_types": [
         "NDA_Grad",
         "BTech_AFA",
@@ -7425,7 +6831,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "NDA \u2192 B.Sc (Defence Studies) / B.Tech (Technical)",
+          "spec": "NDA → B.Sc (Defence Studies) / B.Tech (Technical)",
           "niche": "Military Science / Combat Training / Technical Stream"
         },
         "PG": {
@@ -7444,13 +6850,7 @@
         "NSG",
         "Paramilitary",
         "DRDO Scientists"
-      ],
-      "planet_affinity": {
-        "Mars": 0.4,
-        "Sun": 0.35,
-        "Saturn": 0.15,
-        "Ketu": 0.1
-      }
+      ]
     },
     "public_policy": {
       "label": "Public Policy & Governance",
@@ -7526,13 +6926,7 @@
         "IIM PPP",
         "Think-Tanks (CPR/IDFC/ORF)",
         "UPSC"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Sun": 0.3,
-        "Mercury": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "sports_science_management": {
       "label": "Sports Science & Sports Management",
@@ -7600,13 +6994,7 @@
         "Olympic Committees",
         "Sports Academies",
         "Corporate Wellness"
-      ],
-      "planet_affinity": {
-        "Mars": 0.4,
-        "Sun": 0.3,
-        "Mercury": 0.2,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "journalism_media": {
       "label": "Journalism & Media Studies",
@@ -7678,13 +7066,7 @@
         "Reuters India",
         "ANI",
         "Digital News Platforms"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Moon": 0.25,
-        "Rahu": 0.25,
-        "Venus": 0.1
-      }
+      ]
     },
     "mass_communication": {
       "label": "Mass Communication & Public Relations",
@@ -7753,13 +7135,7 @@
         "Godrej Corp Comms",
         "Startups",
         "MICA Grads"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Moon": 0.25,
-        "Rahu": 0.25,
-        "Venus": 0.15
-      }
+      ]
     },
     "agribusiness_management": {
       "label": "Agribusiness Management",
@@ -7827,13 +7203,7 @@
         "FPOs",
         "Commodity Exchanges",
         "State Banks"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.3,
-        "Saturn": 0.25,
-        "Moon": 0.25,
-        "Mercury": 0.2
-      }
+      ]
     },
     "agriculture_forestry": {
       "label": "Agriculture & Forestry",
@@ -7895,13 +7265,7 @@
         "Seed Companies",
         "Agri Startups",
         "FAO India"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.3,
-        "Mars": 0.2,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "environmental_science": {
       "label": "Environmental Science & Ecology",
@@ -7985,13 +7349,7 @@
         "TERI",
         "UNEP India",
         "EIA Consultants"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.25,
-        "Mars": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "fisheries_science": {
       "label": "Fisheries Science",
@@ -8032,11 +7390,11 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "B.F.Sc \u2014 Bachelor of Fisheries Science",
+          "spec": "B.F.Sc — Bachelor of Fisheries Science",
           "niche": "Aquaculture / Inland Fisheries / Marine Fisheries / Fish Processing"
         },
         "PG": {
-          "spec": "M.F.Sc \u2014 Master of Fisheries Science",
+          "spec": "M.F.Sc — Master of Fisheries Science",
           "niche": "Aquatic Pathology / Genetics / Deep Sea Fishing / GIS in Fisheries"
         },
         "PhD": {
@@ -8050,13 +7408,7 @@
         "State Fisheries Depts",
         "Aquaculture Farms",
         "Fish Processing Plants"
-      ],
-      "planet_affinity": {
-        "Moon": 0.4,
-        "Saturn": 0.25,
-        "Mars": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "horticulture": {
       "label": "Horticulture",
@@ -8116,13 +7468,7 @@
         "Floral Export",
         "Agri Startups",
         "Hotel Landscape"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Venus": 0.25,
-        "Saturn": 0.25,
-        "Mars": 0.15
-      }
+      ]
     },
     "bioinformatics": {
       "label": "Bioinformatics & Computational Biology",
@@ -8201,13 +7547,7 @@
         "Drug Discovery Startups",
         "CSIR Bioinformatics",
         "NIBMG"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.25,
-        "Moon": 0.25,
-        "Ketu": 0.15
-      }
+      ]
     },
     "cognitive_science": {
       "label": "Cognitive Science",
@@ -8279,13 +7619,7 @@
         "NIMHANS Research",
         "HCI",
         "Educational Neuroscience"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.3,
-        "Moon": 0.25,
-        "Rahu": 0.25,
-        "Jupiter": 0.2
-      }
+      ]
     },
     "neuroscience": {
       "label": "Neuroscience",
@@ -8363,13 +7697,7 @@
         "TIFR Neuro",
         "Brain Research Institutes",
         "Neuro Startups"
-      ],
-      "planet_affinity": {
-        "Moon": 0.3,
-        "Mercury": 0.25,
-        "Ketu": 0.25,
-        "Mars": 0.2
-      }
+      ]
     },
     "yoga_naturopathy": {
       "label": "Yoga & Naturopathy",
@@ -8411,7 +7739,7 @@
       },
       "tier_map": {
         "UG": {
-          "spec": "BNYS \u2014 Bachelor of Naturopathy & Yogic Sciences",
+          "spec": "BNYS — Bachelor of Naturopathy & Yogic Sciences",
           "niche": "Yoga Asana / Pranayama / Naturopathic Diagnosis / Diet Therapy"
         },
         "PG": {
@@ -8429,13 +7757,7 @@
         "AYUSH Hospitals",
         "Corporate Wellness",
         "WHO Yoga Research"
-      ],
-      "planet_affinity": {
-        "Ketu": 0.35,
-        "Moon": 0.35,
-        "Jupiter": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "geographic_information_systems": {
       "label": "Geographic Information Systems & Remote Sensing",
@@ -8509,13 +7831,7 @@
         "Urban Planning Authorities",
         "ESRI India",
         "Disaster Mgmt"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Saturn": 0.2,
-        "Moon": 0.15
-      }
+      ]
     },
     "mechatronics_engineering": {
       "label": "Mechatronics Engineering",
@@ -8578,13 +7894,7 @@
         "VIT Vellore",
         "Amrita",
         "Manipal"
-      ],
-      "planet_affinity": {
-        "Mars": 0.35,
-        "Mercury": 0.3,
-        "Rahu": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "nanotechnology_engineering": {
       "label": "Nanotechnology Engineering",
@@ -8647,13 +7957,7 @@
         "Amrita",
         "Amity",
         "CMET Thrissur"
-      ],
-      "planet_affinity": {
-        "Rahu": 0.35,
-        "Mercury": 0.3,
-        "Ketu": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "semiconductor_nanoelectronics": {
       "label": "Semiconductor & Nanoelectronics Technology",
@@ -8714,13 +8018,7 @@
         "IIT Madras",
         "IIT Delhi",
         "NIT Trichy"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.35,
-        "Saturn": 0.2,
-        "Mars": 0.1
-      }
+      ]
     },
     "construction_engineering_management": {
       "label": "Construction Engineering & Management",
@@ -8781,13 +8079,7 @@
         "NIT Surat",
         "IIT Madras",
         "CEPT Ahmedabad"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.3,
-        "Mercury": 0.2,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "telecommunication_engineering": {
       "label": "Telecommunication Engineering",
@@ -8850,13 +8142,7 @@
         "BITS Pilani",
         "IIIT Hyderabad",
         "BHU"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Mars": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "optical_photonics_engineering": {
       "label": "Optical & Photonics Engineering",
@@ -8917,13 +8203,7 @@
         "IIT Madras",
         "IIT Kanpur",
         "IIT Bombay"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Ketu": 0.3,
-        "Mercury": 0.25,
-        "Mars": 0.1
-      }
+      ]
     },
     "geological_engineering": {
       "label": "Geological & Geotechnical Engineering",
@@ -8984,13 +8264,7 @@
         "IIT Roorkee",
         "IIT Bombay",
         "Jadavpur University"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mars": 0.25,
-        "Mercury": 0.25,
-        "Ketu": 0.15
-      }
+      ]
     },
     "infrastructure_planning_engineering": {
       "label": "Infrastructure Engineering & Management",
@@ -9051,13 +8325,7 @@
         "IIT Delhi",
         "NIT Warangal",
         "NIT Nagpur"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.3,
-        "Mercury": 0.2,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "quantum_computing": {
       "label": "Quantum Computing & Quantum Technology",
@@ -9122,13 +8390,7 @@
         "IIT Delhi",
         "TIFR",
         "IISER Pune"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Ketu": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "fintech": {
       "label": "Financial Technology (FinTech)",
@@ -9193,13 +8455,7 @@
         "FLAME University",
         "SP Jain",
         "IIIT Delhi"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Saturn": 0.25,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "health_informatics": {
       "label": "Health Informatics & Digital Health",
@@ -9264,13 +8520,7 @@
         "Manipal",
         "Amrita",
         "JIPMER"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.25,
-        "Moon": 0.25,
-        "Mars": 0.15
-      }
+      ]
     },
     "computational_finance": {
       "label": "Computational Finance & Financial Engineering",
@@ -9335,13 +8585,7 @@
         "ISI Kolkata",
         "IIM Calcutta",
         "IIM Ahmedabad"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Saturn": 0.25,
-        "Jupiter": 0.25,
-        "Rahu": 0.1
-      }
+      ]
     },
     "astronomy_astrophysics": {
       "label": "Astronomy & Astrophysics",
@@ -9406,13 +8650,7 @@
         "TIFR",
         "IIA Bangalore",
         "NISER Bhubaneswar"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Rahu": 0.3,
-        "Ketu": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "atmospheric_climate_science": {
       "label": "Atmospheric & Climate Science",
@@ -9475,13 +8713,7 @@
         "IIST Thiruvananthapuram",
         "IISER",
         "Pune University"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.25,
-        "Mercury": 0.25,
-        "Sun": 0.15
-      }
+      ]
     },
     "geophysics": {
       "label": "Geophysics & Applied Geophysics",
@@ -9542,13 +8774,7 @@
         "IIT Roorkee",
         "Osmania University",
         "Andhra University"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mars": 0.25,
-        "Mercury": 0.25,
-        "Moon": 0.15
-      }
+      ]
     },
     "geology_applied": {
       "label": "Geology & Applied Geology",
@@ -9611,13 +8837,7 @@
         "Hyderabad Central University",
         "Calcutta University",
         "Jadavpur"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.3,
-        "Mercury": 0.2,
-        "Moon": 0.1
-      }
+      ]
     },
     "marine_oceanography": {
       "label": "Marine Science & Oceanography",
@@ -9680,13 +8900,7 @@
         "Annamalai University",
         "NIO Goa",
         "NIOT Chennai"
-      ],
-      "planet_affinity": {
-        "Moon": 0.4,
-        "Saturn": 0.25,
-        "Mercury": 0.25,
-        "Mars": 0.1
-      }
+      ]
     },
     "ecology_evolution": {
       "label": "Ecology & Evolutionary Biology",
@@ -9749,13 +8963,7 @@
         "NCF Bangalore",
         "WII Dehradun",
         "Pondicherry University"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Ketu": 0.25,
-        "Mercury": 0.25,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "molecular_biology_genetics": {
       "label": "Molecular Biology & Genetics",
@@ -9818,13 +9026,7 @@
         "NISER Bhubaneswar",
         "CCMB Hyderabad",
         "IGIB Delhi"
-      ],
-      "planet_affinity": {
-        "Moon": 0.3,
-        "Mercury": 0.25,
-        "Ketu": 0.25,
-        "Rahu": 0.2
-      }
+      ]
     },
     "biological_sciences": {
       "label": "Biological Sciences (BSc / BS)",
@@ -9889,13 +9091,7 @@
         "IISER Pune",
         "IISER Kolkata",
         "NISER"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Ketu": 0.25,
-        "Mercury": 0.25,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "medical_physics": {
       "label": "Medical Physics",
@@ -9958,13 +9154,7 @@
         "Manipal",
         "Mumbai University",
         "Tata Memorial"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mars": 0.25,
-        "Mercury": 0.25,
-        "Ketu": 0.15
-      }
+      ]
     },
     "econometrics": {
       "label": "Econometrics & Quantitative Economics",
@@ -10029,13 +9219,7 @@
         "ISI Kolkata",
         "IIT Kanpur",
         "Gokhale Institute"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Saturn": 0.25,
-        "Jupiter": 0.25,
-        "Rahu": 0.1
-      }
+      ]
     },
     "supply_chain_logistics": {
       "label": "Supply Chain & Logistics Management",
@@ -10100,13 +9284,7 @@
         "XLRI Jamshedpur",
         "IIT Bombay",
         "IIM Bangalore"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mercury": 0.3,
-        "Mars": 0.25,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "entrepreneurship": {
       "label": "Entrepreneurship & Innovation Management",
@@ -10171,13 +9349,7 @@
         "SPJIMR",
         "NMIMS Mumbai",
         "IIT Delhi EDC"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Sun": 0.3,
-        "Mercury": 0.25,
-        "Rahu": 0.1
-      }
+      ]
     },
     "healthcare_management": {
       "label": "Healthcare & Hospital Management",
@@ -10242,13 +9414,7 @@
         "Symbiosis Pune",
         "AIIMS Delhi",
         "IRMA Anand"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Moon": 0.25,
-        "Mercury": 0.25,
-        "Sun": 0.15
-      }
+      ]
     },
     "tourism_management": {
       "label": "Tourism & Travel Management",
@@ -10313,13 +9479,7 @@
         "Goa University",
         "IHM Mumbai",
         "Amity"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Moon": 0.3,
-        "Mercury": 0.25,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "real_estate_management": {
       "label": "Real Estate & Infrastructure Management",
@@ -10382,13 +9542,7 @@
         "Amity University",
         "NIREM Delhi",
         "NAREDCO"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mars": 0.25,
-        "Venus": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "behavioural_science": {
       "label": "Behavioural Science & Behavioural Economics",
@@ -10453,13 +9607,7 @@
         "MICA Ahmedabad",
         "Ashoka University",
         "Azim Premji University"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Mercury": 0.3,
-        "Jupiter": 0.25,
-        "Ketu": 0.1
-      }
+      ]
     },
     "applied_linguistics": {
       "label": "Applied & Computational Linguistics",
@@ -10524,13 +9672,7 @@
         "University of Hyderabad",
         "IIT Bombay",
         "Jadavpur University"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Jupiter": 0.3,
-        "Moon": 0.2,
-        "Rahu": 0.1
-      }
+      ]
     },
     "geography": {
       "label": "Geography & Geospatial Sciences",
@@ -10595,13 +9737,7 @@
         "JNU Delhi",
         "Jadavpur",
         "Pune University"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.3,
-        "Moon": 0.25,
-        "Mercury": 0.25,
-        "Mars": 0.2
-      }
+      ]
     },
     "peace_conflict_studies": {
       "label": "Peace, Conflict & Strategic Studies",
@@ -10666,13 +9802,7 @@
         "University of Hyderabad",
         "IGNOU",
         "Pondicherry University"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Sun": 0.3,
-        "Mercury": 0.25,
-        "Mars": 0.1
-      }
+      ]
     },
     "museum_heritage_studies": {
       "label": "Museum & Heritage Studies / Museology",
@@ -10737,13 +9867,7 @@
         "Calcutta University",
         "NMI Mumbai",
         "NIFT"
-      ],
-      "planet_affinity": {
-        "Ketu": 0.35,
-        "Saturn": 0.3,
-        "Jupiter": 0.2,
-        "Mercury": 0.15
-      }
+      ]
     },
     "economics_data_science": {
       "label": "Economics & Data Science (Hybrid)",
@@ -10808,13 +9932,7 @@
         "IIT Madras",
         "Krea University",
         "OP Jindal University"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Jupiter": 0.3,
-        "Saturn": 0.25,
-        "Rahu": 0.1
-      }
+      ]
     },
     "chemical_engineering_data_science": {
       "label": "Chemical Engineering & Data Science (Hybrid)",
@@ -10877,13 +9995,7 @@
         "IIT Madras",
         "IIT Kanpur",
         "IIT Kharagpur"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Mars": 0.25,
-        "Saturn": 0.25,
-        "Rahu": 0.15
-      }
+      ]
     },
     "computational_social_science": {
       "label": "Computational Social Science",
@@ -10948,13 +10060,7 @@
         "JNU Delhi",
         "Azim Premji University",
         "IIT Bombay"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.25,
-        "Jupiter": 0.25,
-        "Moon": 0.15
-      }
+      ]
     },
     "environmental_studies_interdisciplinary": {
       "label": "Environmental Studies (Interdisciplinary)",
@@ -11019,13 +10125,7 @@
         "Tata Institute Hyderabad",
         "Jadavpur",
         "XIME"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.25,
-        "Mars": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "urban_informatics": {
       "label": "Urban Informatics & Smart Cities",
@@ -11090,13 +10190,7 @@
         "SPA Delhi",
         "IIT Madras",
         "Smart Cities Mission India"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.25,
-        "Saturn": 0.25,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "music": {
       "label": "Music (Hindustani / Carnatic / Western)",
@@ -11159,13 +10253,7 @@
         "Delhi University",
         "Bhatkhande Music Institute Lucknow",
         "Chennai Music Academy"
-      ],
-      "planet_affinity": {
-        "Venus": 0.45,
-        "Moon": 0.3,
-        "Mercury": 0.15,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "landscape_architecture": {
       "label": "Landscape Architecture & Environmental Design",
@@ -11228,13 +10316,7 @@
         "CEPT Ahmedabad",
         "Chandigarh College of Architecture",
         "Rachana Sansad Mumbai"
-      ],
-      "planet_affinity": {
-        "Venus": 0.3,
-        "Saturn": 0.25,
-        "Moon": 0.25,
-        "Mars": 0.2
-      }
+      ]
     },
     "visual_communication": {
       "label": "Visual Communication & Graphic Design",
@@ -11299,13 +10381,7 @@
         "NIFT Delhi",
         "Srishti Bangalore",
         "MIT Institute of Design"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Mercury": 0.35,
-        "Moon": 0.2,
-        "Rahu": 0.1
-      }
+      ]
     },
     "physical_education": {
       "label": "Physical Education & Sports Coaching",
@@ -11370,13 +10446,7 @@
         "SAI Delhi",
         "Amity University",
         "Punjabi University"
-      ],
-      "planet_affinity": {
-        "Mars": 0.4,
-        "Sun": 0.3,
-        "Moon": 0.2,
-        "Jupiter": 0.1
-      }
+      ]
     },
     "library_information_science": {
       "label": "Library & Information Science",
@@ -11441,13 +10511,7 @@
         "University of Hyderabad",
         "DRTC Bangalore",
         "Jadavpur University"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Jupiter": 0.3,
-        "Ketu": 0.2,
-        "Saturn": 0.1
-      }
+      ]
     },
     "food_science_technology": {
       "label": "Food Science & Technology",
@@ -11512,13 +10576,7 @@
         "NIFTEM Sonipat",
         "NIT Rourkela",
         "GBPUAT Pantnagar"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Mercury": 0.25,
-        "Mars": 0.2,
-        "Saturn": 0.2
-      }
+      ]
     },
     "soil_science_agronomy": {
       "label": "Soil Science & Agronomy",
@@ -11583,13 +10641,7 @@
         "BHU Varanasi",
         "PAU Ludhiana",
         "TNAU Coimbatore"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Moon": 0.3,
-        "Mars": 0.2,
-        "Mercury": 0.1
-      }
+      ]
     },
     "forestry_wildlife": {
       "label": "Forestry & Wildlife Sciences",
@@ -11654,13 +10706,7 @@
         "BHU Varanasi",
         "KUFOS Kochi",
         "SHIATS Allahabad"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.25,
-        "Jupiter": 0.25,
-        "Mars": 0.15
-      }
+      ]
     },
     "speech_language_pathology": {
       "label": "Speech-Language Pathology & Audiology",
@@ -11723,13 +10769,7 @@
         "Ali Yavar Jung ISHA Mumbai",
         "Manipal",
         "Amrita"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.4,
-        "Moon": 0.3,
-        "Jupiter": 0.2,
-        "Mars": 0.1
-      }
+      ]
     },
     "medical_laboratory_technology": {
       "label": "Medical Laboratory Technology (BMLT)",
@@ -11792,13 +10832,7 @@
         "Manipal",
         "Amrita",
         "CMC Vellore"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Mercury": 0.3,
-        "Moon": 0.25,
-        "Saturn": 0.15
-      }
+      ]
     },
     "radiography_imaging": {
       "label": "Radiography & Medical Imaging",
@@ -11861,13 +10895,7 @@
         "Amrita",
         "JIPMER",
         "Srinivas University"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mars": 0.3,
-        "Mercury": 0.25,
-        "Rahu": 0.1
-      }
+      ]
     },
     "urban_regional_planning": {
       "label": "Urban & Regional Planning (B.Planning)",
@@ -11932,13 +10960,7 @@
         "IIT Madras",
         "SPA Delhi",
         "CEPT Ahmedabad"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.35,
-        "Mars": 0.25,
-        "Mercury": 0.25,
-        "Jupiter": 0.15
-      }
+      ]
     },
     "intelligence_security_studies": {
       "label": "Intelligence & Security Studies",
@@ -12003,13 +11025,7 @@
         "Symbiosis International",
         "MAHE",
         "Gujarat National Law University"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Rahu": 0.3,
-        "Ketu": 0.25,
-        "Sun": 0.15
-      }
+      ]
     },
     "botany_plant_science": {
       "label": "Botany & Plant Sciences",
@@ -12074,13 +11090,7 @@
         "Jadavpur",
         "Calcutta University",
         "Mysore University"
-      ],
-      "planet_affinity": {
-        "Moon": 0.4,
-        "Jupiter": 0.25,
-        "Ketu": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "zoology_animal_science": {
       "label": "Zoology & Animal Sciences",
@@ -12143,13 +11153,7 @@
         "Osmania University",
         "AMU Aligarh",
         "Calcutta University"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Mars": 0.25,
-        "Ketu": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "applied_chemistry": {
       "label": "Applied Chemistry (BSc / MSc)",
@@ -12212,13 +11216,7 @@
         "University of Hyderabad",
         "NIT Trichy",
         "HBNI Mumbai"
-      ],
-      "planet_affinity": {
-        "Mars": 0.3,
-        "Mercury": 0.3,
-        "Saturn": 0.25,
-        "Ketu": 0.15
-      }
+      ]
     },
     "aeronautical_engineering": {
       "label": "Aeronautical Engineering",
@@ -12283,13 +11281,7 @@
         "PES University",
         "Sathyabama University",
         "MIT Manipal"
-      ],
-      "planet_affinity": {
-        "Rahu": 0.35,
-        "Mars": 0.3,
-        "Sun": 0.2,
-        "Saturn": 0.15
-      }
+      ]
     },
     "water_resources_engineering": {
       "label": "Water Resources & Irrigation Engineering",
@@ -12352,13 +11344,7 @@
         "NIT Calicut",
         "CWPRS Pune",
         "Jadavpur University"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Saturn": 0.3,
-        "Mars": 0.25,
-        "Mercury": 0.1
-      }
+      ]
     },
     "refrigeration_airconditioning": {
       "label": "Refrigeration & Air Conditioning Engineering",
@@ -12421,13 +11407,7 @@
         "Manipal",
         "LPU",
         "JNTUH"
-      ],
-      "planet_affinity": {
-        "Mars": 0.35,
-        "Saturn": 0.3,
-        "Mercury": 0.25,
-        "Moon": 0.1
-      }
+      ]
     },
     "power_systems_engineering": {
       "label": "Power Systems & Power Electronics Engineering",
@@ -12490,13 +11470,7 @@
         "NIT Warangal",
         "CPRI Bangalore",
         "IIT Bombay"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mars": 0.3,
-        "Saturn": 0.25,
-        "Mercury": 0.1
-      }
+      ]
     },
     "printing_packaging_technology": {
       "label": "Printing & Packaging Technology",
@@ -12559,13 +11533,7 @@
         "Delhi Polytechnic",
         "Mumbai University",
         "Calcutta Polytechnic"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Saturn": 0.3,
-        "Mars": 0.25,
-        "Venus": 0.1
-      }
+      ]
     },
     "rubber_technology": {
       "label": "Rubber Technology",
@@ -12626,13 +11594,7 @@
         "BHU Varanasi",
         "Rubber Research Institute Kottayam",
         "LBS College Kasaragod"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.3,
-        "Mercury": 0.2,
-        "Rahu": 0.1
-      }
+      ]
     },
     "leather_technology": {
       "label": "Leather Technology",
@@ -12695,13 +11657,7 @@
         "BHU Varanasi",
         "FDDI Noida",
         "Anna University"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.4,
-        "Mars": 0.3,
-        "Mercury": 0.2,
-        "Venus": 0.1
-      }
+      ]
     },
     "digital_marketing": {
       "label": "Digital Marketing & E-Commerce",
@@ -12766,13 +11722,7 @@
         "Symbiosis Pune",
         "IIM Executive Programs",
         "Pearl Academy"
-      ],
-      "planet_affinity": {
-        "Mercury": 0.35,
-        "Rahu": 0.3,
-        "Venus": 0.25,
-        "Moon": 0.1
-      }
+      ]
     },
     "rural_management": {
       "label": "Rural Management & Development",
@@ -12837,13 +11787,7 @@
         "KIIT Bhubaneswar",
         "Tata Institute Hyderabad",
         "MANAGE Hyderabad"
-      ],
-      "planet_affinity": {
-        "Saturn": 0.3,
-        "Moon": 0.3,
-        "Jupiter": 0.25,
-        "Mercury": 0.15
-      }
+      ]
     },
     "clinical_psychology": {
       "label": "Clinical Psychology",
@@ -12908,13 +11852,7 @@
         "Jamia Millia Islamia",
         "TISS Mumbai",
         "Christ University"
-      ],
-      "planet_affinity": {
-        "Moon": 0.4,
-        "Mercury": 0.3,
-        "Jupiter": 0.2,
-        "Ketu": 0.1
-      }
+      ]
     },
     "organisational_psychology": {
       "label": "Organisational Behaviour & Industrial Psychology",
@@ -12979,13 +11917,7 @@
         "IIT Bombay",
         "Symbiosis Pune",
         "TISS Mumbai"
-      ],
-      "planet_affinity": {
-        "Moon": 0.35,
-        "Mercury": 0.3,
-        "Jupiter": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "defence_strategic_studies": {
       "label": "Defence & Strategic Studies",
@@ -13050,13 +11982,7 @@
         "Calcutta University",
         "Delhi University",
         "JNU Delhi"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mars": 0.3,
-        "Jupiter": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "sanskrit_classical_studies": {
       "label": "Sanskrit & Classical Language Studies",
@@ -13119,13 +12045,7 @@
         "Delhi University",
         "Rashtriya Sanskrit Sansthan",
         "Kerala Kalamandalam"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.4,
-        "Ketu": 0.3,
-        "Moon": 0.2,
-        "Sun": 0.1
-      }
+      ]
     },
     "environmental_law": {
       "label": "Environmental Law & Policy",
@@ -13190,13 +12110,7 @@
         "NLU Jodhpur",
         "TERI SAS Delhi",
         "Jindal Global Law School"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Saturn": 0.3,
-        "Mercury": 0.25,
-        "Moon": 0.1
-      }
+      ]
     },
     "intellectual_property_law": {
       "label": "Intellectual Property Rights & Technology Law",
@@ -13261,13 +12175,7 @@
         "NUJS Kolkata",
         "MNLU Mumbai",
         "NALSAR Hyderabad"
-      ],
-      "planet_affinity": {
-        "Jupiter": 0.35,
-        "Mercury": 0.35,
-        "Rahu": 0.2,
-        "Saturn": 0.1
-      }
+      ]
     },
     "photography": {
       "label": "Photography & Photographic Arts",
@@ -13332,13 +12240,7 @@
         "Jamia Millia",
         "AJK MCRC Delhi",
         "Chitrakala Parishath Bangalore"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Mercury": 0.3,
-        "Moon": 0.25,
-        "Sun": 0.1
-      }
+      ]
     },
     "theatre_drama": {
       "label": "Theatre, Drama & Stagecraft",
@@ -13403,13 +12305,7 @@
         "JNU Delhi",
         "Symbiosis Pune",
         "Chitrakala Parishath"
-      ],
-      "planet_affinity": {
-        "Venus": 0.35,
-        "Moon": 0.3,
-        "Mercury": 0.25,
-        "Mars": 0.1
-      }
+      ]
     },
     "textile_design": {
       "label": "Textile Design & Craft",
@@ -13474,13 +12370,7 @@
         "NIFT Bhopal",
         "Weavers Service Centre",
         "Craft Council of India"
-      ],
-      "planet_affinity": {
-        "Venus": 0.4,
-        "Mercury": 0.25,
-        "Moon": 0.25,
-        "Saturn": 0.1
-      }
+      ]
     },
     "paramedics_emergency_medicine": {
       "label": "Paramedics & Emergency Medical Technology",
@@ -13545,13 +12435,7 @@
         "JIPMER",
         "Amrita",
         "Apollo College of Nursing"
-      ],
-      "planet_affinity": {
-        "Mars": 0.4,
-        "Sun": 0.3,
-        "Moon": 0.2,
-        "Mercury": 0.1
-      }
+      ]
     },
     "cardiac_technology": {
       "label": "Cardiac & Cardiovascular Technology",
@@ -13614,13 +12498,7 @@
         "Manipal",
         "Amrita",
         "Sri Ramachandra University"
-      ],
-      "planet_affinity": {
-        "Sun": 0.35,
-        "Mars": 0.3,
-        "Mercury": 0.25,
-        "Moon": 0.1
-      }
+      ]
     },
     "prosthetics_orthotics": {
       "label": "Prosthetics & Orthotics",
@@ -13683,13 +12561,7 @@
         "Manipal",
         "Sri Ramachandra University",
         "CMC Vellore"
-      ],
-      "planet_affinity": {
-        "Mars": 0.35,
-        "Saturn": 0.25,
-        "Mercury": 0.25,
-        "Moon": 0.15
-      }
+      ]
     },
     "medical_research": {
       "label": "Medical Research",
@@ -13705,7 +12577,67 @@
         "pharma R&D",
         "hospital research wings",
         "NIH-funded programmes"
-      ]
+      ],
+      "degree_types": [
+        "BSc",
+        "MSc",
+        "MD_Research",
+        "PhD"
+      ],
+      "duration_years": [
+        3,
+        2,
+        3,
+        3
+      ],
+      "admission_exams": [
+        "NEET_UG",
+        "GATE",
+        "CSIR_NET",
+        "UGC_NET",
+        "ICMR_JRF",
+        "DBT_JRF"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Delhi",
+          "IIT_Madras"
+        ],
+        "NIT": [],
+        "BITS": [],
+        "IIIT": false,
+        "IISER": [
+          "IISER_Pune",
+          "IISER_Kolkata"
+        ],
+        "IISE_CEBS": false,
+        "NISER": true,
+        "ISI": [],
+        "central_universities": [
+          "AIIMS",
+          "ICMR institutes",
+          "BHU_IMS",
+          "NIMHANS"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BSc Biomedical Sciences / BSc Research",
+          "niche": "Lab techniques / Molecular biology / Biochemistry"
+        },
+        "PG": {
+          "spec": "MSc / MD Research / MTech Biomedical",
+          "niche": "Clinical trials / Pathology / Drug development"
+        },
+        "PhD": {
+          "spec": "PhD Biomedical Sciences / PhD Medicine",
+          "niche": "Translational research / Disease mechanisms / ICMR-funded projects"
+        }
+      }
     },
     "public_health": {
       "label": "Public Health",
@@ -13721,9 +12653,680 @@
         "State Health Departments",
         "NGOs",
         "AIIMS community medicine"
-      ]
+      ],
+      "degree_types": [
+        "BPH",
+        "MPH",
+        "DrPH",
+        "PhD"
+      ],
+      "duration_years": [
+        3,
+        2,
+        3,
+        3
+      ],
+      "admission_exams": [
+        "NEET_UG",
+        "CUET",
+        "State_Entrance",
+        "TISS_NET",
+        "UPSC_CSE"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "BITS": [],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "AIIMS_SPH",
+          "JNU_SLS",
+          "TISS",
+          "CMC_Vellore"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [
+          "Azim_Premji_University"
+        ],
+        "state_universities": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BPH / BSc Public Health",
+          "niche": "Community health / Health promotion / Field epidemiology"
+        },
+        "PG": {
+          "spec": "MPH / MHA (Health Administration)",
+          "niche": "Epidemiology / Biostatistics / Health systems / Global health"
+        },
+        "PhD": {
+          "spec": "DrPH / PhD Public Health",
+          "niche": "Policy research / Disease surveillance / Health economics"
+        }
+      }
+    },
+    "satellite_engineering": {
+      "label": "Satellite Engineering",
+      "domain": "engineering",
+      "field": "Space & Aerospace",
+      "track": "Satellite Systems",
+      "specialization": "Satellite Engineering / Communication Payloads",
+      "niche": "RF systems / Antenna design / Satellite orbit / Ground control",
+      "description": "Satellite systems engineering covering payload, ground segment, RF communication, and orbital operations",
+      "career_signature": [
+        "ISRO",
+        "DRDO",
+        "Hughes Network",
+        "Intelsat",
+        "Airbus Defense"
+      ],
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "JEE_Advanced",
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "BHU",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BTech / BE Aerospace/Space Engineering",
+          "niche": "Fundamentals of space systems / Orbital mechanics / Propulsion"
+        },
+        "PG": {
+          "spec": "MTech / MS Space Technology",
+          "niche": "Advanced spacecraft design / Mission simulation / Systems integration"
+        },
+        "PhD": {
+          "spec": "PhD Aerospace / Space Sciences",
+          "niche": "Research in propulsion / Materials / Earth observation / Planetary systems"
+        }
+      }
+    },
+    "space_materials": {
+      "label": "Space Materials Science",
+      "domain": "engineering",
+      "field": "Space & Aerospace",
+      "track": "Materials Engineering",
+      "specialization": "Space Materials / High-Temperature Alloys / Composites",
+      "niche": "Thermal protection systems / Composite structures / Radiation shielding",
+      "description": "Engineering of materials for extreme space environments — thermal shields, structural composites, and radiation-hard coatings",
+      "career_signature": [
+        "ISRO",
+        "DRDO",
+        "CSIR-NML",
+        "Aerospace composites firms"
+      ],
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "JEE_Advanced",
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "BHU",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BTech / BE Aerospace/Space Engineering",
+          "niche": "Fundamentals of space systems / Orbital mechanics / Propulsion"
+        },
+        "PG": {
+          "spec": "MTech / MS Space Technology",
+          "niche": "Advanced spacecraft design / Mission simulation / Systems integration"
+        },
+        "PhD": {
+          "spec": "PhD Aerospace / Space Sciences",
+          "niche": "Research in propulsion / Materials / Earth observation / Planetary systems"
+        }
+      }
+    },
+    "earth_observation_remote_sensing": {
+      "label": "Earth Observation & Remote Sensing",
+      "domain": "engineering",
+      "field": "Space & Aerospace",
+      "track": "Remote Sensing",
+      "specialization": "Earth Observation / Geospatial Intelligence",
+      "niche": "SAR / Multispectral imaging / GIS / Climate monitoring / Satellite data analytics",
+      "description": "Satellite-based Earth observation covering remote sensing instruments, GIS platforms, and geospatial data analysis",
+      "career_signature": [
+        "ISRO",
+        "NRSC",
+        "Survey of India",
+        "Esri",
+        "Maxar",
+        "Planet Labs"
+      ],
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "JEE_Advanced",
+        "JEE_Main",
+        "GATE",
+        "CUET"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [
+          "IISER_Pune"
+        ],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "Anna_University",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BTech / BE Aerospace/Space Engineering",
+          "niche": "Fundamentals of space systems / Orbital mechanics / Propulsion"
+        },
+        "PG": {
+          "spec": "MTech / MS Space Technology",
+          "niche": "Advanced spacecraft design / Mission simulation / Systems integration"
+        },
+        "PhD": {
+          "spec": "PhD Aerospace / Space Sciences",
+          "niche": "Research in propulsion / Materials / Earth observation / Planetary systems"
+        }
+      }
+    },
+    "planetary_science": {
+      "label": "Planetary Science",
+      "domain": "science",
+      "field": "Space Sciences",
+      "track": "Space Research",
+      "specialization": "Planetary Science / Astrobiology / Lunar Studies",
+      "niche": "Planetary atmospheres / Surface geology / Rover missions / Astrobiology",
+      "description": "Scientific study of planets, moons, and small bodies — including mission design, astrobiology, and comparative planetology",
+      "career_signature": [
+        "ISRO",
+        "NASA",
+        "ESA",
+        "Universities",
+        "Planetary research labs"
+      ],
+      "degree_types": [
+        "BSc",
+        "MSc",
+        "PhD"
+      ],
+      "duration_years": [
+        3,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "CUET",
+        "NEST",
+        "IIT_JAM",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [
+          "IISER_Pune",
+          "IISER_Trivandrum"
+        ],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "JNU",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BSc Physics / Astronomy",
+          "niche": "Physics / Astronomy / Geology fundamentals"
+        },
+        "PG": {
+          "spec": "MSc Planetary Science / Astronomy",
+          "niche": "Planetary atmospheres / Remote sensing / Mission science"
+        },
+        "PhD": {
+          "spec": "PhD Planetary Science",
+          "niche": "Original research in planet formation, astrobiology, or space missions"
+        }
+      }
+    },
+    "psychiatry": {
+      "label": "Psychiatry & Mental Health",
+      "domain": "medicine",
+      "field": "Medicine & Health Sciences",
+      "track": "Clinical Track",
+      "specialization": "Psychiatry / Neuropsychiatry / Mental Health",
+      "niche": "Clinical psychiatry / Neuropsychiatry / Addiction medicine / Child & adolescent psychiatry",
+      "description": "Diagnosis and treatment of mental health disorders — clinical practice, research, and community mental health",
+      "career_signature": [
+        "AIIMS",
+        "NIMHANS",
+        "Government hospitals",
+        "Private clinics",
+        "WHO Mental Health"
+      ],
+      "degree_types": [
+        "MBBS+MD_Psychiatry",
+        "MPhil",
+        "PhD"
+      ],
+      "duration_years": [
+        5.5,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "NEET_UG",
+        "NEET_PG",
+        "NIMHANS_Entrance"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "BITS": [],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "AIIMS",
+          "NIMHANS",
+          "BHU_IMS"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "MBBS (prerequisite)",
+          "niche": "General medicine / Psychiatry posting"
+        },
+        "PG": {
+          "spec": "MD Psychiatry / MPhil Clinical Psychology",
+          "niche": "Inpatient / Outpatient / Neuropsychiatry / Addiction"
+        },
+        "PhD": {
+          "spec": "PhD Psychiatry / Neuroscience",
+          "niche": "Translational psychiatry / Psychopharmacology / Community mental health"
+        }
+      }
+    },
+    "space_systems_engineering": {
+      "label": "Space Systems Engineering",
+      "domain": "engineering",
+      "field": "Space & Aerospace",
+      "track": "Space Systems",
+      "specialization": "Space Systems Engineering / Spacecraft Integration",
+      "niche": "Systems integration / Spacecraft design / Mission systems / GNC / Flight dynamics",
+      "description": "End-to-end spacecraft systems engineering covering design, integration, testing, and operations",
+      "career_signature": [
+        "ISRO",
+        "NASA",
+        "ESA",
+        "SpaceX",
+        "Boeing Defense",
+        "Space startups"
+      ],
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "JEE_Advanced",
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "BHU",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BTech / BE Aerospace/Space Engineering",
+          "niche": "Fundamentals of space systems / Orbital mechanics / Propulsion"
+        },
+        "PG": {
+          "spec": "MTech / MS Space Technology",
+          "niche": "Advanced spacecraft design / Mission simulation / Systems integration"
+        },
+        "PhD": {
+          "spec": "PhD Aerospace / Space Sciences",
+          "niche": "Research in propulsion / Materials / Earth observation / Planetary systems"
+        }
+      }
+    },
+    "astronautical_engineering": {
+      "label": "Astronautical Engineering",
+      "domain": "engineering",
+      "field": "Space & Aerospace",
+      "track": "Space Engineering",
+      "specialization": "Astronautical Engineering / Orbital Systems",
+      "niche": "Launch vehicles / Orbital mechanics / Spacecraft design / Mission architecture",
+      "description": "Spacecraft, orbital systems, launch vehicle design, and mission architecture",
+      "career_signature": [
+        "ISRO",
+        "Rocket propulsion labs",
+        "SpaceX",
+        "DRDO",
+        "Mission control"
+      ],
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "JEE_Advanced",
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "BHU",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BTech / BE Aerospace/Space Engineering",
+          "niche": "Fundamentals of space systems / Orbital mechanics / Propulsion"
+        },
+        "PG": {
+          "spec": "MTech / MS Space Technology",
+          "niche": "Advanced spacecraft design / Mission simulation / Systems integration"
+        },
+        "PhD": {
+          "spec": "PhD Aerospace / Space Sciences",
+          "niche": "Research in propulsion / Materials / Earth observation / Planetary systems"
+        }
+      }
+    },
+    "rocket_propulsion": {
+      "label": "Rocket Propulsion",
+      "domain": "engineering",
+      "field": "Space & Aerospace",
+      "track": "Propulsion Systems",
+      "specialization": "Rocket Propulsion / Propellant Systems",
+      "niche": "Liquid propulsion / Solid propulsion / Engine performance / Nozzle design",
+      "description": "Rocket propulsion systems design, propellant chemistry, and engine performance",
+      "career_signature": [
+        "ISRO",
+        "DRDO",
+        "Rocket Labs",
+        "Aerojet",
+        "L3Harris",
+        "Space startups"
+      ],
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "JEE_Advanced",
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "BHU",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BTech / BE Aerospace/Space Engineering",
+          "niche": "Fundamentals of space systems / Orbital mechanics / Propulsion"
+        },
+        "PG": {
+          "spec": "MTech / MS Space Technology",
+          "niche": "Advanced spacecraft design / Mission simulation / Systems integration"
+        },
+        "PhD": {
+          "spec": "PhD Aerospace / Space Sciences",
+          "niche": "Research in propulsion / Materials / Earth observation / Planetary systems"
+        }
+      }
+    },
+    "satellite_communication_engineering": {
+      "label": "Satellite Communication Engineering",
+      "domain": "engineering",
+      "field": "Space & Aerospace",
+      "track": "Communication Systems",
+      "specialization": "Satellite Communication / Ground Stations / RF Engineering",
+      "niche": "RF systems / Antenna design / Satellite orbit / VSAT / Ground control stations",
+      "description": "Engineering of satellite communication systems including payloads, RF links, ground segment design, and orbital operations",
+      "career_signature": [
+        "ISRO",
+        "DRDO",
+        "Hughes Network",
+        "Intelsat",
+        "Airbus Defense",
+        "Jio Satellite"
+      ],
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        3
+      ],
+      "admission_exams": [
+        "JEE_Advanced",
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [
+          "IIT_Bombay",
+          "IIT_Madras",
+          "IIT_Kharagpur"
+        ],
+        "NIT": [],
+        "BITS": [
+          "BITS_Pilani"
+        ],
+        "IIIT": false,
+        "IISER": [],
+        "IISE_CEBS": false,
+        "NISER": false,
+        "ISI": [],
+        "central_universities": [
+          "BHU",
+          "Hyderabad_University"
+        ],
+        "deemed_private": true,
+        "liberal_arts_private": [],
+        "state_universities": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "BTech Electronics / Communication Engineering",
+          "niche": "RF fundamentals / Antenna theory / Satellite links"
+        },
+        "PG": {
+          "spec": "MTech Satellite Communication",
+          "niche": "Payload design / Ground station / Link budget / VSAT networks"
+        },
+        "PhD": {
+          "spec": "PhD Communication Engineering",
+          "niche": "Advanced satellite systems / 5G-satellite integration / Deep space communication"
+        }
+      }
     }
   },
   "version": "v5.1_deep_validated_fixed",
-  "total_branches": 190
+  "total_branches": 199
 }

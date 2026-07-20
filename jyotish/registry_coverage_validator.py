@@ -1,0 +1,120 @@
+"""Strict registry/affinity/ontology coverage validation for JyotishAI.
+
+Drop this file at: jyotish/registry_coverage_validator.py
+
+Use in tests:
+    from jyotish.registry_coverage_validator import validate_all_coverage
+    validate_all_coverage(fail_fast=True)
+
+Use from CLI:
+    python -m jyotish.registry_coverage_validator --registry jyotish/india_course_registry_v12.json
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Optional, Set
+
+
+class RegistryCoverageError(RuntimeError):
+    pass
+
+
+def _load_registry_ids(registry_path: str | Path) -> Set[str]:
+    data = json.loads(Path(registry_path).read_text(encoding="utf-8"))
+    branches = data.get("branches", {}) or {}
+    if not branches:
+        raise RegistryCoverageError(f"Registry is empty: {registry_path}")
+    return set(branches)
+
+
+def _load_registry(registry_path: str | Path) -> Dict[str, Any]:
+    data = json.loads(Path(registry_path).read_text(encoding="utf-8"))
+    branches = data.get("branches", {}) or {}
+    if not branches:
+        raise RegistryCoverageError(f"Registry is empty: {registry_path}")
+    return branches
+
+
+def coverage_report(registry_path: str | Path) -> Dict[str, Any]:
+    from jyotish.affinity import BRANCH_PLANET_AFFINITY
+    from Field_Determination.competency_ontology import FIELD_TO_FAMILY, FAMILY_META, COMPETENCY_META
+
+    registry = _load_registry(registry_path)
+    registry_ids = set(registry)
+    affinity_ids = set(BRANCH_PLANET_AFFINITY)
+    ontology_ids = set(FIELD_TO_FAMILY)
+    errors: List[str] = []
+
+    def diff(name_a: str, a: Set[str], name_b: str, b: Set[str]) -> Dict[str, List[str]]:
+        return {
+            f"{name_a}_not_in_{name_b}": sorted(a - b),
+            f"{name_b}_not_in_{name_a}": sorted(b - a),
+        }
+
+    d_reg_aff = diff("registry", registry_ids, "affinity", affinity_ids)
+    d_reg_onto = diff("registry", registry_ids, "ontology", ontology_ids)
+    d_onto_aff = diff("ontology", ontology_ids, "affinity", affinity_ids)
+
+    for label, values in {**d_reg_aff, **d_reg_onto, **d_onto_aff}.items():
+        if values:
+            errors.append(f"{label}: {len(values)}")
+
+    invalid_families = sorted({fam for fam in FIELD_TO_FAMILY.values() if fam not in FAMILY_META})
+    invalid_competencies = sorted({meta.get("competency") for meta in FAMILY_META.values() if meta.get("competency") not in COMPETENCY_META})
+    if invalid_families:
+        errors.append(f"invalid family ids: {invalid_families}")
+    if invalid_competencies:
+        errors.append(f"invalid competency ids: {invalid_competencies}")
+
+    schema_missing: Dict[str, List[str]] = {}
+    required_v12 = {"classic_core", "modern_extensions", "ontology", "education_realism", "curriculum", "market", "risk", "routes", "career_outcomes"}
+    for fid, branch in registry.items():
+        missing = sorted(required_v12 - set(branch))
+        if missing:
+            schema_missing[fid] = missing
+    if schema_missing:
+        errors.append(f"branches missing v12 sections: {len(schema_missing)}")
+
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "counts": {
+            "registry": len(registry_ids),
+            "affinity": len(affinity_ids),
+            "ontology": len(ontology_ids),
+        },
+        "diffs": {
+            **d_reg_aff,
+            **d_reg_onto,
+            **d_onto_aff,
+            "invalid_families": invalid_families,
+            "invalid_competencies": invalid_competencies,
+            "schema_missing": schema_missing,
+        },
+    }
+
+
+def validate_all_coverage(registry_path: str | Path = None, fail_fast: bool = True) -> Dict[str, Any]:
+    if registry_path is None:
+        registry_path = Path(__file__).with_name("india_course_registry_v12.json")
+        if not Path(registry_path).exists():
+            registry_path = Path(__file__).with_name("india_course_registry_v11.json")
+    report = coverage_report(registry_path)
+    if fail_fast and not report["ok"]:
+        raise RegistryCoverageError(json.dumps(report, indent=2, ensure_ascii=False))
+    return report
+
+
+def main() -> None:
+    p = argparse.ArgumentParser()
+    p.add_argument("--registry", default=str(Path(__file__).with_name("india_course_registry_v12.json")))
+    p.add_argument("--no-fail", action="store_true")
+    args = p.parse_args()
+    report = validate_all_coverage(args.registry, fail_fast=not args.no_fail)
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

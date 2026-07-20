@@ -169,12 +169,16 @@ class ExplainabilityEngine:
                 "kp_score":                   round(float(rec.get("kp_score", method_breakdown.get("kp", {}).get("score", 0.0))), 2),
                 "jaimini_score":              round(float(rec.get("jaimini_score", method_breakdown.get("jaimini", {}).get("score", 0.0))), 2),
                 "parashara_score":            round(float(rec.get("parashara_score", method_breakdown.get("parashara", {}).get("score", 0.0))), 2),
+                "dashamsha_score":            round(float(rec.get("dashamsha_score", method_breakdown.get("dashamsha", {}).get("score", 0.0))), 2),
+                "sudarshana_score":           round(float(rec.get("sudarshana_score", method_breakdown.get("sudarshana", {}).get("score", 0.0))), 2),
                 "method_total_score":         round(float(rec.get("method_total_score", method_breakdown.get("weighted_total", 0.0))), 2),
                 "weighted_method_score":      round(float(rec.get("weighted_method_score", rec.get("combined_score", method_breakdown.get("weighted_total", 0.0)))), 2),
                 "knrao_normalized_score":     round(cls._method_norm(rec, "knrao"), 2),
                 "kp_normalized_score":        round(cls._method_norm(rec, "kp"), 2),
                 "jaimini_normalized_score":   round(cls._method_norm(rec, "jaimini"), 2),
                 "parashara_normalized_score": round(cls._method_norm(rec, "parashara"), 2),
+                "dashamsha_normalized_score": round(cls._method_norm(rec, "dashamsha"), 2),
+                "sudarshana_normalized_score": round(cls._method_norm(rec, "sudarshana"), 2),
                 "method_breakdown":           method_breakdown,
                 "llm_rank":                   rec.get("llm_rank"),
                 "llm_padded":                 rec.get("llm_padded", False),
@@ -742,9 +746,11 @@ class ExplainabilityEngine:
             "kp":       ("#1b5e20", "#e8f5e9"),
             "jaimini":  ("#4a148c", "#f3e5f5"),
             "parashara":("#e65100", "#fff3e0"),
+            "dashamsha":("#880e4f", "#fce4ec"),
+            "sudarshana":("#0f766e", "#ecfdf5"),
         }
         blocks = []
-        for mkey in ("knrao", "kp", "jaimini", "parashara"):
+        for mkey in ("knrao", "kp", "jaimini", "parashara", "dashamsha", "sudarshana"):
             m = ml.get(mkey, {})
             if not m:
                 continue

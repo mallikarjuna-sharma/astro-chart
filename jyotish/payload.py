@@ -9,11 +9,11 @@ Migrated from @dataclass to pydantic.BaseModel (Gap 2) to provide:
 """
 import logging
 import os as _os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ENGINE_VERSION = "v11.0-llm"
+ENGINE_VERSION = "v11.3-llm"
 
 _log_level = getattr(logging, _os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
 logging.basicConfig(level=_log_level, format="%(levelname)s: %(message)s")
@@ -41,6 +41,17 @@ class NatalPayloadV2(BaseModel):
 
     # ── Identity ──────────────────────────────────────────────────────────────
     name: str = "Unknown"
+    dob: str = ""
+    tob: str = ""
+    latitude: float = 0.0
+    longitude: float = 0.0
+    timezone_offset_hours: Optional[float] = None
+    external_llm_consent: bool = False
+    redact_debug_output: bool = True
+    data_retention_policy: str = "SESSION_ONLY"
+    # Initialized once by run_engine(); all precision-sensitive modules consume
+    # this immutable object rather than choosing local calculation conventions.
+    calculation_policy: Any = None
     lagna_sign: str = ""
     lagna_lord: str = ""
     h10_lord: str = ""
@@ -74,10 +85,6 @@ class NatalPayloadV2(BaseModel):
     # ── Socio-educational context ─────────────────────────────────────────────
     family_income_tier: str = "middle"
     school_board: str = "CBSE"
-    # Per-chart consent for external LLM narrative generation. Set from
-    # student_context.external_llm_consent in the chart JSON. The report path
-    # ORs this with the LLM_REPORT_CONSENT env var (global blanket consent).
-    external_llm_consent: bool = False
     current_age: float = 0.0
     sun_moon_degrees_apart: float = 0.0
 
@@ -89,7 +96,22 @@ class NatalPayloadV2(BaseModel):
     # ── Divisional-chart data ─────────────────────────────────────────────────
     divisional_planet_strength: Dict[str, Dict[str, float]] = Field(default_factory=dict)
     sav_points_houses: Dict[str, int] = Field(default_factory=dict)
+    # 2026-07-08: real per-planet Bhinnashtakavarga (BAV), computed in-house
+    # (jyotish/ashtakavarga.py) from natal planet signs + lagna, since pyhora's
+    # raw output only ever carried the combined SAV total (sav_points_houses
+    # above) with no per-planet breakdown. {planet: {house_str "1".."12": bindu}}.
+    # Consumed by boosts.py's R3-13 _bav_individual_boost (previously always
+    # inert because bav_scores was never populated — see md/DEEP_AUDIT_GAPS_2026-07.md).
+    bav_points: Dict[str, Dict[str, int]] = Field(default_factory=dict)
     d10_house_occupancy: Dict[str, List[str]] = Field(default_factory=dict)
+    # 2026-07 astrologer's audit: full six-fold Shadbala (Sthana/Dig/Kala/
+    # Cheshta/Naisargika/Drishti Bala), computed from first principles by
+    # jyotish/shadbala.py::compute_shadbala_all(), instead of only the
+    # upstream single-number `shadbala_virupas` ingestion (see `shadbala`
+    # field below). ADDITIVE -- no existing scoring code reads this yet;
+    # exposed so it can be validated against real charts before any caller
+    # switches over to trust it as the primary strength signal.
+    shadbala_computed: Dict[str, Any] = Field(default_factory=dict)
 
     # ── Planetary state ───────────────────────────────────────────────────────
     combust_planets: List[str] = Field(default_factory=list)
@@ -98,8 +120,21 @@ class NatalPayloadV2(BaseModel):
     kp_significators: Dict[str, Dict] = Field(default_factory=dict)
     kp_cusps: Dict[str, Dict] = Field(default_factory=dict)
     planet_dignities: Dict[str, str] = Field(default_factory=dict)
+    # Gap fix (2026-07-05 audit): planet_dignities gets overwritten to literal "OWN"
+    # for planets in a Parivartana (mutual sign exchange) — see engine_io.py's
+    # "Apply Parivartana Dignity Upgrade" step. That overwrite is needed upstream
+    # for scoring continuity (dignity multiplier lookups), but it destroys the
+    # true natal dignity for display purposes, producing reports that say e.g.
+    # "Lagna Lord Mercury — OWN" when Mercury is actually debilitated in Pisces
+    # and only strengthened via exchange with Jupiter. true_planet_dignities
+    # preserves the pre-overwrite value, and parivartana_pairs records which
+    # planets are in exchange with which, so display code can render an
+    # accurate label (e.g. "Mercury — DEBILITATED (Parivartana exchange w/ Jupiter)").
+    true_planet_dignities: Dict[str, str] = Field(default_factory=dict)
+    parivartana_pairs: Dict[str, str] = Field(default_factory=dict)
     d24_planet_dignities: Dict[str, str] = Field(default_factory=dict)
     planet_retrograde: Dict[str, bool] = Field(default_factory=dict)
+    retrograde_planets: Set[str] = Field(default_factory=set)   # C-2: set of currently retrograde planets
     detected_yogas: List[str] = Field(default_factory=list)
 
     # ── Lord / special points ─────────────────────────────────────────────────
@@ -108,6 +143,33 @@ class NatalPayloadV2(BaseModel):
     upapada_lagna: str = ""
     h10_lord_planet: str = ""
     d9_planet_dignities: Dict[str, str] = Field(default_factory=dict)
+    # Gap 0.3 fix: D10 dignities were read by knrao/parashara/dashamsha but never
+    # declared or populated. Populated in engine._run_normalization_stage.
+    d10_planet_dignities: Dict[str, str] = Field(default_factory=dict)
+
+    # ── Gap 0.4 fix: birth-time quality + absolute longitudes ────────────────
+    # birth_time_precision: "exact" | "approximate" | "unknown" — gates KP sublord
+    # confidence (kp.py Q4/T3-C). Supplied by chart JSON when available.
+    birth_time_precision: str = "unknown"
+    # Minutes of birth-time uncertainty — gates timeline FIX-1 KP/D10 degradation.
+    birth_time_uncertainty_minutes: int = 0
+    # Absolute sidereal longitudes {planet: 0-360} — computed from planets_d1
+    # sign+degree in engine_io (enables real Gandanta detection in timeline.py).
+    planet_longitudes: Dict[str, float] = Field(default_factory=dict)
+    # 2026-07-08 ephemeris fix (jyotish/ephemeris.py): genuine Swiss-Ephemeris
+    # sidereal longitudes {planet: 0-360}, computed directly from birth
+    # datetime+lat/lon (KP/Krishnamurti ayanamsa, TRUE_NODE) — independent
+    # cross-check of the pyhora-supplied planets_d1 sign/degree values above.
+    planet_natal_degrees: Dict[str, float] = Field(default_factory=dict)
+    # Same, for "today" (system_config.current_date) — real ephemeris
+    # replacement for the previously-empty planet_transit_degrees field.
+    planet_transit_degrees: Dict[str, float] = Field(default_factory=dict)
+    # Birth tithi number 1-30 — computed from Sun/Moon longitudes in engine_io
+    # (enables the P2 Panchanga tithi-lord signal in engine.py).
+    birth_tithi_num: int = 0
+    # D24 whole-sign house occupancy {house_str: [planets]} — computed in engine_io
+    # (enables timeline d24_skill_bonus).
+    d24_house_occupancy: Dict[str, List[str]] = Field(default_factory=dict)
 
     # ── Primary D1 / divisional charts ───────────────────────────────────────
     planets_d1: Dict[str, Dict] = Field(default_factory=dict)
@@ -119,6 +181,38 @@ class NatalPayloadV2(BaseModel):
     # d10_house_occupancy already declared above; add lagna and house lords here.
     d10_lagna_sign: str = ""                                         # e.g. "Gemini"
     d10_house_lords: Dict[str, str] = Field(default_factory=dict)   # {"1":"Mars","10":"Saturn",...}
+    d10_planet_sign: Dict[str, str] = Field(default_factory=dict)   # C-2: {planet: D10 sign}
+
+    # ── D24 Siddhamsha (education chart) — E-1 EduAlign ─────────────────────
+    d24_lagna_sign: str = ""                                          # e.g. "Virgo"
+    d24_house_lords: Dict[str, str] = Field(default_factory=dict)    # {"1":"Mercury","10":"Jupiter",...}
+
+    # ── Karakamsha ────────────────────────────────────────────────────────────
+    karakamsha_sign: str = ""   # C-3: sign of the karakamsha (D9 position of AK)
+
+    # ── Special Lagnas (computed from birth time + sunrise) ───────────────────
+    hora_lagna_sign:  str = ""   # Hora Lagna (wealth/income timing — advances 1 sign/hr)
+    ghati_lagna_sign: str = ""   # Ghati Lagna (power/authority — advances 1 sign/24 min)
+    sree_lagna_sign:  str = ""   # Sree Lagna (Lakshmi/prosperity)
+    # GAP-FIX (2026-07): Bhava Lagna and Bhrigu Bindu, previously entirely
+    # absent (no field, no computation) -- see ephemeris.get_bhava_lagna /
+    # get_bhrigu_bindu and engine_io.py's wiring.
+    bhava_lagna_sign:   str = ""   # Bhava Lagna (general vocational/status lagna)
+    bhrigu_bindu_sign:  str = ""   # Bhrigu Bindu (Rahu-Moon midpoint, destiny-turning-point)
+
+    # ── KP star/sub lord chain for Lagna and Moon (bonus wiring, 2026-07-08) ──
+    # Computed via ephemeris.compute_kp_sublords() on the real absolute sidereal
+    # longitude of Lagna / Moon — same generic function already used for the
+    # KP cusp chain above, just applied to two additional longitudes.
+    lagna_star_lord: str = ""
+    lagna_sub_lord:  str = ""
+    moon_star_lord:  str = ""
+    moon_sub_lord:   str = ""
+
+    # ── Extended Divisional Chart Dignities (optional) ────────────────────────
+    d3_planet_dignities:  Dict[str, str] = Field(default_factory=dict)  # Drekkana (skills)
+    d20_planet_dignities: Dict[str, str] = Field(default_factory=dict)  # Vimshamsha (spiritual)
+    d30_planet_dignities: Dict[str, str] = Field(default_factory=dict)  # Trimsamsha (obstacles)
 
     # ── Nakshatra / Arudha / Karma Pada ──────────────────────────────────────
     moon_nakshatra: str = ""       # e.g. "Rohini"
@@ -133,6 +227,15 @@ class NatalPayloadV2(BaseModel):
     putrakaraka: str = ""          # PK
     gnatikaraka: str = ""          # GnK
     darakaraka: str = ""           # DK
+
+    # Structured alias of all 7 Chara Karakas keyed by their standard
+    # abbreviation (AK/AmK/BK/MK/PK/GK/DK), sourced directly from pyhora's
+    # kn_rao_jaimini_data.chara_karakas block. This is purely additive: the
+    # flat atmakaraka/amatyakaraka/matrikaraka/bhatrikaraka/putrakaraka/
+    # gnatikaraka/darakaraka fields above remain the source of truth for
+    # existing callers; this dict lets new code look karakas up generically
+    # (e.g. payload.chara_karakas["AK"]) without breaking anything.
+    chara_karakas: Dict[str, str] = Field(default_factory=dict)
 
     # ── Planet-level sign and nakshatra maps ─────────────────────────────────
     planet_signs: Dict[str, str] = Field(default_factory=dict)       # {planet: D1 sign}
@@ -155,22 +258,29 @@ class NatalPayloadV2(BaseModel):
     gender: str = ""
     interested_in: List[str] = Field(default_factory=list)
     already_excel_at: List[str] = Field(default_factory=list)
-    brahma_lord: str = ""
-    maheshwara_lord: str = ""
-    birth_place: str = ""
-    dob: str = ""
-    GEMINI_API_KEY: str = ""
 
-    # ── Career context (professionals only) ──────────────────────────────────
-    career_context: dict = Field(default_factory=dict)
-    career_timeline: list = Field(default_factory=list)
-    kn_rao_jaimini: dict = Field(default_factory=dict)
-    llm_context: dict = Field(default_factory=dict)
-    llm_selection_rationale: str = Field(default="")
-    micro_timing: dict = Field(default_factory=dict)
-    corporate_entrepreneurial: dict = Field(default_factory=dict)
-    geo_suitability: dict = Field(default_factory=dict)
-    field_insights: dict = Field(default_factory=dict)
-    academic_path: dict = Field(default_factory=dict)
-    institutional_tier: dict = Field(default_factory=dict)
-    career_phase: str = "auto"
+    # ── 2026-07-08 7-item lookup/derivation gap fixes ────────────────────────
+    # Gap 1: weekday ruler of the birth date (Sunday=Sun .. Saturday=Saturn).
+    day_lord: str = ""
+    # Gap 2: nakshatra-lord (Vimshottari 27-nakshatra cyclic lookup) for the
+    # Moon's own nakshatra, and for every planet's nakshatra (planet_nakshatras
+    # already populated elsewhere; this is the lord derived from that value).
+    moon_nakshatra_lord: str = ""
+    planet_nakshatra_lord: Dict[str, str] = Field(default_factory=dict)
+    # Gap 3: Moon's nakshatra pada (1-4), derived from absolute longitude —
+    # moon_nakshatra_pada (declared above) was previously stuck at a
+    # sign-degree-only calc; this numeric alias is guaranteed non-zero
+    # whenever moon_nakshatra_pada itself is populated. Kept as a separate
+    # field name (not a rename) so existing consumers of moon_nakshatra_pada
+    # are unaffected.
+    moon_nakshatra_pada_num: int = 0
+    # Gap 4: D27 (Nakshatramsha) dignity-based per-planet strength score,
+    # 0-1, same convention as the existing D10/D9 strength scoring.
+    d27_planet_strengths: Dict[str, float] = Field(default_factory=dict)
+    d27_planet_dignities: Dict[str, str] = Field(default_factory=dict)
+    # Gap 5: consolidated per-planet dignity across D9/D10/D24/D27.
+    varga_dignities: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    # Gap 6: Prastarashtakavarga — full unreduced 8-source x 12-house grid
+    # per reference planet (see jyotish/ashtakavarga.py::compute_pav_data
+    # for the documented output shape).
+    pav_data: Dict[str, Dict[str, Dict[str, int]]] = Field(default_factory=dict)

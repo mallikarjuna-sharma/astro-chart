@@ -168,12 +168,35 @@ function PrashnaPage() {
                     answer.verdict === "YES" ? "bg-gold text-primary-foreground text-base px-3 py-1" :
                     answer.verdict === "NO" ? "bg-destructive text-base px-3 py-1" :
                     "bg-accent text-accent-foreground text-base px-3 py-1"
-                  }>{answer.verdict}</Badge>
+                  }>{answer.verdict_label || answer.verdict}</Badge>
                   <ConfidenceBadge score={confidencePct} />
                   {answer.moon_void && (
                     <Badge variant="outline" className="text-amber-600 border-amber-600/40">Moon void-of-course</Badge>
                   )}
                 </div>
+
+                {answer.binary_answer && (
+                  <div className="rounded-lg border bg-muted/40 px-3 py-2">
+                    <div className="text-xs uppercase text-muted-foreground">Plain answer</div>
+                    <div className="text-sm font-semibold">
+                      {answer.binary_answer}
+                      {answer.verdict === "CONDITIONAL" && answer.verdict_leaning
+                        ? ` (leaning ${answer.verdict_leaning}, hedged by the caveats below)`
+                        : ""}
+                    </div>
+                  </div>
+                )}
+
+                {answer.internal_conflict_notes && answer.internal_conflict_notes.length > 0 && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                    <div className="text-xs uppercase text-amber-700 font-semibold mb-1">Verdict caveats</div>
+                    <ul className="text-sm list-disc pl-4 space-y-1 text-amber-900">
+                      {answer.internal_conflict_notes.map((n) => (
+                        <li key={n}>{n}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -201,7 +224,18 @@ function PrashnaPage() {
                   <div className="text-sm">{answer.moon_status}</div>
                 </div>
 
-                {answer.classical_rules.length > 0 && (
+                {answer.classical_rules_fired && answer.classical_rules_fired.length > 0 ? (
+                  <div>
+                    <div className="text-xs uppercase text-emerald-700 font-semibold">Classical rules fired (supporting)</div>
+                    <ul className="text-sm list-none pl-0 space-y-1">
+                      {answer.classical_rules_fired.map((rule) => (
+                        <li key={rule} className="text-emerald-800">
+                          <span className="text-emerald-600 font-bold">+ </span>{rule}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : answer.classical_rules.length > 0 ? (
                   <div>
                     <div className="text-xs uppercase text-muted-foreground">Classical rules</div>
                     <ul className="text-sm list-disc pl-4 space-y-1">
@@ -210,18 +244,51 @@ function PrashnaPage() {
                       ))}
                     </ul>
                   </div>
+                ) : null}
+
+                {answer.denial_rules_fired && answer.denial_rules_fired.length > 0 && (
+                  <div>
+                    <div className="text-xs uppercase text-rose-700 font-semibold">Denial rules fired (opposing)</div>
+                    <ul className="text-sm list-none pl-0 space-y-1">
+                      {answer.denial_rules_fired.map((rule) => (
+                        <li key={rule} className="text-rose-800">
+                          <span className="text-rose-600 font-bold">− </span>{rule}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {answer.afflicted_planets && answer.afflicted_planets.length > 0 && (
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground mb-1">Afflicted planets</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {answer.afflicted_planets.map((p) => (
+                        <Badge key={p} variant="outline" className="text-rose-600 border-rose-500/40">{p}</Badge>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {answer.factors.length > 0 && (
                   <div>
                     <div className="text-xs uppercase text-muted-foreground">Key factors</div>
                     <ul className="text-sm space-y-1">
-                      {answer.factors.slice(0, 4).map((f) => (
-                        <li key={f.factor}>
-                          <span className="font-medium">{f.factor}</span>
-                          <span className="text-muted-foreground"> — {f.detail}</span>
-                        </li>
-                      ))}
+                      {answer.factors.slice(0, 6).map((f, i) => {
+                        const label = f.name ?? f.factor ?? "";
+                        const dot =
+                          f.polarity === "affirm" ? "text-emerald-600" :
+                          f.polarity === "deny" ? "text-rose-600" :
+                          "text-muted-foreground";
+                        return (
+                          <li key={`${label}-${i}`}>
+                            <span className={`font-bold ${dot}`}>• </span>
+                            <span className="font-medium">{label}</span>
+                            {f.value ? <span className="text-foreground"> — {f.value}</span> : null}
+                            {f.detail ? <span className="text-muted-foreground"> ({f.detail})</span> : null}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}

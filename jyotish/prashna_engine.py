@@ -59,6 +59,34 @@ from .prashna import (
 logger = logging.getLogger("jyotish_prashna_engine")
 
 # ---------------------------------------------------------------------------
+# Verdict display labels (A-2)
+# ---------------------------------------------------------------------------
+
+_VERDICT_LABELS: Dict[str, str] = {
+    "YES":         "Highly Favourable",
+    "NO":          "Not Favourable",
+    "CONDITIONAL": "Conditionally Favourable",
+    "UNCERTAIN":   "Unclear / Mixed Signals",
+}
+
+# gap fix (2026-07-19 audit, 2nd pass): CONDITIONAL used to always render as
+# "Conditionally Favourable" regardless of whether the underlying ratio
+# leaned yes or no -- a chart at 45% confidence leaning NO displayed the
+# exact same yes-sounding label as one at 65% leaning YES. verdict_leaning
+# (set in analyze_prashna) now disambiguates which side CONDITIONAL is
+# actually hedging toward.
+_CONDITIONAL_LABELS: Dict[str, str] = {
+    "YES": "Conditionally Favourable",
+    "NO":  "Conditionally Unfavourable",
+}
+
+
+def _resolve_verdict_label(verdict: str, verdict_leaning: str) -> str:
+    if verdict == "CONDITIONAL":
+        return _CONDITIONAL_LABELS.get(verdict_leaning, _VERDICT_LABELS["CONDITIONAL"])
+    return _VERDICT_LABELS.get(verdict, verdict)
+
+# ---------------------------------------------------------------------------
 # Public category registry
 # ---------------------------------------------------------------------------
 
@@ -154,7 +182,9 @@ class PrashnaResponse(BaseModel):
 
     # Core verdict
     verdict: str = "UNCERTAIN"
+    verdict_label: str = ""            # A-2: human-readable label e.g. "Highly Favourable"
     confidence: float = 0.5
+    confidence_pct: int = 50           # A-2: int 0-100 for easy display
     confidence_band: str = "MODERATE"
 
     # KP analysis
@@ -182,7 +212,9 @@ class PrashnaResponse(BaseModel):
 
     # Detailed evidence
     factors: List[Dict[str, Any]] = Field(default_factory=list)
-    classical_rules: List[str] = Field(default_factory=list)
+    classical_rules: List[str] = Field(default_factory=list)          # merged (backward compat)
+    classical_rules_fired: List[str] = Field(default_factory=list)    # A-2: positive rules only
+    denial_rules_fired: List[str] = Field(default_factory=list)       # A-2: negative rules only
     remedies: List[str] = Field(default_factory=list)
 
     # Full planet and house data (for rendering)
@@ -197,6 +229,28 @@ class PrashnaResponse(BaseModel):
     # HTML path (if generate_prashna_report was called)
     html_path: Optional[str] = None
 
+    # Gap-remediation (2026-07-18): joint KP cusp check (all doctrinally
+    # relevant houses, not just one), Tajika Ithasala/Isbaha note, Moon
+    # precision caveat, and the verdict/evidence conflict banner — see
+    # jyotish/prashna.py's analyze_prashna() docstring notes for what each
+    # of these fixes.
+    kp_joint_houses: List[int] = Field(default_factory=list)
+    kp_joint_details: Dict[str, str] = Field(default_factory=dict)
+    kp_joint_verdict: str = ""
+    moon_status_caveat: str = ""
+    tajika_aspect_note: str = ""
+    internal_conflict_notes: List[str] = Field(default_factory=list)
+    afflicted_planets: List[str] = Field(default_factory=list)
+    validation_status: Dict[str, Any] = Field(default_factory=dict)
+    score_semantics: str = ""
+    disclaimer: str = ""
+
+    # gap fix (2026-07-19 audit, 2nd pass): explicit leaning + strict
+    # yes/no reading, independent of the hedged verdict/label. See
+    # PrashnaResult.verdict_leaning / .binary_answer in prashna.py.
+    verdict_leaning: str = ""
+    binary_answer: str = ""
+
     @classmethod
     def from_result(
         cls,
@@ -209,14 +263,24 @@ class PrashnaResponse(BaseModel):
         if chart:
             kp_cusp = {str(i): chart.kp_sublords.get(str(i), "") for i in range(1, 13)}
 
+        _verdict      = d["verdict"]
+        _confidence   = d["confidence"]
+        _leaning      = d.get("verdict_leaning", "")
+        _pos_rules    = d.get("classical_rules_fired", [])
+        _neg_rules    = d.get("denial_rules_fired", [])
+
         return cls(
             question=d["question"],
             category=d["category"],
             category_label=d["category_label"],
             moment=d["moment"],
             city=d["city"],
-            verdict=d["verdict"],
-            confidence=d["confidence"],
+            verdict=_verdict,
+            verdict_label=_resolve_verdict_label(_verdict, _leaning),    # A-2, gap fix 2026-07-19
+            verdict_leaning=_leaning,
+            binary_answer=d.get("binary_answer", ""),
+            confidence=_confidence,
+            confidence_pct=int(round(_confidence * 100)),                # A-2
             confidence_band=d["confidence_band"],
             kp_sublord_planet=d["kp_sublord_planet"],
             kp_sublord_verdict=d["kp_sublord_verdict"],
@@ -233,12 +297,24 @@ class PrashnaResponse(BaseModel):
             moon_nakshatra=d["moon_nakshatra"],
             factors=d["factors"],
             classical_rules=d["classical_rules"],
+            classical_rules_fired=_pos_rules,                            # A-2
+            denial_rules_fired=_neg_rules,                               # A-2
             remedies=d["remedies"],
             planets=d["planets"],
             house_lords=d["house_lords"],
             kp_cusp_sublords=kp_cusp,
             natal_context_applied=bool(natal_notes),
             natal_notes=natal_notes or [],
+            kp_joint_houses=d.get("kp_joint_houses", []),
+            kp_joint_details=d.get("kp_joint_details", {}),
+            kp_joint_verdict=d.get("kp_joint_verdict", ""),
+            moon_status_caveat=d.get("moon_status_caveat", ""),
+            tajika_aspect_note=d.get("tajika_aspect_note", ""),
+            internal_conflict_notes=d.get("internal_conflict_notes", []),
+            afflicted_planets=d.get("afflicted_planets", []),
+            validation_status=d.get("validation_status", {}),
+            score_semantics=d.get("score_semantics", ""),
+            disclaimer=d.get("disclaimer", ""),
         )
 
 
@@ -257,13 +333,17 @@ def _parse_moment(moment_str: str) -> datetime:
     raise ValueError(f"Cannot parse moment '{moment_str}'. Use 'YYYY-MM-DD HH:MM'.")
 
 
-def run_prashna_query(request: PrashnaRequest) -> PrashnaResponse:
+def run_prashna_query(
+    request: PrashnaRequest,
+    output_dir: Optional[str] = None,   # D-2: optional HTML output
+) -> PrashnaResponse:
     """
     Main entry point: cast the Prashna chart and analyse it.
 
     Parameters
     ----------
-    request : PrashnaRequest — validated input (question, category, moment, city/lat/lon)
+    request    : PrashnaRequest — validated input (question, category, moment, city/lat/lon)
+    output_dir : str | None — if provided, an HTML report is written here (D-2)
 
     Returns
     -------
@@ -288,8 +368,14 @@ def run_prashna_query(request: PrashnaRequest) -> PrashnaResponse:
 
     # 5. Optional natal overlay notes
     natal_notes = _natal_overlay_notes(request, result)
+    response = PrashnaResponse.from_result(result, natal_notes)
 
-    return PrashnaResponse.from_result(result, natal_notes)
+    # D-2: write HTML if output_dir provided
+    if output_dir:
+        html_path = generate_prashna_report(response, result, output_dir)
+        response.html_path = html_path
+
+    return response
 
 
 def _natal_overlay_notes(
@@ -412,20 +498,83 @@ def prashna_from_payload(
     Returns
     -------
     PrashnaResponse with natal overlay notes applied.
+
+    Location resolution (in priority order)
+    -----------------------------------------
+    1. payload["prashna_details"]["latitude_cp"] / ["longitude_cp"] — explicit
+       lat/lon for wherever the question is being asked *right now*, paired
+       with ["current_place"] as the display name. This is the querent's
+       present location, distinct from their birth details.
+    2. payload["prashna_details"]["current_place"] alone (no lat/lon given)
+       — geocoded via city_to_coords().
+    3. payload["birth_place"] — legacy fallback, geocoded via city_to_coords().
+    4. "Delhi" — final fallback if nothing else is available.
+
+    Moment resolution (in priority order)
+    ----------------------------------------
+    1. The explicit `moment` argument, if the caller passed one (unchanged
+       behaviour — always wins).
+    2. payload["prashna_details"]["current_date"] + ["current_time"], if both
+       are present — the moment the question is actually being asked, as
+       supplied by the caller (e.g. "2026-07-18" + "09:12:00").
+    3. payload["prashna_details"]["current_time"] alone (no current_date) —
+       combined with today's date, since a horary chart is nearly always
+       cast for "right now"; only the time-of-day portion is customised.
+    4. datetime.now() — final fallback (previous default behaviour).
     """
     def _g(key: str, default: Any = None) -> Any:
         if isinstance(payload, dict):
             return payload.get(key, default)
         return getattr(payload, key, default)
 
-    # Extract location from payload if available
-    birth_place = _g("birth_place", "")
-    if birth_place:
-        lat, lon = city_to_coords(birth_place)
-        city_name = birth_place
+    # Extract the current-location details (prashna_details block), e.g.:
+    #   "prashna_details": {
+    #       "current_place": "Chennai, Tamil Nadu, India",
+    #       "latitude_cp": 13.0843, "longitude_cp": 80.2705, ...
+    #   }
+    _prashna_details = _g("prashna_details", {}) or {}
+    if not isinstance(_prashna_details, dict):
+        # Pydantic sub-model or similar; normalise to dict if possible.
+        _prashna_details = getattr(_prashna_details, "__dict__", {}) or {}
+
+    current_place = _prashna_details.get("current_place", "")
+    lat_cp = _prashna_details.get("latitude_cp")
+    lon_cp = _prashna_details.get("longitude_cp")
+
+    if lat_cp is not None and lon_cp is not None:
+        # Explicit current-location coordinates supplied — use them directly,
+        # no geocoding lookup needed.
+        lat, lon = float(lat_cp), float(lon_cp)
+        city_name = current_place or f"{lat:.4f},{lon:.4f}"
+    elif current_place:
+        lat, lon = city_to_coords(current_place)
+        city_name = current_place
     else:
-        lat, lon = city_to_coords("Delhi")
-        city_name = "Delhi"
+        # Legacy fallback: no prashna_details block supplied, fall back to
+        # birth_place (previous behaviour), then Delhi.
+        birth_place = _g("birth_place", "")
+        if birth_place:
+            lat, lon = city_to_coords(birth_place)
+            city_name = birth_place
+        else:
+            lat, lon = city_to_coords("Delhi")
+            city_name = "Delhi"
+
+    # Resolve the query moment: explicit `moment` arg wins; otherwise look
+    # for prashna_details.current_date/current_time (the moment the
+    # querent is actually asking), falling back to datetime.now().
+    if moment is None:
+        _current_date = _prashna_details.get("current_date", "")
+        _current_time = _prashna_details.get("current_time", "")
+        if _current_time:
+            _date_part = _current_date or datetime.now().strftime("%Y-%m-%d")
+            try:
+                moment = datetime.strptime(f"{_date_part} {_current_time}", "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                try:
+                    moment = datetime.strptime(f"{_date_part} {_current_time}", "%Y-%m-%d %H:%M")
+                except ValueError:
+                    moment = None  # malformed — fall through to datetime.now() below
 
     # Build request
     req = PrashnaRequest(
@@ -492,16 +641,13 @@ def batch_prashna(
     return results
 
 
-# ---------------------------------------------------------------------------
+# -----------------------------------
 # Utility: category metadata for UI
 # ---------------------------------------------------------------------------
 
-def get_category_metadata() -> List[Dict[str, Any]]:
-    """
-    Return UI-ready list of all Prashna categories with labels, primary house,
-    and representative question examples.
-    """
-    _examples: Dict[str, str] = {
+def get_category_metadata():
+    """Return UI-ready list of all Prashna categories with labels, primary house, and examples."""
+    _examples = {
         "career_employment":   "Will I get this job offer?",
         "job_change":          "Should I change my job now?",
         "business":            "Will my business venture succeed?",
@@ -520,7 +666,7 @@ def get_category_metadata() -> List[Dict[str, Any]]:
     return [
         {
             "key":           cat,
-            "label":         _CATEGORY_LABELS.get(cat, cat),
+            "label":         PRASHNA_CATEGORIES.get(cat, cat),
             "primary_house": _PRIMARY_HOUSE.get(cat, 0),
             "example":       _examples.get(cat, "Will this happen?"),
         }

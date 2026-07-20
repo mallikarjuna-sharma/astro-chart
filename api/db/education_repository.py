@@ -78,12 +78,17 @@ def _unpack(blob: Any) -> Any:
 
 def _match_and_soul(fields: list[dict[str, Any]]) -> tuple[list[str], str | None]:
     sorted_results = sorted(fields, key=lambda x: (-x.get("final_score", 0), x.get("field_id", "")))
-    match_ids = [
-        r["field_id"]
-        for r in sorted_results
+    soul = next((r["field_id"] for r in sorted_results if r.get("llm_group") == "soul"), None)
+    # Prefer explicit LLM ranks when a selection pass produced them; the
+    # deterministic field-mode engine (enable_llm=False) does not stamp
+    # llm_rank/llm_group, so fall back to top-5 by final_score.
+    ranked = [
+        r for r in sorted_results
         if r.get("llm_group", "match") != "soul" and 1 <= r.get("llm_rank", 99) <= 5
     ]
-    soul = next((r["field_id"] for r in sorted_results if r.get("llm_group") == "soul"), None)
+    if not ranked:
+        ranked = [r for r in sorted_results if r.get("llm_group") != "soul"][:5]
+    match_ids = [r["field_id"] for r in ranked]
     return match_ids, soul
 
 

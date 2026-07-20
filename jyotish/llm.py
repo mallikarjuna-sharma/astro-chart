@@ -1,5 +1,37 @@
 import logging
-"""JyotishAI — LLM prompt template, chart summary, provider calls, parser."""
+"""JyotishAI — LLM prompt template, chart summary, provider calls, parser.
+
+COMPLIANCE AUDIT NOTE (2026-07, "Use an LLM for" / "Do not use an LLM for"
+policy): this module's `call_llm_for_fields` was audited against that policy
+and found to ALREADY COMPLY with the hard boundaries:
+  - it never recomputes an astronomical position/cusp/dasha/BAV/Shadbala
+    value (only reads already-computed payload fields);
+  - `_MISSING DATA RULE` in _SELECTOR_SYSTEM_PROMPT/_GENERATOR_SYSTEM_PROMPT
+    explicitly instructs "never fabricate data" for absent inputs;
+  - the ranking is explicitly fixed by the deterministic engine before this
+    module runs ("llm_rank mirrors deterministic rank (no reranking)") --
+    this module writes explanatory prose only, never a score or weight.
+
+What this module does NOT do (the gap closed by the newer, separate modules
+below, per the "Use an LLM for" list this session implemented): it never
+checks a rule/method trace against a named school or source, never
+classifies a claim as observed/derived/traditional/heuristic/conclusion,
+never flags cross-method contradictions or duplicate evidence, and never
+attaches a required non-probability disclaimer. Those capabilities now live
+in jyotish/llm_validator.py (rule-trace validator) and
+jyotish/llm_composer.py (cautious narrative composer), orchestrated by
+jyotish/llm_deep_validation.py as an opt-in (JYOTISH_DEEP_VALIDATION=1) layer
+on top of -- not a replacement for -- this module's existing explanation
+step. See those three modules' own docstrings for the full policy mapping.
+
+_SELECTOR_SYSTEM_PROMPT and _STEP1_RESPONSE_SCHEMA below are DEAD CODE: an
+old LLM-as-reranker step that call_llm_for_fields's own docstring says was
+"intentionally removed" (grep confirms nothing in this codebase calls them
+anymore). Kept only as a documented historical artifact -- do not wire them
+back in without checking against the "Do not use an LLM for ... assigning or
+adjusting method weights in production" boundary, since a reranker is
+exactly that.
+"""
 import json, os,logging
 from typing import Dict, List, Tuple, Set, Any, Optional
 
@@ -35,6 +67,11 @@ STEP 2 — ELIMINATE FATAL FLAWS:
 Rank your 20 selections from strongest to weakest fit based on the chart. Return ONLY the JSON array of field_ids.
 """
 
+# DEAD CODE (confirmed 2026-07 via repo-wide grep -- see this module's
+# top-of-file compliance audit note): not called by call_llm_for_fields or
+# anything else. This was the old LLM-as-reranker step; do not reactivate it
+# without re-reading the "Do not use an LLM for ... assigning or adjusting
+# method weights in production" boundary first, since reranking IS that.
 _SELECTOR_SYSTEM_PROMPT = """You are an expert Jyotish career analyst. Select and rank the top 20 career fields from the 35 candidates provided.
 
 Each candidate includes: field_id, field_label, domain, engine_rank (1=highest Python score), engine_score, kp_score, jaimini_score, and ruling_planets.
@@ -163,6 +200,7 @@ Write in plain English that a parent with zero astrology knowledge can fully und
 # 2. STRICT JSON SCHEMAS
 # =============================================================================
 
+# DEAD CODE -- paired with _SELECTOR_SYSTEM_PROMPT above, same audit note.
 _STEP1_RESPONSE_SCHEMA = {
     "name": "career_fields_selector",
     "schema": {
@@ -174,7 +212,7 @@ _STEP1_RESPONSE_SCHEMA = {
             },
             "selected_field_ids": {
                 "type": "array",
-                "description": "Exactly 20 selected field_ids, ranked from strongest to weakest fit.",
+                "description": "Selected field_ids ranked strongest to weakest — copy strings VERBATIM from the ALLOWED list. No invented IDs.",
                 "items": {"type": "string"}
             }
         },
@@ -239,7 +277,6 @@ def _maybe_load_dotenv() -> None:
 
 
 from .constants import _VALID_DOMAINS
-from .engine_io import _load_course_registry
 
 
 def _format_yogas_categorised(yogas_all: list) -> str:
@@ -528,16 +565,43 @@ def _call_anthropic(prompt: str, api_key: str, model: str) -> str:
     return response.content[0].text
 
 def _call_openai(prompt: str, api_key: str, model: str) -> str:
-    """Call OpenAI Chat Completions and return raw response text."""
+    """Call OpenAI Chat Completions and return raw response text.
+
+    Uses response_format=json_object so the model returns clean JSON.
+    Falls back to a plain call (no seed/response_format) if the installed
+    openai SDK / model rejects one of those kwargs (older SDKs, some models).
+    """
     import openai as _openai
     client = _openai.OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model=model, max_completion_tokens=8192,
-        temperature=0,   # deterministic
-        seed=108,          # reproducible sampling
-        response_format={"type": "json_object"},  # guaranteed clean JSON — no fence-stripping needed
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            max_completion_tokens=8192,
+            temperature=0,
+            seed=108,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except TypeError:
+        # Older SDK — max_completion_tokens/seed/response_format not supported
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=8192,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as exc:
+        err = str(exc)
+        # Some models reject response_format or seed — retry without them
+        if "response_format" in err or "seed" in err or "unsupported_parameter" in err.lower():
+            response = client.chat.completions.create(
+                model=model,
+                max_completion_tokens=8192,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        else:
+            raise
     return response.choices[0].message.content
 
 def _call_gemini(prompt: str, api_key: str, model: str) -> str:
@@ -578,8 +642,25 @@ def _call_gemini(prompt: str, api_key: str, model: str) -> str:
 _LLM_PROVIDERS: Dict[str, tuple] = {
     "anthropic": ("ANTHROPIC_API_KEY", "claude-haiku-4-5-20251001", _call_anthropic),
     "openai":    ("OPENAI_API_KEY",    "gpt-5.4-mini",               _call_openai),
-    "gemini":    ("GEMINI_API_KEY",    "gemini-2.5-flash",          _call_gemini),
+    "gemini":    ("GEMINI_API_KEY",    "gemini-2.5-pro",            _call_gemini),
 }
+
+
+def llm_provider_preflight(provider: str) -> Dict[str, Any]:
+    """Check SDK availability before attempting an external provider call."""
+    import importlib.util
+    provider = str(provider or "").lower()
+    module = {"openai": "openai", "anthropic": "anthropic", "gemini": "google.genai"}.get(provider)
+    configured = provider in _LLM_PROVIDERS
+    installed = bool(module and importlib.util.find_spec(module)) if configured else False
+    return {
+        "provider": provider,
+        "configured": configured,
+        "sdk_module": module,
+        "sdk_installed": installed,
+        "ready": configured and installed,
+        "install_extra": f"pip install .[{provider}]" if configured else "",
+    }
 
 # =============================================================================
 # 2. MAIN LLM CALL WITH SELF-CORRECTING RETRY LOOP
@@ -595,6 +676,7 @@ class _ProviderClientWrapper:
         self._call_fn = call_fn
         self._api_key = api_key
         self._model   = model
+
     def call(self, messages: list, schema: dict) -> str:
         # Build a single-string prompt including ALL roles (system/user/assistant)
         # so retry attempts preserve the full conversation context.
@@ -650,40 +732,39 @@ def _run_llm_with_retry(client, messages: List[Dict], schema: Dict, validation_f
                 # OpenAI path (legacy — only reached if client is an openai.OpenAI instance)
                 response = client.chat.completions.create(
                     model="gpt-5.4-mini",
-                    temperature=0.0,  # CRITICAL: 0.0 removes all token randomness
-                    seed=108,         # CRITICAL: Forces backend deterministic sampling
+                    temperature=0.0,
+                    seed=108,
                     messages=messages,
                     response_format={"type": "json_schema", "json_schema": schema},
                 )
                 content = response.choices[0].message.content
 
             parsed_data = json.loads(content)
-            # Run the stage-specific validation gate
             validation_fn(parsed_data)
             return parsed_data
 
         except json.JSONDecodeError as je:
-            logger.warning(f"JSON Parse Error on attempt {attempt}: {je} | raw snippet: {content[max(0, je.pos-40):je.pos+40]!r}")
+            logger.warning(f"JSON Parse Error on attempt {attempt}: {je} | raw snippet: {content[max(0,je.pos-40):je.pos+40]!r}")
             messages.append({"role": "assistant", "content": content or ""})
             messages.append({"role": "user", "content": "Output was not valid JSON. Return ONLY a raw JSON object — no markdown, no prose, no code fences."})
 
         except ValueError as ve:
             logger.warning(f"Validation Error on attempt {attempt}: {ve}")
             messages.append({"role": "assistant", "content": content or "{}"})
-            messages.append({"role": "user", "content": f"Validation Error: {str(ve)}. Correct this and return only a valid JSON object."})
+            messages.append({"role": "user", "content": f"Fix: {str(ve)} Return only a JSON object with 'analytical_breakdown' and 'selected_field_ids' (copy IDs verbatim from the ALLOWED list)."})
 
         except Exception as e:
             err_str = str(e)
             # 503 / UNAVAILABLE — transient overload; retry with exponential backoff
-            if "503" in err_str or "UNAVAILABLE" in err_str.upper():
+            if "503" in err_str or "UNAVAILABLE" in err_str or "unavailable" in err_str.lower():
                 import time
                 wait = min(10 * attempt, 60)  # 10s, 20s, 30s … capped at 60s
                 logger.warning(f"503 UNAVAILABLE on attempt {attempt}. Retrying in {wait}s...")
                 # On attempt 3+ try a lighter model variant
-                if attempt >= 3 and hasattr(client, "_model") and "2.5-flash" in str(getattr(client, "_model", "")):
+                if attempt >= 3 and hasattr(client, 'model') and "2.5-flash" in str(getattr(client, 'model', '')):
                     _alt = "gemini-2.0-flash-lite"
                     logger.warning(f"Switching to fallback model: {_alt}")
-                    client._model = _alt
+                    client.model = _alt
                 time.sleep(wait)
                 continue
             logger.error(f"Unexpected LLM failure: {e}")
@@ -696,209 +777,113 @@ def _run_llm_with_retry(client, messages: List[Dict], schema: Dict, validation_f
 # =============================================================================
 
 def call_llm_for_fields(
-    payload: Any, 
-    eff_strengths: Dict[str, float], 
-    top_35_fields: List[Dict], 
-    max_retries: int = 3
+    payload: Any,
+    eff_strengths: Dict[str, float],
+    top_35_fields: List[Dict],
+    max_retries: int = 1,
 ) -> Optional[List[Dict]]:
-    """Executes the Decoupled Two-Step LLM Pipeline with Deterministic Grounding."""
-    
-    # 1. Init Client
+    """Post-scoring enrichment: attach natural-language explanations to the
+    deterministic top-20 career fields.
+
+    The ranking is FIXED by the deterministic engine — this function adds:
+      • astrological_reason          ≤20 words citing AK/AmK/house/yoga from THIS chart
+      • parent_friendly_explanation  2 plain-English paragraphs, zero jargon
+
+    NOTE: LLM-as-reranker (the old Step 1 selector) is intentionally removed.
+    It added non-determinism, latency, and cost with no ranking benefit over the
+    Shadbala/gap_boost scoring that already encodes the same astrological signals.
+    """
+    # Deterministic top-20 is the authoritative ranking — use it directly.
+    n_explain = min(20, len(top_35_fields))
+    top20 = top_35_fields[:n_explain]
+
+    # ── Init client ────────────────────────────────────────────────────────────
     try:
         from .engine_io import _maybe_load_dotenv
         _maybe_load_dotenv()
     except Exception:
         pass
 
-    # A10 fix: provider selected via LLM_PROVIDER env var (default: openai)
-    # Supported values: 'openai', 'anthropic', 'gemini'
-    _provider_name = os.getenv("LLM_PROVIDER", "openai").lower()
-    _prov = _LLM_PROVIDERS.get(_provider_name, _LLM_PROVIDERS["openai"])
+    _provider_name  = os.getenv("LLM_PROVIDER", "gemini").lower()
+    _prov           = _LLM_PROVIDERS.get(_provider_name, _LLM_PROVIDERS["gemini"])
     _env_var, _default_model, _call_fn = _prov
     _model_override = os.getenv("LLM_MODEL", _default_model)
-    api_key = os.getenv(_env_var)
+    api_key         = os.getenv(_env_var)
     if not api_key:
         logger.error("%s missing (provider=%s).", _env_var, _provider_name)
         return None
-    # Build thin client wrapper so _run_llm_with_retry gets a callable
-    if _provider_name == "openai":
-        try:
-            import openai
-        except ImportError:
-            logger.error("openai package not installed.")
-            return None
-        client = openai.OpenAI(api_key=api_key)
-    else:
-        # LP6 fix: wrap non-OpenAI provider in _ProviderClientWrapper for retry support
-        client = _ProviderClientWrapper(_call_fn, api_key, _model_override)
-    valid_field_ids = {f.get("field_id") for f in top_35_fields if f.get("field_id")}
-    
-    # ---------------------------------------------------------
-    # DATA PREPARATION: Extract Deterministic Drivers
-    # ---------------------------------------------------------
-    # Safely extract house lords and lagna
-    lagna_sign = getattr(payload, "lagna_sign", "Unknown")
-    house_lords = getattr(payload, "house_lords", {})
-    # Handle int or str dictionary keys for house 10
-    h10_lord = house_lords.get(10, house_lords.get("10", "Unknown"))
-    
-    # Safely extract Jaimini Karakas
-    jaimini_k = getattr(payload, "jaimini_karakas", {})
-    ak = jaimini_k.get("AK", getattr(payload, "atmakaraka", "Unknown"))
-    amk = jaimini_k.get("AmK", getattr(payload, "amatyakaraka", "Unknown"))
-    
-    # Extract Planetary Strengths (Type-Safe)
-    planet_strengths = {}
-    
-    # 1. Try pulling directly from shadbala dict if it exists
-    shadbala_data = getattr(payload, "shadbala", {})
-    for p, val in shadbala_data.items():
-        if isinstance(val, dict):
-            planet_strengths[p] = float(val.get("shadbala_virupas", 0.0))
-        elif isinstance(val, (float, int)):
-            planet_strengths[p] = float(val)
 
-    # 2. If empty, try pulling from planets_d1 nested dict
-    if not planet_strengths:
-        planets_d1 = getattr(payload, "planets_d1", {})
-        for p, data in planets_d1.items():
-            if isinstance(data, dict) and "shadbala_virupas" in data:
-                planet_strengths[p] = float(data["shadbala_virupas"])
-
-    # 3. Final Fallback to effective strengths
-    if not planet_strengths:
-        planet_strengths = eff_strengths
-
-    # Build rich chart summary using the full Jyotish context function
+    client             = _ProviderClientWrapper(_call_fn, api_key, _model_override)
     chart_summary_text = _build_chart_summary_for_llm(payload, eff_strengths)
 
-    # A8 fix: replaced bare print() with logger.debug() to prevent PII leakage to stdout
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug("Chart summary (SENDING TO LLM):\n%s", chart_summary_text[:2000])
 
-    # ---------------------------------------------------------
-    # STEP 1: THE SELECTOR (Reasoning & Ranking)
-    # ---------------------------------------------------------
-    from .affinity import BRANCH_PLANET_AFFINITY
-    enriched_candidates = []
-    
-    for idx, f in enumerate(top_35_fields):
-        fid = f.get("field_id")
-        # Pull the deterministic planet weights assigned to this field from affinity.py
-        affinity_map = BRANCH_PLANET_AFFINITY.get(fid, {})
-        # Sort planets so the strongest affinities appear first in the array
-        ruling_planets = [planet for planet, weight in sorted(affinity_map.items(), key=lambda x: x[1], reverse=True)]
-        
-        enriched_candidates.append({
-            "field_id": fid,
-            "field_label": f.get("field_label"),
-            "domain": f.get("domain", ""),
-            "engine_rank": f.get("rank", idx + 1),
-            "engine_score": round(float(f.get("final_score", f.get("deterministic_score", 0.0))), 1),
-            "kp_score": round(float(f.get("kp_score", 0.0)), 1),
-            "jaimini_score": round(float(f.get("jaimini_score", 0.0)), 1),
-            "ruling_planets": ruling_planets[:4],
-        })
-    
-    step1_user_prompt = f"Chart Core Facts:\n{chart_summary_text}\n\nCandidate Fields:\n{json.dumps(enriched_candidates, indent=2)}\n\nExecute the ranking algorithm. Provide your analytical_breakdown, then return EXACTLY 20 selected field_ids."
-
-    step1_messages = [
-        {"role": "system", "content": _SELECTOR_SYSTEM_PROMPT},
-        {"role": "user", "content": step1_user_prompt}
-    ]
-
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("STEP 1 prompt (%d chars):\n%s", len(str(step1_messages)), str(step1_messages)[:1000])
-
-    def validate_step1(data: Dict):
-        ids = data.get("selected_field_ids", [])
-        if len(ids) != 20:
-            raise ValueError(f"Expected 20 IDs, got {len(ids)}.")
-        invalid = [i for i in ids if i not in valid_field_ids]
-        if invalid:
-            raise ValueError(f"Hallucinated IDs: {', '.join(invalid)}")
-
-    logger.info("Starting Step 1: LLM Selection...")
-    step1_result = _run_llm_with_retry(client, step1_messages, _STEP1_RESPONSE_SCHEMA, validate_step1, max_retries)
-    
-    if not step1_result:
-        logger.error("Step 1 Failed. Falling back to deterministic scoring.")
-        return None
-
-    chosen_ids = step1_result["selected_field_ids"]
-    analytical_breakdown = step1_result.get("analytical_breakdown", "")
-
-    # ---------------------------------------------------------
-    # STEP 2: THE GENERATOR (Formatting & Writing)
-    # ---------------------------------------------------------
-    # Only pass the 20 chosen fields to the generator to save tokens
-    chosen_field_details = [f for f in top_35_fields if f.get("field_id") in chosen_ids]
-    
-    # LP1 fix: enrich Step 2 payload with per-field engine scores and karaka data
-    # so the generator writes specific astrological_reasons, not generic summaries.
-    def _enrich_for_step2(f, rank):
-        aff  = f.get("affinity_planets", {})
-        top3 = sorted(aff.items(), key=lambda x: -x[1])[:3] if aff else []
+    # ── Explanation generator ──────────────────────────────────────────────────
+    # Enrich each field with engine scores + top affinity planets so the LLM
+    # can write a specific astrological_reason rather than a generic summary.
+    def _enrich_for_explanation(f: Dict, rank: int) -> Dict:
+        aff   = f.get("affinity_planets", {})
+        top3  = sorted(aff.items(), key=lambda x: -x[1])[:3] if aff else []
         trace = f.get("calc_trace", f.get("gap_detail", {}))
         return {
-            "rank":            rank,
-            "field_id":        f.get("field_id", ""),
-            "field_label":     f.get("field_label", ""),
-            "domain":          f.get("domain", ""),
-            "engine_score":    round(f.get("final_score", 0), 1),
-            "top_planets":     [{"planet": p, "weight": round(w, 2)} for p, w in top3],
-            "verified_factors": (trace.get("verified_factors", "")
-                                 if isinstance(trace, dict) else ""),
-            "gap_boost":       round(f.get("gap_boost", 0), 3),
+            "rank":             rank,
+            "field_id":         f.get("field_id", ""),
+            "field_label":      f.get("field_label", ""),
+            "domain":           f.get("domain", ""),
+            "engine_score":     round(f.get("final_score", 0), 1),
+            "top_planets":      [{"planet": p, "weight": round(w, 2)} for p, w in top3],
+            "verified_factors": (trace.get("verified_factors", "") if isinstance(trace, dict) else ""),
+            "gap_boost":        round(f.get("gap_boost", 0), 3),
         }
-    step2_user_prompt = (
+
+    expl_user_prompt = (
         f"Chart Context:\n{chart_summary_text}\n\n"
-        f"Selected Fields to Write For (with engine scores and key drivers):\n"
-        + json.dumps([
-            _enrich_for_step2(f, i+1)
-            for i, f in enumerate(chosen_field_details)
-        ], indent=2)
+        f"Selected Fields to Write For (deterministic ranking by engine score):\n"
+        + json.dumps(
+            [_enrich_for_explanation(f, i + 1) for i, f in enumerate(top20)],
+            indent=2,
+        )
     )
 
-    step2_messages = [
+    expl_messages = [
         {"role": "system", "content": _GENERATOR_SYSTEM_PROMPT},
-        {"role": "user", "content": step2_user_prompt}
+        {"role": "user",   "content": expl_user_prompt},
     ]
 
-    def validate_step2(data: Dict):
+    top20_ids = [f.get("field_id") for f in top20]
+
+    def validate_explanations(data: Dict) -> None:
         fields = data.get("selected_fields", [])
-        if len(fields) != 20:
-            raise ValueError(f"Expected 20 explanations, got {len(fields)}.")
+        if len(fields) != n_explain:
+            raise ValueError(f"Expected {n_explain} explanations, got {len(fields)}.")
         returned_ids = {f["field_id"] for f in fields}
-        missing_ids = set(chosen_ids) - returned_ids
-        if missing_ids:
-            raise ValueError(f"You missed explanations for these specific fields: {', '.join(missing_ids)}")
+        missing = set(top20_ids) - returned_ids
+        if missing:
+            raise ValueError(f"Missing explanations for: {', '.join(sorted(missing))}")
 
-    logger.info("Starting Step 2: LLM Generation...")
-    step2_result = _run_llm_with_retry(client, step2_messages, _STEP2_RESPONSE_SCHEMA, validate_step2, max_retries)
+    logger.info("Starting LLM explanation generation for deterministic top-%d...", n_explain)
+    expl_result = _run_llm_with_retry(
+        client, expl_messages, _STEP2_RESPONSE_SCHEMA, validate_explanations, max_retries
+    )
 
-    if not step2_result:
-        logger.error("Step 2 Failed. Falling back to deterministic scoring.")
+    if not expl_result:
+        logger.error("LLM explanation generation failed — returning deterministic results.")
         return None
 
-    # ---------------------------------------------------------
-    # STEP 3: MERGE & RETURN
-    # ---------------------------------------------------------
-    # Re-attach the original deterministic payload data (scores, domains) to the LLM generated text
-    final_results = []
-    generated_dict = {f["field_id"]: f for f in step2_result["selected_fields"]}
-    
-    # We loop over chosen_ids to preserve the exact ranking/order decided in Step 1
-    for f_id in chosen_ids:
-        original_data = next((item for item in top_35_fields if item["field_id"] == f_id), {})
-        llm_data = generated_dict.get(f_id, {})
-        
-        merged_field = {**original_data, **llm_data}
-        merged_field["llm_selection_rationale"] = analytical_breakdown
-        merged_field["selection_rationale"] = analytical_breakdown
-        final_results.append(merged_field)
+    # ── Merge explanations into deterministic results (preserve engine order) ──
+    generated_dict = {f["field_id"]: f for f in expl_result["selected_fields"]}
+    final_results: List[Dict] = []
+    for rank, f in enumerate(top20, 1):
+        fid      = f.get("field_id", "")
+        llm_data = generated_dict.get(fid, {})
+        merged   = {**f, **llm_data}
+        # llm_rank mirrors deterministic rank (no reranking)
+        merged["llm_rank"]  = rank
+        merged["llm_score"] = round((1 - (rank - 1) / n_explain) * 100)
+        final_results.append(merged)
 
-    logger.info("Two-Step LLM Pipeline successfully completed.")
+    logger.info("LLM explanation generation complete for %d fields.", len(final_results))
     return final_results
 
 # ── Domain hint lists for field-promotion logic in _llm_fallback_from_top35 ──
@@ -975,6 +960,11 @@ def _llm_fallback_from_top35(top_35_fields: List[Dict] = None) -> List[Dict]:
             swap_idx = extractive_idxs.pop()
             selected[swap_idx] = med
 
+    selected.sort(
+        key=lambda r: r.get("final_score", r.get("deterministic_score", r.get("python_score", 0.0))),
+        reverse=True,
+    )
+
     out = []
     for row in selected:
         fid   = row.get("field_id", "")
@@ -983,6 +973,7 @@ def _llm_fallback_from_top35(top_35_fields: List[Dict] = None) -> List[Dict]:
         if _valid_doms and dom not in _valid_doms:
             dom = "interdisciplinary"
         out.append({
+            **row,                     # carry ALL original fields (knrao_score, kp_score, etc.)
             "field_id":                fid,
             "field_label":             label,
             "domain":                  dom,
@@ -1011,11 +1002,162 @@ def _llm_fallback_fields() -> List[Dict]:
         {"field_id":"civil_engineering",             "field_label":"Civil Engineering",                     "domain":"engineering", "planet_affinity":{"Saturn":0.40,"Mars":0.35,"Sun":0.15,"Mercury":0.10}},
         {"field_id":"psychology",                    "field_label":"Psychology",                            "domain":"humanities",  "planet_affinity":{"Moon":0.40,"Mercury":0.30,"Jupiter":0.20,"Ketu":0.10}},
         {"field_id":"education_teaching",            "field_label":"Education & Teaching",                  "domain":"education",   "planet_affinity":{"Jupiter":0.40,"Mercury":0.30,"Moon":0.20,"Sun":0.10}},
-        {"field_id":"finance_banking",               "field_label":"Finance & Banking",                     "domain":"commerce",    "planet_affinity":{"Mercury":0.35,"Saturn":0.30,"Jupiter":0.25,"Sun":0.10}},
-        {"field_id":"research_academia",             "field_label":"Research & Academia",                   "domain":"research",        "planet_affinity":{"Mercury":0.35,"Ketu":0.30,"Jupiter":0.25,"Saturn":0.10}},
-        {"field_id":"architecture",                  "field_label":"Architecture",                          "domain":"design",          "planet_affinity":{"Saturn":0.30,"Venus":0.30,"Mars":0.25,"Mercury":0.15}},
-        {"field_id":"political_science_governance",  "field_label":"Political Science & Governance",        "domain":"public",          "planet_affinity":{"Sun":0.35,"Jupiter":0.30,"Mercury":0.25,"Saturn":0.10}},
-        {"field_id":"fine_arts_creative_design",     "field_label":"Fine Arts & Creative Design",           "domain":"arts",            "planet_affinity":{"Venus":0.45,"Moon":0.30,"Mercury":0.15,"Sun":0.10}},
-        {"field_id":"biotechnology",                 "field_label":"Biotechnology",                         "domain":"science",         "planet_affinity":{"Moon":0.30,"Mercury":0.25,"Ketu":0.25,"Mars":0.20}},
-
+        {"field_id":"finance_banking",               "field_label":"Finance & Banking",                     "domain":"commerce",    "planet_affinity":{"Mercury":0.35,"Saturn":0.30,"Jupiter":0.25,"Venus":0.10}},
+        {"field_id":"mechanical_engineering",        "field_label":"Mechanical Engineering",                "domain":"engineering", "planet_affinity":{"Mars":0.40,"Saturn":0.35,"Sun":0.15,"Jupiter":0.10}},
+        {"field_id":"electrical_engineering",        "field_label":"Electrical Engineering",                "domain":"engineering", "planet_affinity":{"Mars":0.35,"Saturn":0.30,"Rahu":0.25,"Mercury":0.10}},
+        {"field_id":"architecture",                  "field_label":"Architecture",                          "domain":"design",      "planet_affinity":{"Saturn":0.30,"Venus":0.30,"Mars":0.25,"Mercury":0.15}},
+        {"field_id":"political_science_governance",  "field_label":"Political Science & Governance",        "domain":"public",      "planet_affinity":{"Sun":0.35,"Jupiter":0.30,"Saturn":0.25,"Mars":0.10}},
+        {"field_id":"fine_arts_creative_design",     "field_label":"Fine Arts & Creative Design",           "domain":"arts",        "planet_affinity":{"Venus":0.45,"Moon":0.30,"Mercury":0.15,"Rahu":0.10}},
+        {"field_id":"biotechnology",                 "field_label":"Biotechnology",                         "domain":"science",     "planet_affinity":{"Mercury":0.30,"Moon":0.25,"Jupiter":0.25,"Mars":0.20}},
+        {"field_id":"research_academia",             "field_label":"Research & Academia",                   "domain":"research",    "planet_affinity":{"Mercury":0.35,"Ketu":0.30,"Jupiter":0.25,"Saturn":0.10}},
     ]
+
+
+# =============================================================================
+# GENUINE VALUE-ADD #3 — Top-3 Narrative Summary
+# =============================================================================
+
+_TOP3_SUMMARY_SYSTEM_PROMPT = """\
+You are a warm, expert Jyotish career counselor writing a concise summary for a student or professional.
+You have been given the top 3 career fields recommended by a Vedic astrology engine, along with key chart signals.
+
+Write 2 paragraphs (50-70 words each) that:
+  Paragraph 1: Summarise what ties these 3 fields together — the underlying natural aptitude,
+               thinking style, or innate orientation that makes all 3 a strong fit.
+  Paragraph 2: Briefly note the single most important chart signal (AK, AmK, or dominant yoga)
+               driving these recommendations, in plain language a parent can understand.
+
+Rules:
+  - No jargon: avoid planet names, house numbers, nakshatra names, yoga names, dasha, rashi, karaka, lagna.
+  - Speak directly to the person ("Your chart shows...", "You are naturally suited...").
+  - Do NOT rank or compare the 3 fields — treat them as equally valid paths.
+  - Return ONLY JSON: {"summary": "<paragraph 1> <paragraph 2>"}
+"""
+
+
+def generate_top3_narrative(
+    top3_fields: List[Dict],
+    payload: Any,
+    eff_strengths: Dict[str, float],
+) -> str:
+    """Generate a cohesive 2-paragraph plain-English summary for the end user
+    explaining why the top-3 career recommendations fit their chart.
+
+    Returns a plain-text string (no HTML/markdown).
+    Falls back to a deterministic template if the LLM is unavailable.
+
+    Args:
+        top3_fields:   First 3 items from the deterministic results list.
+        payload:       NatalPayloadV2 instance (or duck-typed equivalent).
+        eff_strengths: Dict of effective planetary strengths from the engine.
+    """
+    if not top3_fields:
+        return ""
+
+    # ── Deterministic fallback ────────────────────────────────────────────────
+    def _fallback() -> str:
+        labels = [f.get("field_label", f.get("field_id", "")) for f in top3_fields[:3]]
+        ak  = getattr(payload, "atmakaraka",   "") or ""
+        amk = getattr(payload, "amatyakaraka", "") or ""
+        yogas = (getattr(payload, "detected_yogas", []) or
+                 getattr(payload, "yogas_present",  []) or [])
+        yoga_str = f", supported by active yogas ({', '.join(yogas[:2])})" if yogas else ""
+        return (
+            f"Based on your astrological chart, your top three recommended career paths are "
+            f"{labels[0]}, {labels[1]}, and {labels[2] if len(labels) > 2 else ''}. "
+            f"These fields share a common thread: they align with your natural aptitude for "
+            f"structured thinking, analytical problem-solving, and meaningful contribution "
+            f"in your chosen domain{yoga_str}. "
+            f"Each path offers a strong alignment with who you are at your core and the unique "
+            f"strengths your chart reveals."
+        )
+
+    # ── Init client ───────────────────────────────────────────────────────────
+    try:
+        from .engine_io import _maybe_load_dotenv
+        _maybe_load_dotenv()
+    except Exception:
+        pass
+
+    _provider_name  = os.getenv("LLM_PROVIDER", "gemini").lower()
+    _prov           = _LLM_PROVIDERS.get(_provider_name, _LLM_PROVIDERS["gemini"])
+    _env_var, _default_model, _call_fn = _prov
+    _model_override = os.getenv("LLM_MODEL", _default_model)
+    api_key         = os.getenv(_env_var)
+    if not api_key:
+        logger.debug("generate_top3_narrative: no API key — using fallback template.")
+        return _fallback()
+
+    client = _ProviderClientWrapper(_call_fn, api_key, _model_override)
+
+    # ── Build prompt ──────────────────────────────────────────────────────────
+    fields_summary = [
+        {
+            "rank":              i + 1,
+            "field_label":       f.get("field_label", ""),
+            "domain":            f.get("domain", ""),
+            "astrological_reason": f.get("astrological_reason", ""),
+        }
+        for i, f in enumerate(top3_fields[:3])
+    ]
+
+    # Compact chart signals — enough context for a plain-language bridge
+    ak  = getattr(payload, "atmakaraka",   "") or "unknown"
+    amk = getattr(payload, "amatyakaraka", "") or "unknown"
+    yogas = (getattr(payload, "detected_yogas", []) or
+             getattr(payload, "yogas_present",  []) or [])
+    digs = getattr(payload, "planet_dignities", {}) or {}
+    age  = float(getattr(payload, "current_age", 0))
+
+    # Strongest planet by effective strength
+    top_planet = max(eff_strengths, key=eff_strengths.get) if eff_strengths else ""
+
+    chart_signals = {
+        "atmakaraka":       ak,
+        "amatyakaraka":     amk,
+        "ak_dignity":       digs.get(ak, "neutral"),
+        "amk_dignity":      digs.get(amk, "neutral"),
+        "strongest_planet": top_planet,
+        "active_yogas":     yogas[:4],
+        "current_age":      age,
+    }
+
+    user_prompt = (
+        f"Top 3 recommended fields:\n{json.dumps(fields_summary, indent=2)}\n\n"
+        f"Key chart signals (internal — do NOT mention these terms in output):\n"
+        f"{json.dumps(chart_signals, indent=2)}\n\n"
+        f"Write the 2-paragraph summary. Return ONLY JSON: {{\"summary\": \"...\"}}"
+    )
+
+    messages = [
+        {"role": "system", "content": _TOP3_SUMMARY_SYSTEM_PROMPT},
+        {"role": "user",   "content": user_prompt},
+    ]
+
+    _SUMMARY_SCHEMA = {
+        "name": "top3_summary",
+        "schema": {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    }
+
+    def _validate_summary(data: Dict) -> None:
+        s = data.get("summary", "")
+        if not s or len(s.split()) < 20:
+            raise ValueError("Summary too short — expected at least 20 words.")
+
+    try:
+        result = _run_llm_with_retry(client, messages, _SUMMARY_SCHEMA, _validate_summary, max_retries=2)
+        if result:
+            summary = result.get("summary", "").strip()
+            if summary:
+                logger.info("generate_top3_narrative: summary generated (%d words).", len(summary.split()))
+                return summary
+    except Exception as exc:
+        logger.warning("generate_top3_narrative: LLM call failed -- %s", exc)
+
+    return _fallback()
