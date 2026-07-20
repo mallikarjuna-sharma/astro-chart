@@ -24,7 +24,7 @@ const NAV: NavItem[] = [
   { to: "/parashari", label: "Parashari Strength", icon: ClipboardList, group: "Systems" },
 
   { to: "/education-analysis", label: "Career Field", icon: GraduationCap, group: "Intelligence" },
-  { to: "/career-timeline", label: "Career Timeline", icon: LineChart, group: "Intelligence" },
+  { to: "/career-timeline", label: "Job Timeline", icon: LineChart, group: "Intelligence" },
 
   { to: "/ai", label: "AI Assistant", icon: Bot, group: "AI Assistance" },
   { to: "/prashna", label: "Prashna (Horary)", icon: MessageCircleQuestion, group: "AI Assistance" },

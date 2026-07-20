@@ -7,6 +7,7 @@ import type {
 } from "@/lib/pyjhora/types";
 import { EducationFieldCard } from "@/components/education/EducationFieldCard";
 import { useDisplayName } from "@/hooks/use-display-name";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Callout,
   DataTable,
@@ -469,256 +470,274 @@ export function EducationCareerReport({ data }: Props) {
 
       <ClusterBanner chartType={chartType} />
 
-      {/* 1. Final Recommendation Snapshot */}
-      <Panel>
-        <SectionTitle n={1} title="Final Recommendation Snapshot" chip="Actionable" chipTone="success" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {[
-            ["Best UG Route", top1Label, "Main education decision."],
-            ["Strong Backup", top2Label || "—", "Keep available, but secondary to the primary identity."],
-            ["Best PG Route", top3Label || "—", "Specialization direction after the core UG base."],
-            ["Career Cluster", topCluster.cluster || "—", "Dominant macro identity from engine cluster ranking."],
-          ].map(([label, value, note]) => (
-            <div key={label} className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
-              <div className="text-[0.98rem] font-semibold text-foreground leading-snug mb-1.5">{value}</div>
-              <p className="text-[11px] text-muted-foreground leading-snug">{note}</p>
+      {/* Grouped detail — keeps the wall of sections digestible */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="fields">Top fields</TabsTrigger>
+          <TabsTrigger value="routes">Routes & plan</TabsTrigger>
+          <TabsTrigger value="evidence">Evidence</TabsTrigger>
+        </TabsList>
+
+        {/* ── Overview ─────────────────────────────────────────────── */}
+        <TabsContent value="overview" className="mt-5 space-y-5">
+          <Panel>
+            <SectionTitle title="Recommendation snapshot" chip="Actionable" chipTone="success" />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {[
+                ["Best UG Route", top1Label, "Main education decision."],
+                ["Strong Backup", top2Label || "—", "Keep available, but secondary to the primary identity."],
+                ["Best PG Route", top3Label || "—", "Specialization direction after the core UG base."],
+                ["Career Cluster", topCluster.cluster || "—", "Dominant macro identity from engine cluster ranking."],
+              ].map(([label, value, note]) => (
+                <div key={label} className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
+                  <div className="text-[0.98rem] font-semibold text-foreground leading-snug mb-1.5">{value}</div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">{note}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </Panel>
+          </Panel>
 
-      {/* 2. Top Field Scores by Cluster */}
-      {macroClusters.length ? (
-        <Panel>
-          <SectionTitle n={2} title="Top Field Scores by Cluster" chip="Engine normalized scale" />
-          <ClusterScorePanels clusters={macroClusters} labelToRow={labelToRow} />
-          <p className="text-[11px] text-muted-foreground mt-3 leading-snug">
-            Each panel is one macro-cluster; fields inside a panel are ranked highest to lowest by engine-normalized
-            score.
-          </p>
-        </Panel>
-      ) : null}
-
-      {/* 3. Education Route Map */}
-      {report.education_routes?.length ? (
-        <Panel>
-          <SectionTitle n={3} title="Education Route Map" chip="UG to PG to career" chipTone="info" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {report.education_routes.map((route, i) => (
-              <article key={route.route_name ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
-                <div className="mb-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-gold">
-                    {route.route_name}
-                  </div>
-                  <h3 className="font-semibold text-foreground text-[0.98rem] leading-snug">{route.title}</h3>
-                </div>
-                <div className="space-y-1 text-[12.5px] text-muted-foreground">
-                  {route.ug_options ? <p><span className="font-semibold text-foreground/70">UG:</span> {route.ug_options}</p> : null}
-                  {route.pg_options ? <p><span className="font-semibold text-foreground/70">PG:</span> {route.pg_options}</p> : null}
-                  {route.phd_options ? <p><span className="font-semibold text-foreground/70">PhD:</span> {route.phd_options}</p> : null}
-                  {route.careers ? <p><span className="font-semibold text-foreground/70">Careers:</span> {route.careers}</p> : null}
-                  {route.best_for ? <p><span className="font-semibold text-foreground/70">Best for:</span> {route.best_for}</p> : null}
-                </div>
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {route.risk_level ? <Tag>{route.risk_level}</Tag> : null}
-                  {route.long_term_value ? <Tag>{route.long_term_value}</Tag> : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        </Panel>
-      ) : null}
-
-      {/* 4. Full Top 20 Field Matrix */}
-      <Panel>
-        <SectionTitle n={4} title="Full Top 20 Field Matrix" chip="v12 registry visible" />
-        {summary.parent_overview ? (
-          <Callout tone="success" className="mb-5">{summary.parent_overview}</Callout>
-        ) : null}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-          {topFields.map((field, i) => (
-            <EducationFieldCard key={field.field_id} rank={i + 1} field={field} />
-          ))}
-        </div>
-      </Panel>
-
-      {/* 5. Macro-Cluster Ranking */}
-      {macroClusters.length ? (
-        <Panel>
-          <SectionTitle n={5} title="Macro-Cluster Ranking" chip="Deterministic + interpretation" chipTone="success" />
-          <DataTable
-            head={
-              <>
-                <th className="py-2 pr-3">Rank</th>
-                <th className="py-2 pr-3">Macro Cluster</th>
-                <th className="py-2 pr-3">Strength</th>
-                <th className="py-2 pr-3">Member Fields</th>
-                <th className="py-2">Career Meaning</th>
-              </>
-            }
-          >
-            {macroClusters.map((c, i) => (
-              <tr key={c.cluster ?? i} className="border-b border-border/60 align-top">
-                <td className="py-2.5 pr-3 font-bold text-muted-foreground">{c.rank}</td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">{c.cluster}</td>
-                <td className="py-2.5 pr-3 font-bold text-gold">{Math.round(c.strength_pct ?? 0)}%</td>
-                <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">
-                  {(c.member_fields ?? []).slice(0, 6).join(", ")}
-                </td>
-                <td className="py-2.5 text-muted-foreground text-[12.5px]">{clusterInterp.get(c.cluster) ?? ""}</td>
-              </tr>
-            ))}
-          </DataTable>
-        </Panel>
-      ) : null}
-
-      {/* 6. Evidence From Chart Data */}
-      {report.astrological_signature?.length ? (
-        <Panel>
-          <SectionTitle n={6} title="Evidence From Chart Data" chip="Why this direction" />
-          <DataTable
-            head={
-              <>
-                <th className="py-2 pr-3">Factor</th>
-                <th className="py-2 pr-3">Observation</th>
-                <th className="py-2">Career Meaning</th>
-              </>
-            }
-          >
-            {report.astrological_signature.map((r, i) => (
-              <tr key={i} className="border-b border-border/60 align-top">
-                <td className="py-2.5 pr-3 font-semibold text-foreground">{r.factor}</td>
-                <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">{r.observation}</td>
-                <td className="py-2.5 text-muted-foreground text-[12.5px]">{r.career_meaning}</td>
-              </tr>
-            ))}
-          </DataTable>
-          {report.engine_output_comparison?.length ? (
-            <div className="mt-5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
-                Engine Output Comparison
+          {report.final_recommendation ? (
+            <Panel>
+              <SectionTitle title="Final recommendation" chip="Summary" chipTone="gold" />
+              <div className="rounded-xl bg-primary/8 border-l-4 border-gold px-5 py-4 text-[1.02rem] text-foreground leading-relaxed">
+                {report.final_recommendation}
               </div>
+            </Panel>
+          ) : null}
+
+          {report.parent_summary || report.student_summary ? (
+            <Panel>
+              <SectionTitle title="Parent & student versions" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {report.parent_summary ? (
+                  <Callout tone="success" label="Parent version">{report.parent_summary}</Callout>
+                ) : null}
+                {report.student_summary ? (
+                  <Callout tone="info" label="Student version">{report.student_summary}</Callout>
+                ) : null}
+              </div>
+            </Panel>
+          ) : null}
+        </TabsContent>
+
+        {/* ── Top fields ───────────────────────────────────────────── */}
+        <TabsContent value="fields" className="mt-5 space-y-5">
+          {macroClusters.length ? (
+            <Panel>
+              <SectionTitle title="Field scores by cluster" chip="Engine normalized scale" />
+              <ClusterScorePanels clusters={macroClusters} labelToRow={labelToRow} />
+              <p className="text-[11px] text-muted-foreground mt-3 leading-snug">
+                Each panel is one macro-cluster; fields inside a panel are ranked highest to lowest by
+                engine-normalized score.
+              </p>
+            </Panel>
+          ) : null}
+
+          <Panel>
+            <SectionTitle title="Top 20 field matrix" chip="Full detail" />
+            {summary.parent_overview ? (
+              <Callout tone="success" className="mb-5">{summary.parent_overview}</Callout>
+            ) : null}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+              {topFields.map((field, i) => (
+                <EducationFieldCard key={field.field_id} rank={i + 1} field={field} />
+              ))}
+            </div>
+          </Panel>
+
+          {macroClusters.length ? (
+            <Panel>
+              <SectionTitle title="Macro-cluster ranking" chip="Deterministic + interpretation" chipTone="success" />
               <DataTable
                 head={
                   <>
                     <th className="py-2 pr-3">Rank</th>
-                    <th className="py-2 pr-3">Engine Field</th>
-                    <th className="py-2 pr-3">Status</th>
-                    <th className="py-2">Action</th>
+                    <th className="py-2 pr-3">Macro Cluster</th>
+                    <th className="py-2 pr-3">Strength</th>
+                    <th className="py-2 pr-3">Member Fields</th>
+                    <th className="py-2">Career Meaning</th>
                   </>
                 }
               >
-                {report.engine_output_comparison.map((r, i) => (
-                  <tr key={i} className="border-b border-border/60 align-top">
-                    <td className="py-2.5 pr-3 font-bold text-muted-foreground">{r.engine_rank}</td>
-                    <td className="py-2.5 pr-3 font-semibold text-foreground">{r.engine_field}</td>
-                    <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">{r.correct_status}</td>
-                    <td className="py-2.5 text-muted-foreground text-[12.5px]">{r.action}</td>
+                {macroClusters.map((c, i) => (
+                  <tr key={c.cluster ?? i} className="border-b border-border/60 align-top">
+                    <td className="py-2.5 pr-3 font-bold text-muted-foreground">{c.rank}</td>
+                    <td className="py-2.5 pr-3 font-semibold text-foreground">{c.cluster}</td>
+                    <td className="py-2.5 pr-3 font-bold text-gold">{Math.round(c.strength_pct ?? 0)}%</td>
+                    <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">
+                      {(c.member_fields ?? []).slice(0, 6).join(", ")}
+                    </td>
+                    <td className="py-2.5 text-muted-foreground text-[12.5px]">{clusterInterp.get(c.cluster) ?? ""}</td>
                   </tr>
                 ))}
               </DataTable>
-            </div>
+            </Panel>
           ) : null}
-        </Panel>
-      ) : null}
+        </TabsContent>
 
-      {/* 7. Execution Timeline */}
-      {timelinePhases.length ? (
-        <Panel>
-          <SectionTitle n={7} title="Execution Timeline" chip="Student-friendly" chipTone="info" />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            {timelinePhases.map(([a, b, txt]) => (
-              <div key={`${a}-${b}`} className="rounded-xl border border-border bg-surface-soft/50 p-4">
-                <div className="font-bold text-gold text-sm mb-1.5">{a}–{b}</div>
-                <p className="text-[12.5px] text-muted-foreground leading-snug">{txt}</p>
+        {/* ── Routes & plan ────────────────────────────────────────── */}
+        <TabsContent value="routes" className="mt-5 space-y-5">
+          {report.education_routes?.length ? (
+            <Panel>
+              <SectionTitle title="Education route map" chip="UG to PG to career" chipTone="info" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {report.education_routes.map((route, i) => (
+                  <article key={route.route_name ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
+                    <div className="mb-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-gold">
+                        {route.route_name}
+                      </div>
+                      <h3 className="font-semibold text-foreground text-[0.98rem] leading-snug">{route.title}</h3>
+                    </div>
+                    <div className="space-y-1 text-[12.5px] text-muted-foreground">
+                      {route.ug_options ? <p><span className="font-semibold text-foreground/70">UG:</span> {route.ug_options}</p> : null}
+                      {route.pg_options ? <p><span className="font-semibold text-foreground/70">PG:</span> {route.pg_options}</p> : null}
+                      {route.phd_options ? <p><span className="font-semibold text-foreground/70">PhD:</span> {route.phd_options}</p> : null}
+                      {route.careers ? <p><span className="font-semibold text-foreground/70">Careers:</span> {route.careers}</p> : null}
+                      {route.best_for ? <p><span className="font-semibold text-foreground/70">Best for:</span> {route.best_for}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {route.risk_level ? <Tag>{route.risk_level}</Tag> : null}
+                      {route.long_term_value ? <Tag>{route.long_term_value}</Tag> : null}
+                    </div>
+                  </article>
+                ))}
               </div>
-            ))}
-          </div>
-        </Panel>
-      ) : null}
+            </Panel>
+          ) : null}
 
-      {/* 8. Parent and Student Versions */}
-      {report.parent_summary || report.student_summary ? (
-        <Panel>
-          <SectionTitle n={8} title="Parent and Student Versions" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {report.parent_summary ? (
-              <Callout tone="success" label="Parent version">{report.parent_summary}</Callout>
-            ) : null}
-            {report.student_summary ? (
-              <Callout tone="info" label="Student version">{report.student_summary}</Callout>
-            ) : null}
-          </div>
-        </Panel>
-      ) : null}
-
-      {/* 9. Engine Gap Diagnosis */}
-      {report.engine_gap_audit?.length ? (
-        <Panel>
-          <SectionTitle n={9} title="Engine Gap Diagnosis" chip="Audit" chipTone="warn" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {report.engine_gap_audit.map((g, i) => (
-              <div key={i} className="rounded-xl border border-warn/25 bg-warn/8 p-4">
-                <div className="font-semibold text-foreground text-sm mb-1">{g.gap}</div>
-                <p className="text-[12.5px] text-muted-foreground leading-snug mb-1.5">{g.effect}</p>
-                {g.fix ? (
-                  <p className="text-[12.5px] text-foreground/80 leading-snug">
-                    <strong className="text-warn">Fix:</strong> {g.fix}
-                  </p>
-                ) : null}
+          {timelinePhases.length ? (
+            <Panel>
+              <SectionTitle title="Execution timeline" chip="Student-friendly" chipTone="info" />
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {timelinePhases.map(([a, b, txt]) => (
+                  <div key={`${a}-${b}`} className="rounded-xl border border-border bg-surface-soft/50 p-4">
+                    <div className="font-bold text-gold text-sm mb-1.5">{a}–{b}</div>
+                    <p className="text-[12.5px] text-muted-foreground leading-snug">{txt}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </Panel>
-      ) : null}
+            </Panel>
+          ) : null}
 
-      {/* 10. Route Suitability Cautions */}
-      {routeCautions.length ? (
-        <Panel>
-          <SectionTitle n={10} title="Route Suitability Cautions" chip="Conditional pathways" chipTone="warn" />
-          <DataTable
-            head={
-              <>
-                <th className="py-2 pr-3">Field</th>
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2">Reason</th>
-              </>
-            }
-          >
-            {routeCautions.map((a, i) => (
-              <tr key={i} className="border-b border-border/60 align-top">
-                <td className="py-2.5 pr-3 font-semibold text-foreground">{a.field}</td>
-                <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">{a.status}</td>
-                <td className="py-2.5 text-muted-foreground text-[12.5px]">{a.reason ?? a.assessment}</td>
-              </tr>
-            ))}
-          </DataTable>
-        </Panel>
-      ) : null}
+          {!report.education_routes?.length && !timelinePhases.length ? (
+            <Panel>
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No education route map was generated for this chart.
+              </p>
+            </Panel>
+          ) : null}
+        </TabsContent>
 
-      {/* 11. Final Recommendation */}
-      {report.final_recommendation ? (
-        <Panel>
-          <SectionTitle n={11} title="Final Recommendation" chip="Summary" chipTone="gold" />
-          <div className="rounded-xl bg-primary/8 border-l-4 border-gold px-5 py-4 text-[1.02rem] text-foreground leading-relaxed">
-            {report.final_recommendation}
-          </div>
-        </Panel>
-      ) : null}
+        {/* ── Evidence ─────────────────────────────────────────────── */}
+        <TabsContent value="evidence" className="mt-5 space-y-5">
+          {report.astrological_signature?.length ? (
+            <Panel>
+              <SectionTitle title="Evidence from chart data" chip="Why this direction" />
+              <DataTable
+                head={
+                  <>
+                    <th className="py-2 pr-3">Factor</th>
+                    <th className="py-2 pr-3">Observation</th>
+                    <th className="py-2">Career Meaning</th>
+                  </>
+                }
+              >
+                {report.astrological_signature.map((r, i) => (
+                  <tr key={i} className="border-b border-border/60 align-top">
+                    <td className="py-2.5 pr-3 font-semibold text-foreground">{r.factor}</td>
+                    <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">{r.observation}</td>
+                    <td className="py-2.5 text-muted-foreground text-[12.5px]">{r.career_meaning}</td>
+                  </tr>
+                ))}
+              </DataTable>
+              {report.engine_output_comparison?.length ? (
+                <div className="mt-5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    Engine Output Comparison
+                  </div>
+                  <DataTable
+                    head={
+                      <>
+                        <th className="py-2 pr-3">Rank</th>
+                        <th className="py-2 pr-3">Engine Field</th>
+                        <th className="py-2 pr-3">Status</th>
+                        <th className="py-2">Action</th>
+                      </>
+                    }
+                  >
+                    {report.engine_output_comparison.map((r, i) => (
+                      <tr key={i} className="border-b border-border/60 align-top">
+                        <td className="py-2.5 pr-3 font-bold text-muted-foreground">{r.engine_rank}</td>
+                        <td className="py-2.5 pr-3 font-semibold text-foreground">{r.engine_field}</td>
+                        <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">{r.correct_status}</td>
+                        <td className="py-2.5 text-muted-foreground text-[12.5px]">{r.action}</td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                </div>
+              ) : null}
+            </Panel>
+          ) : null}
 
-      {/* 12. Machine-Readable JSON */}
-      <Panel>
-        <SectionTitle n={12} title="Machine-Readable JSON" chip="v12 preserved" />
-        <details className="group">
-          <summary className="cursor-pointer text-sm font-semibold text-gold select-none">
-            View compact JSON output
-          </summary>
-          <pre className="mt-3 max-h-[420px] overflow-auto rounded-xl bg-background border border-border text-foreground/80 text-[11px] leading-relaxed p-4">
-            {JSON.stringify(jsonPayload, null, 2)}
-          </pre>
-        </details>
-      </Panel>
+          {report.engine_gap_audit?.length ? (
+            <Panel>
+              <SectionTitle title="Engine gap diagnosis" chip="Audit" chipTone="warn" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {report.engine_gap_audit.map((g, i) => (
+                  <div key={i} className="rounded-xl border border-warn/25 bg-warn/8 p-4">
+                    <div className="font-semibold text-foreground text-sm mb-1">{g.gap}</div>
+                    <p className="text-[12.5px] text-muted-foreground leading-snug mb-1.5">{g.effect}</p>
+                    {g.fix ? (
+                      <p className="text-[12.5px] text-foreground/80 leading-snug">
+                        <strong className="text-warn">Fix:</strong> {g.fix}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          ) : null}
+
+          {routeCautions.length ? (
+            <Panel>
+              <SectionTitle title="Route suitability cautions" chip="Conditional pathways" chipTone="warn" />
+              <DataTable
+                head={
+                  <>
+                    <th className="py-2 pr-3">Field</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2">Reason</th>
+                  </>
+                }
+              >
+                {routeCautions.map((a, i) => (
+                  <tr key={i} className="border-b border-border/60 align-top">
+                    <td className="py-2.5 pr-3 font-semibold text-foreground">{a.field}</td>
+                    <td className="py-2.5 pr-3 text-muted-foreground text-[12.5px]">{a.status}</td>
+                    <td className="py-2.5 text-muted-foreground text-[12.5px]">{a.reason ?? a.assessment}</td>
+                  </tr>
+                ))}
+              </DataTable>
+            </Panel>
+          ) : null}
+
+          <Panel>
+            <SectionTitle title="Machine-readable JSON" chip="v12 preserved" />
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-semibold text-gold select-none">
+                View compact JSON output
+              </summary>
+              <pre className="mt-3 max-h-[420px] overflow-auto rounded-xl bg-background border border-border text-foreground/80 text-[11px] leading-relaxed p-4">
+                {JSON.stringify(jsonPayload, null, 2)}
+              </pre>
+            </details>
+          </Panel>
+        </TabsContent>
+      </Tabs>
 
       <footer className="text-center text-xs text-muted-foreground py-6 border-t border-border">
         JyotishAI Engine · {generated} · {data.engine_version} ·{" "}

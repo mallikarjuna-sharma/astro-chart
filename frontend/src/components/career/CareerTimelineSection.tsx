@@ -3,7 +3,10 @@ import { Link } from "@tanstack/react-router";
 import { Info, Loader2, RefreshCw } from "lucide-react";
 import { defaultCareerContext } from "@/components/career/CareerContextForm";
 import { pyjhora } from "@/lib/pyjhora/client";
-import { ensureConsolidatedForEngine, consolidatedHasEngineData } from "@/lib/pyjhora/ensure-consolidated";
+import {
+  ensureConsolidatedForEngine,
+  consolidatedHasEngineData,
+} from "@/lib/pyjhora/ensure-consolidated";
 import { ageFromConsolidated, patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { Button } from "@/components/ui/button";
@@ -83,12 +86,12 @@ export function CareerTimelineSection() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Info className="h-5 w-5 text-warn" />
-            Career Timeline is for adult charts
+            Job Timeline is for adult charts
           </CardTitle>
           <CardDescription>
-            This chart is currently age {currentAge!.toFixed(1)}. The JyotishAI Career
-            Timeline engine activates from age {MIN_CAREER_AGE}+ when there is a real working
-            career to plot. For students (under {MIN_CAREER_AGE}), use Career Field instead.
+            This chart is currently age {currentAge!.toFixed(1)}. The Job Timeline engine activates
+            from age {MIN_CAREER_AGE}+ when there is a real working career to plot. For students
+            (under {MIN_CAREER_AGE}), use Career Field instead.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
@@ -104,48 +107,54 @@ export function CareerTimelineSection() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle>Career Timeline</CardTitle>
-            <CardDescription>
-              Built from your profile&apos;s birth data and career context
-              {typeof currentAge === "number" ? ` (age ${currentAge.toFixed(1)})` : ""}.
-            </CardDescription>
-          </div>
-          <Button variant="outline" size="sm" disabled={loading || !session?.birthInput} onClick={() => void run()}>
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-1" />
-            )}
-            {loading ? "Building…" : "Refresh"}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {loading && !data ? (
-            <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Building career timeline (may take 20–60 seconds)…
-            </div>
-          ) : null}
+    <div className="space-y-5">
+      <div className="flex flex-row items-start justify-between gap-4 rounded-xl border border-border bg-card/60 px-4 py-3">
+        <div>
+          <div className="font-serif text-base font-semibold text-foreground">Job Timeline</div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Built from your profile&apos;s birth data and career context
+            {typeof currentAge === "number" ? ` · age ${currentAge.toFixed(1)}` : ""}.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={loading || !session?.birthInput}
+          onClick={() => void run()}
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-1" />
+          )}
+          {loading ? "Building…" : "Refresh"}
+        </Button>
+      </div>
 
-          {error ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive mb-4">
-              {error}
-            </div>
-          ) : null}
+      {loading && !data ? (
+        <Card>
+          <CardContent className="flex items-center gap-2 text-muted-foreground py-10 justify-center">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Building your job timeline (may take 20–60 seconds)…
+          </CardContent>
+        </Card>
+      ) : null}
 
-          {data ? <CareerTimelineReport data={data} /> : null}
+      {error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
-          {!loading && !data && !error ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Open a profile from the Profiles page to load chart data first.
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+      {data ? <CareerTimelineReport data={data} /> : null}
+
+      {!loading && !data && !error ? (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground text-center">
+            Open a profile from the Profiles page to load chart data first.
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
