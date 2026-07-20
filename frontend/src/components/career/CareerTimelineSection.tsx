@@ -82,7 +82,7 @@ export function CareerTimelineSection() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Info className="h-5 w-5 text-amber-600" />
+            <Info className="h-5 w-5 text-warn" />
             Career Timeline is for adult charts
           </CardTitle>
           <CardDescription>
@@ -108,7 +108,7 @@ export function CareerTimelineSection() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>Job Analysis</CardTitle>
+            <CardTitle>Career Timeline</CardTitle>
             <CardDescription>
               Built from your profile&apos;s birth data and career context
               {typeof currentAge === "number" ? ` (age ${currentAge.toFixed(1)})` : ""}.

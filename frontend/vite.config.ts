@@ -7,8 +7,13 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import netlify from "@netlify/vite-plugin-tanstack-start";
 
+// Local dev can opt out of the Netlify plugin (which resolves netlify.toml's
+// `base = "frontend"` incorrectly when run from the frontend/ cwd) via
+// VITE_DISABLE_NETLIFY=true. Production/Netlify builds leave it enabled.
+const netlifyPlugins = process.env.VITE_DISABLE_NETLIFY === "true" ? [] : [netlify()];
+
 export default defineConfig({
-  plugins: [netlify()],
+  plugins: netlifyPlugins,
   vite: {
     preview: {
       // Required when serving via `npm start` (vite preview) on Render.

@@ -6,7 +6,7 @@ import { CareerTimelineSection } from "@/components/career/CareerTimelineSection
 import { useChartSession } from "@/hooks/use-chart-session";
 
 export const Route = createFileRoute("/career-timeline")({
-  head: () => ({ meta: [{ title: "Job Analysis — JyotishAI" }] }),
+  head: () => ({ meta: [{ title: "Career Timeline — JyotishAI" }] }),
   component: CareerTimelinePage,
 });
 
@@ -30,7 +30,8 @@ function CareerTimelinePage() {
     return (
       <div>
         <PageHeader
-          title="Job Analysis"
+          eyebrow="Intelligence"
+          title="Career Timeline"
           subtitle="JyotishAI Antardasha-level career projection with foreign opportunity windows."
         />
         <EmptyState />
@@ -41,6 +42,7 @@ function CareerTimelinePage() {
   return (
     <div>
       <PageHeader
+        eyebrow="Intelligence"
         title="Career Timeline"
         subtitle="Antardasha-level career projection · trajectory · foreign windows · micro-timing."
       />

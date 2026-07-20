@@ -6,7 +6,7 @@ import { ensureConsolidatedForEngine, consolidatedHasEngineData } from "@/lib/py
 import { patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { EducationCareerReport } from "@/components/education/EducationCareerReport";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export function EducationAnalysisSection() {
@@ -88,13 +88,13 @@ export function EducationAnalysisSection() {
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-row items-start justify-between gap-4 rounded-xl border border-border bg-card/60 px-4 py-3">
         <div>
-          <CardTitle>Career &amp; Education Report</CardTitle>
-          <CardDescription>
+          <div className="font-serif text-base font-semibold text-foreground">Career Field Report</div>
+          <p className="text-xs text-muted-foreground mt-0.5">
             JyotishAI engine · deterministic scoring + Gemini field selection from consolidated chart JSON.
-          </CardDescription>
+          </p>
         </div>
         <Button
           variant="outline"
@@ -105,29 +105,32 @@ export function EducationAnalysisSection() {
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
           {loading ? "Analyzing…" : "Refresh"}
         </Button>
-      </CardHeader>
-      <CardContent>
-        {loading && !data ? (
-          <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
+      </div>
+
+      {loading && !data ? (
+        <Card>
+          <CardContent className="flex items-center gap-2 text-muted-foreground py-10 justify-center">
             <Loader2 className="h-5 w-5 animate-spin" />
             Running career engine (may take 30–60 seconds)…
-          </div>
-        ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
-        {error ? (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive mb-4">
-            {error}
-          </div>
-        ) : null}
+      {error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
-        {data ? <EducationCareerReport data={data} /> : null}
+      {data ? <EducationCareerReport data={data} /> : null}
 
-        {!loading && !data && !error ? (
-          <p className="text-sm text-muted-foreground py-4">
+      {!loading && !data && !error ? (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground text-center">
             Run analysis from consolidated chart data, or open a profile with saved charts first.
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
   );
 }

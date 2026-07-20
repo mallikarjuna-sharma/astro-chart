@@ -37,6 +37,13 @@ const FALLBACK_CATEGORIES: PrashnaCategoryMeta[] = [
   { key: "pregnancy", label: "Pregnancy", primary_house: 5, example: "Will I conceive soon?" },
 ];
 
+/** Current local date-time formatted for a <input type="datetime-local">. */
+function localNowForInput(): string {
+  const d = new Date();
+  const offsetMs = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function PrashnaPage() {
   const [categories, setCategories] = useState<PrashnaCategoryMeta[]>(FALLBACK_CATEGORIES);
   const [category, setCategory] = useState(FALLBACK_CATEGORIES[0].key);
@@ -44,9 +51,15 @@ function PrashnaPage() {
   const [place, setPlace] = useState("");
   const [lat, setLat] = useState<number | undefined>();
   const [lon, setLon] = useState<number | undefined>();
-  const [askedAt, setAskedAt] = useState(new Date().toISOString().slice(0, 16));
+  // Populated on the client (in the effect below) to reflect the user's local
+  // timezone and avoid SSR/UTC hydration mismatches.
+  const [askedAt, setAskedAt] = useState("");
   const [answer, setAnswer] = useState<PrashnaResponse | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setAskedAt(localNowForInput());
+  }, []);
 
   useEffect(() => {
     pyjhora.prashnaCategories().then((res) => {
@@ -88,7 +101,11 @@ function PrashnaPage() {
 
   return (
     <div>
-      <PageHeader title="AI Assistance" subtitle="Horary chart for the moment of your question — no birth data required." />
+      <PageHeader
+        eyebrow="AI Assistance"
+        title="Prashna · Horary"
+        subtitle="Cast a chart for the exact moment of your question — no birth data required."
+      />
       <AiAssistanceTabs />
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -126,7 +143,16 @@ function PrashnaPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Moment</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Moment (your local time)</Label>
+                    <button
+                      type="button"
+                      onClick={() => setAskedAt(localNowForInput())}
+                      className="text-[11px] font-medium text-gold hover:underline"
+                    >
+                      Now
+                    </button>
+                  </div>
                   <Input type="datetime-local" value={askedAt} onChange={(e) => setAskedAt(e.target.value)} required />
                 </div>
                 <div>
@@ -171,7 +197,7 @@ function PrashnaPage() {
                   }>{answer.verdict_label || answer.verdict}</Badge>
                   <ConfidenceBadge score={confidencePct} />
                   {answer.moon_void && (
-                    <Badge variant="outline" className="text-amber-600 border-amber-600/40">Moon void-of-course</Badge>
+                    <Badge variant="outline" className="text-warn border-warn/40">Moon void-of-course</Badge>
                   )}
                 </div>
 
@@ -188,9 +214,9 @@ function PrashnaPage() {
                 )}
 
                 {answer.internal_conflict_notes && answer.internal_conflict_notes.length > 0 && (
-                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                    <div className="text-xs uppercase text-amber-700 font-semibold mb-1">Verdict caveats</div>
-                    <ul className="text-sm list-disc pl-4 space-y-1 text-amber-900">
+                  <div className="rounded-lg border border-warn/30 bg-warn/8 px-3 py-2">
+                    <div className="text-xs uppercase text-warn font-semibold mb-1">Verdict caveats</div>
+                    <ul className="text-sm list-disc pl-4 space-y-1 text-foreground/90">
                       {answer.internal_conflict_notes.map((n) => (
                         <li key={n}>{n}</li>
                       ))}
@@ -226,11 +252,11 @@ function PrashnaPage() {
 
                 {answer.classical_rules_fired && answer.classical_rules_fired.length > 0 ? (
                   <div>
-                    <div className="text-xs uppercase text-emerald-700 font-semibold">Classical rules fired (supporting)</div>
+                    <div className="text-xs uppercase text-success font-semibold">Classical rules fired (supporting)</div>
                     <ul className="text-sm list-none pl-0 space-y-1">
                       {answer.classical_rules_fired.map((rule) => (
-                        <li key={rule} className="text-emerald-800">
-                          <span className="text-emerald-600 font-bold">+ </span>{rule}
+                        <li key={rule} className="text-foreground/90">
+                          <span className="text-success font-bold">+ </span>{rule}
                         </li>
                       ))}
                     </ul>
@@ -248,11 +274,11 @@ function PrashnaPage() {
 
                 {answer.denial_rules_fired && answer.denial_rules_fired.length > 0 && (
                   <div>
-                    <div className="text-xs uppercase text-rose-700 font-semibold">Denial rules fired (opposing)</div>
+                    <div className="text-xs uppercase text-danger font-semibold">Denial rules fired (opposing)</div>
                     <ul className="text-sm list-none pl-0 space-y-1">
                       {answer.denial_rules_fired.map((rule) => (
-                        <li key={rule} className="text-rose-800">
-                          <span className="text-rose-600 font-bold">− </span>{rule}
+                        <li key={rule} className="text-foreground/90">
+                          <span className="text-danger font-bold">− </span>{rule}
                         </li>
                       ))}
                     </ul>
@@ -264,7 +290,7 @@ function PrashnaPage() {
                     <div className="text-xs uppercase text-muted-foreground mb-1">Afflicted planets</div>
                     <div className="flex flex-wrap gap-1.5">
                       {answer.afflicted_planets.map((p) => (
-                        <Badge key={p} variant="outline" className="text-rose-600 border-rose-500/40">{p}</Badge>
+                        <Badge key={p} variant="outline" className="text-danger border-danger/40">{p}</Badge>
                       ))}
                     </div>
                   </div>
@@ -277,8 +303,8 @@ function PrashnaPage() {
                       {answer.factors.slice(0, 6).map((f, i) => {
                         const label = f.name ?? f.factor ?? "";
                         const dot =
-                          f.polarity === "affirm" ? "text-emerald-600" :
-                          f.polarity === "deny" ? "text-rose-600" :
+                          f.polarity === "affirm" ? "text-success" :
+                          f.polarity === "deny" ? "text-danger" :
                           "text-muted-foreground";
                         return (
                           <li key={`${label}-${i}`}>

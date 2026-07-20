@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Callout, ProseBlock } from "@/components/report/primitives";
 import type {
   CareerForeignOpportunity,
   CareerTimelineBlock,
@@ -68,7 +69,7 @@ function ReportHeader({ data }: { data: CareerTimelineResponse }) {
           </div>
           <div className="flex flex-wrap gap-2">
             {data.llm_enriched ? (
-              <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/30">
+              <Badge className="bg-warn/12 text-warn border-warn/25">
                 LLM-enriched narratives
               </Badge>
             ) : (
@@ -91,7 +92,7 @@ function ReportHeader({ data }: { data: CareerTimelineResponse }) {
           {s.h10_lord ? <Meta label="10H Lord" value={s.h10_lord} /> : null}
         </div>
         {warnings.length > 0 ? (
-          <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
+          <div className="mt-4 rounded-md border border-warn/25 bg-warn/8 px-3 py-2 text-xs text-warn">
             {warnings.map((w, i) => (
               <div key={i}>· {w}</div>
             ))}
@@ -124,7 +125,7 @@ function OutcomeBar({ data }: { data: CareerTimelineResponse }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {items.map(({ label, value, icon: Icon }) => (
-        <Card key={label} className="border-gold/30 bg-linear-to-br from-amber-50/80 to-transparent dark:from-amber-950/20">
+        <Card key={label} className="border-gold/30 bg-gold/5">
           <CardContent className="py-4">
             <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
               <Icon className="h-3.5 w-3.5" />
@@ -166,11 +167,13 @@ function TrajectoryChart({ points }: { points: CareerTrajectoryPoint[] }) {
         <div style={{ width: "100%", height: 280 }}>
           <ResponsiveContainer>
             <LineChart data={chartData} margin={{ top: 16, right: 24, left: 0, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e8e2d4" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} angle={-12} dy={6} height={50} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} stroke="var(--border)" interval={0} angle={-12} dy={6} height={50} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} stroke="var(--border)" />
               <Tooltip
-                contentStyle={{ borderRadius: 8, border: "1px solid #e8e2d4" }}
+                contentStyle={{ borderRadius: 10, border: "1px solid var(--border)", background: "var(--popover)", color: "var(--popover-foreground)" }}
+                labelStyle={{ color: "var(--popover-foreground)" }}
+                itemStyle={{ color: "var(--popover-foreground)" }}
                 formatter={(v: number) => [`${v}`, "Score"]}
                 labelFormatter={(label: string, p) => {
                   const evt = p && p[0] ? (p[0].payload as { event?: string }).event : "";
@@ -180,8 +183,8 @@ function TrajectoryChart({ points }: { points: CareerTrajectoryPoint[] }) {
               <Line
                 type="monotone"
                 dataKey="score"
-                stroke="#C9A84C"
-                strokeWidth={2}
+                stroke="var(--gold)"
+                strokeWidth={2.5}
                 dot={(props) => {
                   const { cx, cy, payload, index } = props as {
                     cx: number;
@@ -189,7 +192,7 @@ function TrajectoryChart({ points }: { points: CareerTrajectoryPoint[] }) {
                     payload: { color: string };
                     index: number;
                   };
-                  return <Dot key={index} cx={cx} cy={cy} r={5} fill={payload.color} stroke="#fff" strokeWidth={1.5} />;
+                  return <Dot key={index} cx={cx} cy={cy} r={5} fill={payload.color} stroke="var(--background)" strokeWidth={1.5} />;
                 }}
                 activeDot={{ r: 7 }}
               />
@@ -279,9 +282,9 @@ function BlockItem({ block, idx }: { block: CareerTimelineBlock; idx: number }) 
                 {eventLabel}
               </Badge>
               {isCurrent ? <Badge className="bg-gold text-primary-foreground text-xs">Current</Badge> : null}
-              {isPrimary ? <Badge className="bg-purple-600/20 text-purple-700 border-purple-600/30 text-xs">Primary opportunity</Badge> : null}
+              {isPrimary ? <Badge className="bg-royal/15 text-royal border-royal/30 text-xs">Primary opportunity</Badge> : null}
               {block.foreign_opportunity ? (
-                <Badge className="bg-blue-500/15 text-blue-700 border-blue-500/30 text-xs">
+                <Badge className="bg-info/12 text-info border-info/25 text-xs">
                   <Globe2 className="w-3 h-3 mr-1" />
                   Foreign
                 </Badge>
@@ -310,36 +313,21 @@ function BlockItem({ block, idx }: { block: CareerTimelineBlock; idx: number }) 
         {block.llm_plain_language_html || block.llm_astro_explanation_html ? (
           <div className="space-y-3">
             {block.llm_plain_language_html ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800 mb-1.5">
-                  In Plain Language
-                </div>
-                <div
-                  className="prose prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5"
-                  // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: block.llm_plain_language_html }}
-                />
-              </div>
+              <Callout tone="success" label="In Plain Language">
+                <ProseBlock html={block.llm_plain_language_html} />
+              </Callout>
             ) : null}
             {block.llm_astro_explanation_html ? (
-              <details className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 group">
-                <summary className="text-[11px] font-bold uppercase tracking-wide text-slate-600 cursor-pointer select-none">
+              <details className="rounded-xl border border-border bg-muted/40 p-3 group">
+                <summary className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground cursor-pointer select-none">
                   Astrological Explanation
                 </summary>
-                <div
-                  className="prose prose-sm max-w-none mt-2 [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 [&_strong]:text-slate-800"
-                  // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: block.llm_astro_explanation_html }}
-                />
+                <ProseBlock className="mt-2" html={block.llm_astro_explanation_html} />
               </details>
             ) : null}
           </div>
         ) : block.llm_ad_narrative_html ? (
-          <div
-            className="prose prose-sm max-w-none [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5"
-            // eslint-disable-next-line react/no-danger
-            dangerouslySetInnerHTML={{ __html: block.llm_ad_narrative_html }}
-          />
+          <ProseBlock html={block.llm_ad_narrative_html} />
         ) : null}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -384,11 +372,7 @@ function BlockItem({ block, idx }: { block: CareerTimelineBlock; idx: number }) 
                     ) : null}
                   </div>
                   {pd.llm_narrative_html ? (
-                    <div
-                      className="mt-1 text-xs text-muted-foreground [&_p]:m-0"
-                      // eslint-disable-next-line react/no-danger
-                      dangerouslySetInnerHTML={{ __html: pd.llm_narrative_html }}
-                    />
+                    <ProseBlock className="mt-1 text-xs text-muted-foreground" html={pd.llm_narrative_html as string} />
                   ) : pd.hint ? (
                     <p className="mt-1 text-xs text-muted-foreground">{pd.hint as string}</p>
                   ) : null}
@@ -443,7 +427,7 @@ function ForeignOpportunities({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Globe2 className="h-5 w-5 text-blue-600" />
+          <Globe2 className="h-5 w-5 text-info" />
           Foreign Opportunity Windows
         </CardTitle>
         <CardDescription>
@@ -454,8 +438,8 @@ function ForeignOpportunities({
       </CardHeader>
       <CardContent>
         <div className="flex gap-2 mb-4 text-xs">
-          <Badge className="bg-green-600/15 text-green-700 border-green-600/30">High: {meta.high}</Badge>
-          <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/30">Moderate: {meta.moderate}</Badge>
+          <Badge className="bg-success/12 text-success border-success/25">High: {meta.high}</Badge>
+          <Badge className="bg-warn/12 text-warn border-warn/25">Moderate: {meta.moderate}</Badge>
           <Badge variant="secondary">Mild: {meta.mild}</Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -471,8 +455,8 @@ function ForeignOpportunities({
 function ForeignCard({ fo }: { fo: CareerForeignOpportunity }) {
   const score = Math.round((fo.foreign_score ?? 0) * 100);
   const tone =
-    score >= 65 ? "bg-green-600/15 text-green-700 border-green-600/30" :
-    score >= 45 ? "bg-amber-500/15 text-amber-700 border-amber-500/30" :
+    score >= 65 ? "bg-success/12 text-success border-success/25" :
+    score >= 45 ? "bg-warn/12 text-warn border-warn/25" :
                   "bg-muted text-muted-foreground";
   return (
     <div className="rounded-lg border p-4 space-y-2">

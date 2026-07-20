@@ -92,26 +92,26 @@ export function institutionExamples(
 }
 
 export function stageBoxClass(stage: string, recommended: boolean): string {
-  if (stage === "UG") return "bg-emerald-50 text-emerald-900 border-emerald-300";
-  if (stage === "PG") return recommended ? "bg-blue-50 text-blue-900 border-blue-300" : "bg-slate-50 text-slate-400 border-slate-200 opacity-55";
-  return recommended ? "bg-slate-50 text-slate-600 border-slate-300" : "bg-slate-50 text-slate-400 border-slate-200 opacity-55";
+  if (stage === "UG") return "bg-success/12 text-success border-success/30";
+  if (stage === "PG") return recommended ? "bg-info/12 text-info border-info/30" : "bg-muted text-muted-foreground border-border opacity-60";
+  return recommended ? "bg-muted text-foreground border-border" : "bg-muted text-muted-foreground border-border opacity-60";
 }
 
 export function wealthBadgeClass(level: string | undefined): string {
-  if (level === "High") return "bg-emerald-50 text-emerald-800 border-emerald-300";
-  if (level === "Medium") return "bg-amber-50 text-amber-900 border-amber-300";
-  return "bg-rose-50 text-rose-900 border-rose-300";
+  if (level === "High") return "bg-success/12 text-success border-success/30";
+  if (level === "Medium") return "bg-warn/12 text-warn border-warn/30";
+  return "bg-danger/12 text-danger border-danger/30";
 }
 
 export function geoBadgeClass(label: string | undefined): string {
   const l = (label ?? "").toLowerCase();
-  if (l.includes("international") || l.includes("foreign")) return "bg-blue-50 text-blue-900 border-blue-300";
-  if (l.includes("hybrid")) return "bg-violet-50 text-violet-900 border-violet-300";
-  return "bg-emerald-50 text-emerald-900 border-emerald-300";
+  if (l.includes("international") || l.includes("foreign")) return "bg-info/12 text-info border-info/30";
+  if (l.includes("hybrid")) return "bg-royal/12 text-royal border-royal/30";
+  return "bg-success/12 text-success border-success/30";
 }
 
 export function burnoutBadgeClass(level: string | undefined): string {
-  if (level === "High") return "bg-rose-50 text-rose-900 border-rose-300";
-  if (level === "Medium") return "bg-amber-50 text-amber-900 border-amber-300";
-  return "bg-emerald-50 text-emerald-800 border-emerald-300";
+  if (level === "High") return "bg-danger/12 text-danger border-danger/30";
+  if (level === "Medium") return "bg-warn/12 text-warn border-warn/30";
+  return "bg-success/12 text-success border-success/30";
 }

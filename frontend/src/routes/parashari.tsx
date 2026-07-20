@@ -70,7 +70,7 @@ function ParashariPage() {
                     return (
                       <tr key={r.planet} className="border-t border-border">
                         <td
-                          className={`py-1.5 ${strong ? "text-green-600 font-bold" : weak ? "text-destructive font-bold" : "text-gold"}`}
+                          className={`py-1.5 ${strong ? "text-success font-bold" : weak ? "text-destructive font-bold" : "text-gold"}`}
                         >
                           {r.planet}
                         </td>

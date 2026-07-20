@@ -4,11 +4,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ------------------------------------------------------------------ */
+/* Token registration — expose CSS variables to Tailwind utilities.    */
+/* Enables bg-*, text-*, border-* for every semantic token below.      */
+/* ------------------------------------------------------------------ */
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -28,9 +34,38 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
   --color-saffron: var(--saffron);
+
+  /* Layered surfaces */
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-warm: var(--surface-warm);
+
+  /* Semantic tones — each has base color, on-color, soft bg, border */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
+  --color-warn: var(--warn);
+  --color-warn-foreground: var(--warn-foreground);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-border: var(--warn-border);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-royal: var(--royal);
+  --color-royal-foreground: var(--royal-foreground);
+  --color-royal-soft: var(--royal-soft);
+  --color-royal-border: var(--royal-border);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -39,103 +74,286 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
+  --font-serif: "Fraunces", "Marcellus", ui-serif, Georgia, "Times New Roman", serif;
 }
 
+/* ------------------------------------------------------------------ */
+/* LIGHT THEME (default :root)                                         */
+/* Warm, premium parchment with antique-gold accents.                  */
+/* ------------------------------------------------------------------ */
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.16 0.03 280);
-  --foreground: oklch(0.97 0.01 80);
-  --card: oklch(0.21 0.035 280);
-  --card-foreground: oklch(0.97 0.01 80);
-  --popover: oklch(0.21 0.035 280);
-  --popover-foreground: oklch(0.97 0.01 80);
-  --primary: oklch(0.82 0.16 80);
-  --primary-foreground: oklch(0.18 0.04 280);
-  --secondary: oklch(0.28 0.05 280);
-  --secondary-foreground: oklch(0.97 0.01 80);
-  --muted: oklch(0.26 0.04 280);
-  --muted-foreground: oklch(0.72 0.03 80);
-  --accent: oklch(0.55 0.18 30);
-  --accent-foreground: oklch(0.98 0.01 80);
-  --destructive: oklch(0.6 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.32 0.04 280);
-  --input: oklch(0.28 0.04 280);
-  --ring: oklch(0.82 0.16 80);
-  --gold: oklch(0.82 0.16 80);
-  --gold-foreground: oklch(0.18 0.04 280);
-  --saffron: oklch(0.7 0.18 50);
-  --chart-1: oklch(0.82 0.16 80);
-  --chart-2: oklch(0.7 0.18 50);
-  --chart-3: oklch(0.65 0.18 320);
-  --chart-4: oklch(0.7 0.15 180);
-  --chart-5: oklch(0.6 0.2 25);
-  --sidebar: oklch(0.13 0.03 280);
-  --sidebar-foreground: oklch(0.92 0.02 80);
-  --sidebar-primary: oklch(0.82 0.16 80);
-  --sidebar-primary-foreground: oklch(0.18 0.04 280);
-  --sidebar-accent: oklch(0.24 0.04 280);
-  --sidebar-accent-foreground: oklch(0.97 0.01 80);
-  --sidebar-border: oklch(0.28 0.04 280);
-  --sidebar-ring: oklch(0.82 0.16 80);
+  --radius: 0.85rem;
+
+  /* Clean professional white base with jade + antique-gold accents (light) */
+  --background: oklch(0.99 0.004 160);
+  --foreground: oklch(0.2 0.028 168);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.028 168);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.028 168);
+
+  --primary: oklch(0.5 0.11 82);
+  --primary-foreground: oklch(0.99 0.012 92);
+  --secondary: oklch(0.965 0.008 165);
+  --secondary-foreground: oklch(0.27 0.028 168);
+  --muted: oklch(0.965 0.007 165);
+  --muted-foreground: oklch(0.45 0.02 168);
+  --accent: oklch(0.48 0.13 162);
+  --accent-foreground: oklch(0.99 0.012 150);
+  --destructive: oklch(0.55 0.21 26);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.905 0.01 165);
+  --input: oklch(0.905 0.01 165);
+  --ring: oklch(0.5 0.11 82);
+
+  --gold: oklch(0.52 0.11 82);
+  --gold-foreground: oklch(0.99 0.012 92);
+  --saffron: oklch(0.58 0.15 55);
+
+  --surface: oklch(1 0 0);
+  --surface-soft: oklch(0.972 0.007 165);
+  --surface-warm: oklch(0.975 0.022 92);
+
+  --success: oklch(0.5 0.14 152);
+  --success-foreground: oklch(0.99 0.01 152);
+  --success-soft: oklch(0.95 0.05 152);
+  --success-border: oklch(0.82 0.09 152);
+  --info: oklch(0.52 0.12 210);
+  --info-foreground: oklch(0.99 0.01 210);
+  --info-soft: oklch(0.95 0.035 210);
+  --info-border: oklch(0.83 0.07 210);
+  --warn: oklch(0.56 0.14 68);
+  --warn-foreground: oklch(0.99 0.01 68);
+  --warn-soft: oklch(0.95 0.05 80);
+  --warn-border: oklch(0.84 0.1 80);
+  --danger: oklch(0.55 0.2 22);
+  --danger-foreground: oklch(0.99 0.01 22);
+  --danger-soft: oklch(0.95 0.04 22);
+  --danger-border: oklch(0.85 0.09 22);
+  --royal: oklch(0.5 0.18 300);
+  --royal-foreground: oklch(0.99 0.01 300);
+  --royal-soft: oklch(0.95 0.04 300);
+  --royal-border: oklch(0.83 0.08 300);
+
+  --chart-1: oklch(0.56 0.12 82);
+  --chart-2: oklch(0.5 0.13 160);
+  --chart-3: oklch(0.52 0.12 205);
+  --chart-4: oklch(0.6 0.15 55);
+  --chart-5: oklch(0.5 0.18 300);
+
+  --sidebar: oklch(0.995 0.004 160);
+  --sidebar-foreground: oklch(0.27 0.028 168);
+  --sidebar-primary: oklch(0.5 0.11 82);
+  --sidebar-primary-foreground: oklch(0.99 0.012 92);
+  --sidebar-accent: oklch(0.965 0.01 165);
+  --sidebar-accent-foreground: oklch(0.27 0.028 168);
+  --sidebar-border: oklch(0.91 0.01 165);
+  --sidebar-ring: oklch(0.5 0.11 82);
+
+  --glow-gold: color-mix(in oklab, var(--gold) 8%, transparent);
+  --glow-emerald: color-mix(in oklab, oklch(0.6 0.14 160) 7%, transparent);
+  --stars: none;
 }
 
+/* ------------------------------------------------------------------ */
+/* DARK THEME (.dark) — the primary experience                         */
+/* Deep cosmic indigo night with luminous gold.                        */
+/* ------------------------------------------------------------------ */
 .dark {
-  --background: oklch(0.13 0.03 280);
-  --foreground: oklch(0.97 0.01 80);
-  --card: oklch(0.18 0.035 280);
-  --card-foreground: oklch(0.97 0.01 80);
-  --popover: oklch(0.18 0.035 280);
-  --popover-foreground: oklch(0.97 0.01 80);
-  --primary: oklch(0.82 0.16 80);
-  --primary-foreground: oklch(0.15 0.04 280);
-  --secondary: oklch(0.25 0.05 280);
-  --secondary-foreground: oklch(0.97 0.01 80);
-  --muted: oklch(0.22 0.04 280);
-  --muted-foreground: oklch(0.72 0.03 80);
-  --accent: oklch(0.55 0.18 30);
-  --accent-foreground: oklch(0.98 0.01 80);
-  --destructive: oklch(0.6 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.28 0.04 280);
-  --input: oklch(0.24 0.04 280);
-  --ring: oklch(0.82 0.16 80);
+  /* High-contrast professional emerald night — near-black green base,
+     crisp surfaces, luminous gold + vivid emerald accents. */
+  --background: oklch(0.135 0.03 166);
+  --foreground: oklch(0.97 0.016 95);
+
+  --card: oklch(0.19 0.04 165);
+  --card-foreground: oklch(0.97 0.016 95);
+  --popover: oklch(0.18 0.04 165);
+  --popover-foreground: oklch(0.97 0.016 95);
+
+  --primary: oklch(0.86 0.15 88);
+  --primary-foreground: oklch(0.16 0.045 165);
+  --secondary: oklch(0.27 0.052 165);
+  --secondary-foreground: oklch(0.97 0.016 95);
+  --muted: oklch(0.24 0.046 165);
+  --muted-foreground: oklch(0.76 0.026 95);
+  --accent: oklch(0.78 0.18 158);
+  --accent-foreground: oklch(0.15 0.045 165);
+  --destructive: oklch(0.64 0.21 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.33 0.052 165);
+  --input: oklch(0.32 0.052 165);
+  --ring: oklch(0.86 0.15 88);
+
+  --gold: oklch(0.87 0.15 88);
+  --gold-foreground: oklch(0.16 0.045 165);
+  --saffron: oklch(0.78 0.16 64);
+
+  --surface: oklch(0.19 0.04 165);
+  --surface-soft: oklch(0.225 0.046 165);
+  --surface-warm: oklch(0.26 0.058 94);
+
+  --success: oklch(0.84 0.17 148);
+  --success-foreground: oklch(0.16 0.04 148);
+  --success-soft: oklch(0.33 0.09 150);
+  --success-border: oklch(0.47 0.12 150);
+  --info: oklch(0.79 0.12 218);
+  --info-foreground: oklch(0.16 0.03 218);
+  --info-soft: oklch(0.32 0.07 216);
+  --info-border: oklch(0.47 0.09 216);
+  --warn: oklch(0.86 0.15 84);
+  --warn-foreground: oklch(0.18 0.04 64);
+  --warn-soft: oklch(0.36 0.08 74);
+  --warn-border: oklch(0.51 0.11 76);
+  --danger: oklch(0.74 0.17 24);
+  --danger-foreground: oklch(0.16 0.03 24);
+  --danger-soft: oklch(0.34 0.1 24);
+  --danger-border: oklch(0.49 0.14 24);
+  --royal: oklch(0.77 0.15 306);
+  --royal-foreground: oklch(0.16 0.03 306);
+  --royal-soft: oklch(0.34 0.08 306);
+  --royal-border: oklch(0.49 0.11 306);
+
+  --chart-1: oklch(0.86 0.15 88);
+  --chart-2: oklch(0.76 0.16 160);
+  --chart-3: oklch(0.74 0.13 210);
+  --chart-4: oklch(0.77 0.16 64);
+  --chart-5: oklch(0.72 0.15 306);
+
+  --sidebar: oklch(0.115 0.028 166);
+  --sidebar-foreground: oklch(0.92 0.02 95);
+  --sidebar-primary: oklch(0.87 0.15 88);
+  --sidebar-primary-foreground: oklch(0.16 0.045 165);
+  --sidebar-accent: oklch(0.22 0.046 165);
+  --sidebar-accent-foreground: oklch(0.97 0.016 95);
+  --sidebar-border: oklch(0.26 0.05 165);
+  --sidebar-ring: oklch(0.87 0.15 88);
+
+  --glow-gold: color-mix(in oklab, var(--gold) 12%, transparent);
+  --glow-emerald: color-mix(in oklab, oklch(0.72 0.16 160) 13%, transparent);
+  --stars: none;
 }
 
+/* ------------------------------------------------------------------ */
+/* Base layer                                                          */
+/* ------------------------------------------------------------------ */
 @layer base {
   * {
     border-color: var(--color-border);
   }
+
+  html {
+    color-scheme: light dark;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     background-image:
-      radial-gradient(circle at 20% 10%, color-mix(in oklab, var(--gold) 8%, transparent), transparent 50%),
-      radial-gradient(circle at 80% 90%, color-mix(in oklab, var(--saffron) 6%, transparent), transparent 50%);
+      radial-gradient(1100px circle at 12% -10%, var(--glow-gold), transparent 44%),
+      radial-gradient(1000px circle at 104% 108%, var(--glow-emerald), transparent 48%);
+    background-repeat: no-repeat, no-repeat;
     background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
+
   h1, h2, h3, h4 {
-    font-family: ui-serif, Georgia, "Times New Roman", serif;
-    letter-spacing: -0.01em;
+    font-family: var(--font-serif);
+    letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--gold) 30%, transparent);
+    color: var(--foreground);
+  }
+
+  /* Refined scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+    background-clip: content-box;
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Utilities                                                           */
+/* ------------------------------------------------------------------ */
 @layer utilities {
   .text-gold { color: var(--gold); }
   .bg-gold { background-color: var(--gold); }
   .border-gold { border-color: var(--gold); }
   .text-saffron { color: var(--saffron); }
-  .bg-card-glass {
-    background: color-mix(in oklab, var(--card) 80%, transparent);
-    backdrop-filter: blur(8px);
+
+  /* Glassmorphism surfaces */
+  .glass {
+    background: color-mix(in oklab, var(--card) 72%, transparent);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
   }
+  .glass-strong {
+    background: color-mix(in oklab, var(--card) 88%, transparent);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid color-mix(in oklab, var(--border) 90%, transparent);
+  }
+  /* Backwards-compat alias used across the app */
+  .bg-card-glass {
+    background: color-mix(in oklab, var(--card) 78%, transparent);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  }
+
+  /* Elevated panel with a gilded top edge — the core report surface */
+  .panel {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, var(--card) 100%, transparent), color-mix(in oklab, var(--surface-soft) 55%, transparent));
+    border: 1px solid color-mix(in oklab, var(--border) 92%, transparent);
+    border-radius: var(--radius-2xl);
+    box-shadow:
+      0 1px 0 0 color-mix(in oklab, var(--gold) 14%, transparent) inset,
+      0 22px 50px -32px color-mix(in oklab, black 72%, transparent);
+  }
+  .panel-hover {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .panel-hover:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in oklab, var(--gold) 40%, var(--border));
+    box-shadow:
+      0 1px 0 0 color-mix(in oklab, var(--gold) 22%, transparent) inset,
+      0 28px 56px -30px color-mix(in oklab, black 75%, transparent),
+      0 0 40px -14px color-mix(in oklab, var(--gold) 30%, transparent);
+  }
+
   .gradient-gold {
     background-image: linear-gradient(135deg, var(--gold), var(--saffron));
+  }
+  .gradient-gold-soft {
+    background-image: linear-gradient(135deg,
+      color-mix(in oklab, var(--gold) 20%, transparent),
+      color-mix(in oklab, var(--saffron) 14%, transparent));
   }
   .text-gradient-gold {
     background-image: linear-gradient(135deg, var(--gold), var(--saffron));
@@ -143,4 +361,43 @@
     background-clip: text;
     color: transparent;
   }
+  .ring-gold-glow {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--gold) 40%, transparent),
+                0 0 28px -6px color-mix(in oklab, var(--gold) 45%, transparent);
+  }
+
+  .hairline { border-color: color-mix(in oklab, var(--border) 70%, transparent); }
+
+  /* Prose blocks (used for injected LLM HTML) that respect the theme */
+  .prose-theme {
+    color: var(--foreground);
+    line-height: 1.65;
+  }
+  .prose-theme :where(p) { margin: 0.4rem 0; }
+  .prose-theme :where(ul, ol) { margin: 0.4rem 0; padding-left: 1.15rem; }
+  .prose-theme :where(li) { margin: 0.2rem 0; }
+  .prose-theme :where(strong, b) { color: var(--foreground); font-weight: 650; }
+  .prose-theme :where(em, i) { color: var(--muted-foreground); }
+  .prose-theme :where(h1, h2, h3, h4, h5) {
+    color: var(--foreground);
+    font-family: inherit;
+    font-weight: 650;
+    margin: 0.7rem 0 0.3rem;
+  }
+  .prose-theme :where(a) { color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
+  .prose-theme :where(code) {
+    background: var(--muted);
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.9em;
+  }
+}
+
+/* Entrance animations */
+@keyframes rise-fade {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@layer utilities {
+  .animate-rise { animation: rise-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 }
