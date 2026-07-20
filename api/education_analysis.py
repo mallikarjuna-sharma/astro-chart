@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from jyotish.career_field_report_v2 import build_career_field_report_from_chart
+from Job_Career.career_field_report_v2 import build_career_field_report_from_chart
 from jyotish.payload import ENGINE_VERSION, NatalPayloadV2
 
 
@@ -60,10 +60,15 @@ def _report_payload(
 ) -> dict[str, Any]:
     """JSON bundle sufficient to display the career field report (no HTML)."""
     sorted_results = sorted(results, key=lambda x: (-x["final_score"], x["field_id"]))
+    # Prefer explicit LLM ranks when present; the deterministic field-mode
+    # engine (enable_llm=False) does not stamp llm_rank/llm_group, so fall back
+    # to the top-5 by final_score.
     match_fields = [
         r for r in sorted_results
         if r.get("llm_group", "match") != "soul" and 1 <= r.get("llm_rank", 99) <= 5
     ]
+    if not match_fields:
+        match_fields = [r for r in sorted_results if r.get("llm_group") != "soul"][:5]
     soul_fields = [r for r in sorted_results if r.get("llm_group") == "soul"]
     career_field_report = {
         "narrative": narrative,

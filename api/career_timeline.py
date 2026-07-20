@@ -225,7 +225,7 @@ def _maybe_enrich_llm(payload: NatalPayloadV2) -> bool:
         return False
 
     try:
-        from jyotish.timeline import TimelineChartInput
+        from Job_Career.timeline import TimelineChartInput
         from jyotish.llm_narrative_builder import enrich_timeline_sync
 
         chart_in = TimelineChartInput.from_payload(payload)

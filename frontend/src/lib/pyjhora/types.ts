@@ -380,6 +380,10 @@ export interface CareerTimelineBlock {
   narrative_hint?: string;
   md_narrative?: string;
   md_arc_html?: string;
+  // Two segregated narrative layers (2026-07-19): plain-language (client-facing)
+  // and technical astro-explanation. `llm_ad_narrative_html` is the legacy combined blob.
+  llm_plain_language_html?: string;
+  llm_astro_explanation_html?: string;
   llm_ad_narrative_html?: string;
   jaimini_role?: string;
   workplace_dynamics?: Record<string, unknown>;
@@ -531,7 +535,11 @@ export interface PrashnaRequest {
 }
 
 export interface PrashnaFactor {
-  factor: string;
+  // New engine emits name/value/polarity; older payloads used `factor`.
+  name?: string;
+  value?: string;
+  factor?: string;
+  polarity?: "affirm" | "deny" | "neutral" | string;
   weight: string;
   detail: string;
 }
@@ -552,7 +560,11 @@ export interface PrashnaResponse {
   moment: string;
   city: string;
   verdict: "YES" | "NO" | "CONDITIONAL" | "UNCERTAIN" | string;
+  verdict_label?: string;
+  verdict_leaning?: "YES" | "NO" | string;
+  binary_answer?: "YES" | "NO" | string;
   confidence: number;
+  confidence_pct?: number;
   confidence_band: string;
   kp_sublord_planet: string;
   kp_sublord_verdict: string;
@@ -569,6 +581,14 @@ export interface PrashnaResponse {
   moon_nakshatra: string;
   factors: PrashnaFactor[];
   classical_rules: string[];
+  classical_rules_fired?: string[];
+  denial_rules_fired?: string[];
+  afflicted_planets?: string[];
+  internal_conflict_notes?: string[];
+  score_semantics?: string;
+  moon_status_caveat?: string;
+  kp_joint_verdict?: string;
+  tajika_aspect_note?: string;
   remedies: string[];
   planets: Record<string, PrashnaPlanetSnapshot>;
   house_lords: Record<string, string>;

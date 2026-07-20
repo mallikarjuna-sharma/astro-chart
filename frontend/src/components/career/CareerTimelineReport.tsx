@@ -307,7 +307,34 @@ function BlockItem({ block, idx }: { block: CareerTimelineBlock; idx: number }) 
           </p>
         ) : null}
 
-        {block.llm_ad_narrative_html ? (
+        {block.llm_plain_language_html || block.llm_astro_explanation_html ? (
+          <div className="space-y-3">
+            {block.llm_plain_language_html ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800 mb-1.5">
+                  In Plain Language
+                </div>
+                <div
+                  className="prose prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5"
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: block.llm_plain_language_html }}
+                />
+              </div>
+            ) : null}
+            {block.llm_astro_explanation_html ? (
+              <details className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 group">
+                <summary className="text-[11px] font-bold uppercase tracking-wide text-slate-600 cursor-pointer select-none">
+                  Astrological Explanation
+                </summary>
+                <div
+                  className="prose prose-sm max-w-none mt-2 [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 [&_strong]:text-slate-800"
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: block.llm_astro_explanation_html }}
+                />
+              </details>
+            ) : null}
+          </div>
+        ) : block.llm_ad_narrative_html ? (
           <div
             className="prose prose-sm max-w-none [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5"
             // eslint-disable-next-line react/no-danger

@@ -8,11 +8,12 @@ from datetime import date
 from typing import Dict, List, Tuple, Set, Any, Optional
 
 from .constants import (
-    _EXALT_SIGN, _DEBIL_SIGN, _OWN_SIGN, _DIGNITY_MOD,
+    _EXALT_SIGN, _DEBIL_SIGN, _OWN_SIGN, _DIGNITY_MOD, _RETRO_EXALTED_DAMPENED,
     _KENDRA_HOUSES, _KT_HOUSES, _COMBUST_ORB,
     _NODAL_DEFAULT_VIRUPAS, _PLANET_MIN_SHADBALA,
     _NAKSHATRA_LORD, _FAVORABLE_NAKSHATRA_BASE,
-    _NEECHA_BHANGA_DATA, _SIGN_NUM, _SIGN_LORD,_JAIMINI_RASI_DRISHTI,
+    _NEECHA_BHANGA_DATA, _SIGN_NUM, _SIGN_LORD,
+    _EXALT_DEGREE, _DEBIL_DEGREE, _MOOLATRIKONA,
 )
 
 
@@ -23,22 +24,153 @@ _SIGN_ABS: Dict[str, float] = {
     "Sagittarius": 240, "Capricorn": 270, "Aquarius": 300, "Pisces": 330,
 }
 
-def compute_dignity(planet: str, sign: str, planets_d1: Dict = None) -> str:
+def compute_dignity(planet: str, sign: str, planets_d1: Dict = None,
+                     degree: Optional[float] = None) -> str:
     """
     ASTRO-7: Sanivad Rahu, Kujavad Ketu. Nodes act as their dispositor.
+
+    `degree` (0-30, position within `sign`) is optional. When supplied it
+    enables classically correct degree-level dignity:
+      - Moolatrikona is checked as its own dignity tier (sign match alone
+        is NOT sufficient — BPHS gives an explicit degree range within the
+        MT sign; outside that range the same sign is just OWN).
+      - EXALTED/DEBILITATED sign-boundary cases (e.g. a planet at 0.1°
+        into its exaltation sign) are still returned as EXALTED/DEBILITATED
+        for backward compatibility (dignity is a sign-level classification
+        classically), but callers that want graded strength should use
+        `dignity_strength()` alongside this, which factors in exact
+        proximity to the exaltation/debilitation point.
+    When `degree` is omitted, behaviour is unchanged from the legacy
+    sign-only implementation (Moolatrikona can never be emitted).
     """
     if planet in ("Rahu", "Ketu") and planets_d1:
         # Node adopts the dignity of the lord of the sign it sits in
         dispositor = _SIGN_LORD.get(sign, "")
         if dispositor:
-            disp_sign = planets_d1.get(dispositor, {}).get("sign", "")
+            disp_data = planets_d1.get(dispositor, {})
+            disp_sign = disp_data.get("sign", "")
             if disp_sign:
-                return compute_dignity(dispositor, disp_sign) # Recursive check for dispositor dignity
+                return compute_dignity(dispositor, disp_sign, degree=disp_data.get("degree"))
+
+    if degree is not None and planet in _MOOLATRIKONA:
+        mt_sign, mt_start, mt_end = _MOOLATRIKONA[planet]
+        if sign == mt_sign and mt_start <= degree <= mt_end:
+            return "MOOLATRIKONA"
 
     if _EXALT_SIGN.get(planet) == sign: return "EXALTED"
     if _DEBIL_SIGN.get(planet)  == sign: return "DEBILITATED"
     if sign in _OWN_SIGN.get(planet, []): return "OWN"
     return ""
+
+
+def dignity_strength(planet: str, sign: str, degree: float) -> float:
+    """Graded 0.0-1.0 dignity strength based on exact proximity to the
+    exaltation/debilitation point, per classical Saptavargaja/Shadbala
+    doctrine (strength tapers linearly across the sign, peaking at the
+    exaltation degree and bottoming at the debilitation degree — these
+    are always 180 deg apart, i.e. same degree-number in opposite signs).
+
+    Returns 1.0 at exact exaltation degree, 0.0 at exact debilitation
+    degree, ~0.5 at a sign boundary/neutral point. Independent of
+    compute_dignity()'s categorical label — meant to be used alongside it
+    so e.g. Sun at 0.5 deg Aries (just past debilitation-exit) doesn't get
+    the full EXALTED multiplier that Sun at 10 deg Aries earns.
+    """
+    exalt_sign = _EXALT_SIGN.get(planet)
+    debil_sign = _DEBIL_SIGN.get(planet)
+    peak_deg = _EXALT_DEGREE.get(planet)
+    if peak_deg is None or exalt_sign is None or debil_sign is None:
+        return 0.5
+
+    if sign == exalt_sign:
+        # 1.0 at the peak degree, tapering to 0.5 at 180 deg away (sign edges)
+        dist = abs(degree - peak_deg)
+        dist = min(dist, 30.0 - dist + 30.0) if dist > 30 else dist
+        return max(0.5, 1.0 - (dist / 30.0) * 0.5)
+    if sign == debil_sign:
+        dist = abs(degree - peak_deg)
+        return min(0.5, (dist / 30.0) * 0.5)
+    return 0.5
+
+
+_SIGN_ORDER = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+               "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+
+
+def compute_d10_sign(sign: str, degree: float) -> str:
+    """Classical Dashamsha (D10) sign for a single planet/point, per Parashara
+    (BPHS Ch.6). Each sign is divided into 10 equal parts of exactly 3 deg.
+
+    Rule (Parashari, the standard used by essentially every panchanga/software):
+      - ODD sign (movable-numbered: Aries=1, Gemini=3, Leo=5, Libra=7,
+        Sagittarius=9, Aquarius=11): the 10 divisions are counted starting
+        FROM THE SAME SIGN.
+      - EVEN sign (Taurus=2, Cancer=4, Virgo=6, Scorpio=8, Capricorn=10,
+        Pisces=12): the 10 divisions are counted starting from the 9th sign
+        counted inclusively from that sign (e.g. even sign Taurus -> starts
+        counting from Capricorn, the 9th sign from Taurus inclusive).
+
+    This was previously NOT implemented anywhere in the repo — D10 was read
+    verbatim from an upstream JSON with no way to verify the odd/even
+    boundary logic. Boundary cases (degree exactly 0, exactly 3, 29.999...,
+    30) are the classic source of off-by-one segment errors and are covered
+    by jyotish/tests/test_d10_construction.py.
+    """
+    if sign not in _SIGN_NUM:
+        return ""
+    # Clamp degree into [0, 30). A degree of exactly 30.0 (should not occur in
+    # well-formed input, but defensively) belongs to segment 9 (the last).
+    deg = max(0.0, min(degree, 29.999999))
+    segment_index = int(deg // 3.0)  # 0..9
+
+    sign_num = _SIGN_NUM[sign]
+    is_odd = (sign_num % 2) == 1
+    if is_odd:
+        start_num = sign_num
+    else:
+        # 9th sign counted inclusively from `sign` == offset of +8 (0-indexed)
+        start_num = ((sign_num - 1 + 8) % 12) + 1
+
+    result_num = ((start_num - 1 + segment_index) % 12) + 1
+    return _SIGN_ORDER[result_num - 1]
+
+
+def compute_d10_chart(planets_d1: Dict, lagna_sign: str = "", lagna_degree: float = 0.0) -> Dict[str, Dict[str, str]]:
+    """Build the full D10 (Dashamsha) chart in-house from D1 longitudes.
+
+    Previously the pipeline consumed a pre-computed D10 chart from an
+    upstream JSON source with no in-repo way to verify its odd/even
+    sign-counting was correct — a critical audit gap since Dashamsha
+    carries the largest single weight (24%) of the five field-determination
+    methods. This function makes D10 construction auditable and testable.
+
+    Returns {"Lagna": {"sign": ...}, "Sun": {"sign": ...}, ...} — a
+    dict-of-dict shape. NOTE (2026-07 correction): the real upstream pyhora
+    JSON at `divisional_charts["D10_dashamsha"]` is actually FLAT
+    {"Lagna": "Virgo", "Sun": "Scorpio", ...} (plain sign strings per planet),
+    not dict-of-dict as this docstring previously claimed — verified against
+    a real chart export. The two shapes do NOT match. Callers merging this
+    function's output with the raw upstream dict (as `engine_io.py` does)
+    must normalize both to one shape before consuming per-planet values, or
+    entries will silently mix plain strings and `{"sign": ...}` dicts and
+    blow up `_SIGN_NUM.get(planet_sign)`-style lookups downstream (this is
+    exactly what happened in production — see the normalization step in
+    `parse_json_payload`). This function's own dict-of-dict return shape is
+    pinned by `tests/test_d10_construction.py` and kept as-is; fix at the
+    call site, not here.
+    Planets missing `degree` in `planets_d1` are skipped (caller should fall
+    back to the upstream value for those, if present).
+    """
+    chart: Dict[str, Dict[str, str]] = {}
+    if lagna_sign:
+        chart["Lagna"] = {"sign": compute_d10_sign(lagna_sign, lagna_degree)}
+    for planet, pdata in (planets_d1 or {}).items():
+        sign = pdata.get("sign", "")
+        degree = pdata.get("degree")
+        if not sign or degree is None:
+            continue
+        chart[planet] = {"sign": compute_d10_sign(sign, float(degree))}
+    return chart
 
 def _planet_abs_degree(sign, degree):
     return (_SIGN_NUM.get(sign, 1) - 1) * 30 + degree
@@ -77,17 +209,22 @@ def _compute_jaimini_chara_dasha_lengths(planets_d1: Dict) -> Dict[str, int]:
     lengths = {}
     for sign, num in _SIGN_NUM.items():
         lord = _SIGN_LORD.get(sign)
-        # Scorpio/Aquarius dual-lord exception (simplified for standard lord)
-        if sign == "Scorpio" and planets_d1.get("Ketu", {}).get("sign"): lord = "Mars"
-        if sign == "Aquarius" and planets_d1.get("Rahu", {}).get("sign"): lord = "Saturn"
-        
+        # Scorpio/Aquarius dual-lord exception (KN Rao rule):
+        #   Ketu is Scorpio's lord only when Ketu is physically in Scorpio; else Mars.
+        #   Rahu is Aquarius's lord only when Rahu is physically in Aquarius; else Saturn.
+        if sign == "Scorpio":
+            lord = "Ketu" if planets_d1.get("Ketu", {}).get("sign") == "Scorpio" else "Mars"
+        if sign == "Aquarius":
+            lord = "Rahu" if planets_d1.get("Rahu", {}).get("sign") == "Aquarius" else "Saturn"
+
         lord_sign = planets_d1.get(lord, {}).get("sign", "Aries")
         lord_num = _SIGN_NUM.get(lord_sign, 1)
-        
-        # K.N. Rao Direct/Indirect counting
-        if num in (1, 2, 3, 7, 8, 9):  # Forward counting
+
+        # K.N. Rao Direct/Indirect counting: odd signs (1,3,5,7,9,11) count forward;
+        # even signs (2,4,6,8,10,12) count backward. C1/C2 fix.
+        if num in (1, 3, 5, 7, 9, 11):  # Odd signs → forward (lord_num - sign_num)
             diff = (lord_num - num)
-        else:                          # Reverse counting
+        else:                            # Even signs → backward (sign_num - lord_num)
             diff = (num - lord_num)
             
         if diff < 0: diff += 12
@@ -295,6 +432,10 @@ def _detect_yogas(planets_d1: Dict, planet_house: Dict,
     # Cross-sign proximity (< 15°) is NOT sufficient — different rashis = different lords.
     if sun_sign and mer_sign and sun_sign == mer_sign:
         yogas.append("BudhaAditya")
+        # Nipuna Yoga is the same Sun-Mercury conjunction doctrine under a
+        # distinct classical name.  Preserve the alias explicitly so reports
+        # and rule traces do not claim the corpus omitted it.
+        yogas.append("Nipuna")
     
     if sat_sign and compute_dignity("Saturn", sat_sign) in ("OWN","EXALTED") and sat_h in _KENDRA_HOUSES: yogas.append("Shasha")
     if jup_sign and compute_dignity("Jupiter", jup_sign) in ("OWN","EXALTED") and jup_h in _KENDRA_HOUSES: yogas.append("Hamsa")
@@ -352,6 +493,21 @@ def _detect_yogas(planets_d1: Dict, planet_house: Dict,
             if b not in combust_set: # Must not be combust to give Amala results
                 yogas.append(f"Amala_{b}")
 
+    # Vasumati Yoga: natural benefics occupying Upachaya houses (3/6/10/11)
+    # from Lagna or Moon.  We require at least two qualifying benefics to avoid
+    # turning a single ordinary placement into a named yoga.
+    _upachaya = {3, 6, 10, 11}
+    _vasumati_planets = []
+    for b in benefics:
+        b_h = planet_house.get(b, 0)
+        if not b_h or b in combust_set:
+            continue
+        from_moon = ((b_h - moon_h) % 12) + 1 if moon_h else 0
+        if b_h in _upachaya or from_moon in _upachaya:
+            _vasumati_planets.append(b)
+    if len(_vasumati_planets) >= 2:
+        yogas.append("Vasumati_" + "_".join(sorted(_vasumati_planets)))
+
     # --- BVB Fix: Generalized Raja Yogas (Dharma-Karma Adhipati) ---
     # Conjunction of a Kendra Lord (1,4,7,10) and a Trikona Lord (1,5,9)
     if house_lords:
@@ -403,8 +559,13 @@ def _detect_planetary_war(planets_d1: Dict) -> Dict[str, str]:
                 # Context-Aware Relationship Grading: Check if conqueror is an enemy
                 is_friendly_conquest = winner in _NATURAL_FRIENDS.get(loser, [])
                 
-                result[winner] = "winner"
-                result[loser] = "loser_friendly" if is_friendly_conquest else "loser_bitter"
+                # P3: Graded war intensity — <0.5° is severe, 0.5–1° is standard
+                if diff < 0.5:
+                    result[winner] = "winner_severe"
+                    result[loser] = "loser_severe" if not is_friendly_conquest else "loser_friendly"
+                else:
+                    result[winner] = "winner"
+                    result[loser] = "loser_friendly" if is_friendly_conquest else "loser_bitter"
                 
     return result
 
@@ -467,6 +628,14 @@ def _functional_role_modifier(planet: str, house_lords: Dict[str, str], lagna_lo
         }
 
         mt_sign = _MOOLATRIKONA_SIGN.get(planet)
+        # M5 fix: log when lagna deduction fails so callers can surface the fallback.
+        if not lagna_sign:
+            import logging as _log
+            _log.debug(
+                "_functional_role_modifier: lagna deduction failed for H1=%s H2=%s "
+                "(planet=%s) — using Parashari fallback (may be over-generous).",
+                l1, l2, planet,
+            )
         if lagna_sign and mt_sign:
             lagna_idx = _SIGN_NUM.get(lagna_sign, 1)
             mt_idx = _SIGN_NUM.get(mt_sign, 1)
@@ -515,7 +684,6 @@ def _rasi_sandhi_mod(degree: float, sign: str) -> float:
     if check_deg >= 24.0: return 0.95  # Yuva tail-end
     return 1.00 # Peak Yuva
 
-from .constants import _JAIMINI_RASI_DRISHTI
 
 
 def _compute_eff_strengths(raw_shadbala: Dict, planet_dignities: Dict,
@@ -553,18 +721,26 @@ def _compute_eff_strengths(raw_shadbala: Dict, planet_dignities: Dict,
         is_retro     = planet_retrograde.get(p, False) and p not in ("Sun", "Moon", "Rahu", "Ketu")
         in_nb        = p in neecha_bhanga_set
         in_cazimi    = p in cazimi_set
-        in_combust   = p in combust_set and p not in cazimi_set and p not in ("Sun", "Rahu", "Ketu")
+        # Moon's Sun-proximity is already modelled by Paksha Bala; don't double-penalize
+        # via combustion as well. H1 fix.
+        in_combust   = p in combust_set and p not in cazimi_set and p not in ("Sun", "Moon", "Rahu", "Ketu")
         in_vargottama= p in vargottama_list
         war_status   = war_result.get(p, "")
         nak          = nakshatras.get(p, "")
         house        = planet_house.get(p, 0)
 
-        # ── Dignity modifier (with Retrograde Paradox) ──────────────────────
+        # ── Dignity modifier (Retrograde Asymmetry — SHADBALA-FIX-1) ─────────
+        # Retrograde debilitated → treated as strong (vakra neecha bhanga,
+        # well-attested classically) → full EXALTED multiplier.
+        # Retrograde exalted → only mildly dampened (classical "instability"
+        # caution), NOT swapped to debilitated strength — the old symmetric
+        # full-swap was not a broadly attested classical rule. See
+        # constants._RETRO_EXALTED_DAMPENED for citation notes.
         if is_retro:
             if actual_dig == "EXALTED":
-                dig, dig_note = _DIGNITY_MOD["DEBILITATED"], "retro paradox: exalted→0.60"
+                dig, dig_note = _RETRO_EXALTED_DAMPENED, "retro caution: exalted→1.15 (was full-swap 0.60)"
             elif actual_dig == "DEBILITATED":
-                dig, dig_note = _DIGNITY_MOD["EXALTED"],     "retro paradox: debil→1.40"
+                dig, dig_note = _DIGNITY_MOD["EXALTED"],     "retro vakra-neecha-bhanga: debil→1.40"
             else:
                 dig = _DIGNITY_MOD.get(actual_dig, 1.0)
                 dig_note = f"retro neutral: {actual_dig or 'nil'}→{dig}"
@@ -615,18 +791,33 @@ def _compute_eff_strengths(raw_shadbala: Dict, planet_dignities: Dict,
 
         # ── War modifier ─────────────────────────────────────────────────────
         # Context-aware war status evaluation
-        if war_status == "winner":
-            war_mod = 1.05
+        if war_status in ("winner_severe", "winner"):
+            war_mod = 1.10 if war_status == "winner_severe" else 1.05  # M1 fix: winner_severe gets stronger boost
         elif war_status == "loser_friendly":
             war_mod = 0.72  # Mild structural friction if defeated by a natural friend
         elif war_status == "loser_bitter":
             war_mod = 0.45  # Intense degradation of capabilities if defeated by an enemy
+        elif war_status == "loser_severe":
+            war_mod = 0.35  # Severe: very close war loss (<0.5°)
         else:
             war_mod = 1.0
 
         # ── Vargottama ───────────────────────────────────────────────────────
-        if in_vargottama and actual_dig != "DEBILITATED": var_mod = 1.2
-        elif in_vargottama and actual_dig == "DEBILITATED": var_mod = 0.85
+        # H2 fix (updated for SHADBALA-FIX-1): use effective post-retrograde
+        # dignity, not actual_dig. Retrograde debilitated is now genuinely
+        # strong (vakra neecha bhanga → EXALTED-equivalent), so it takes the
+        # strong vargottama branch. Retrograde exalted is only mildly
+        # dampened (not swapped to DEBILITATED), so it also keeps the strong
+        # branch rather than being misread as a debilitated vargottama.
+        _eff_dig_for_var = actual_dig
+        if is_retro and actual_dig == "DEBILITATED":
+            _eff_dig_for_var = "EXALTED"
+        if in_vargottama and _eff_dig_for_var != "DEBILITATED": var_mod = 1.2
+        elif in_vargottama and _eff_dig_for_var == "DEBILITATED": var_mod = 0.75
+        # A1 fix: Neecha-Vargottama (debil in both D1 and D9, same sign locked).
+        # Classical: profound early obstacles with unconventional breakthroughs
+        # only after sustained effort.  0.75 (was 0.85) better reflects the
+        # compounded debilitation — vs. a mere neutral-sign vargottama (1.2).
         else: var_mod = 1.0
 
         # ── Nakshatra modifier ───────────────────────────────────────────────
@@ -660,7 +851,7 @@ def _compute_eff_strengths(raw_shadbala: Dict, planet_dignities: Dict,
             if disp:
                 disp_dig   = planet_dignities.get(disp, "")
                 disp_comb  = disp in combust_set
-                disp_loser = war_result.get(disp, "") == "loser"
+                disp_loser = "loser" in war_result.get(disp, "")
                 if disp_dig == "DEBILITATED" or disp_comb or disp_loser:
                     dispositor_mod = 0.82  # Apply 18% damping brake to control dispositor echo
                     dispositor_note = f"Dispositor ({disp}) afflicted: structural layout weakened"
@@ -741,9 +932,16 @@ def _detect_combust_planets(
     """Detect planets within combustion orb of the Sun (classical Diptamsha).
 
     Returns (combust_list, cazimi_list).  Cazimi = within 1 degree of Sun.
-    Retrograde arg accepted for signature compatibility.
+    Retrograde Mercury and Venus use narrower limits (12° and 8°)
+    than the direct-motion limits in ``_COMBUST_ORB``.
+    All other planets use fixed orbs from _COMBUST_ORB.
     """
     from .constants import _COMBUST_ORB
+    # Retrograde-adjusted orbs for Mercury and Venus (Saravali / Hora Makaranda)
+    # Retrograde Mercury/Venus have narrower classical combustion limits.
+    _COMBUST_ORB_RETRO = {"Mercury": 12, "Venus": 8}
+    if planet_retrograde is None:
+        planet_retrograde = {}
     combust: List[str] = []
     cazimi: List[str]  = []
     sun_data = planets_d1.get("Sun", {})
@@ -755,6 +953,9 @@ def _detect_combust_planets(
         p_data = planets_d1.get(planet, {})
         if not p_data:
             continue
+        # Use narrower orb when planet is retrograde (Mercury/Venus only)
+        if planet_retrograde.get(planet, False) and planet in _COMBUST_ORB_RETRO:
+            orb = _COMBUST_ORB_RETRO[planet]
         p_abs = _planet_abs_degree(p_data.get("sign", "Aries"), p_data.get("degree", 0))
         diff  = abs(p_abs - sun_abs)
         if diff > 180: diff = 360 - diff
@@ -896,6 +1097,30 @@ def _compute_bvb_7_karakas(planets_d1: Dict) -> tuple:
     Classical rule: sort the 7 planets (excluding Rahu/Ketu) by their degree
     within the sign in descending order. Highest degree = AK, next = AmK.
     Retrograde planets use (30 - degree) for the sorting — classical exception.
+
+    METHODOLOGY DISCLOSURE (7-karaka vs 8-karaka Chara Karaka scheme):
+    This engine uses the classical Sapta (7) Chara Karaka scheme — Sun, Moon,
+    Mars, Mercury, Jupiter, Venus, Saturn only — which is the scheme taught by
+    Parashara/BV Raman and the majority of the Jaimini tradition. Rahu is
+    deliberately EXCLUDED from the karaka-degree sort.
+
+    This is a legitimate but non-universal school choice. A minority but
+    non-trivial branch of Jaimini practitioners uses the Ashtaka (8) Chara
+    Karaka scheme, which includes Rahu (using its reverse/retrograde degree)
+    as an eighth candidate. Because the karakas are assigned by strict
+    ordinal rank of degree-within-sign, adding Rahu as an 8th candidate can
+    shift which planet receives each karaka label — most consequentially,
+    it can change which planet is Atmakaraka (AK) on charts where Rahu's
+    effective degree would rank higher than the current AK's degree.
+
+    Practical implication: any downstream Jaimini analysis in this engine
+    (karakamsha, AK-based career signification, argala/virodhargala relative
+    to karaka houses, etc.) is conditioned on the 7-karaka reading. Charts
+    near this AK/Rahu-rank boundary should be flagged for cross-check against
+    the 8-karaka scheme before treating the AK-derived field recommendation
+    as final. No end-user-facing disclosure of this caveat currently exists
+    in jyotish/report_renderer.py or jyotish/web_report.py — consider
+    surfacing it there if AK-driven conclusions are presented to end users.
     """
     _KARAKA_PLANETS = ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn")
     degrees: Dict[str, float] = {}
@@ -924,56 +1149,62 @@ def _compute_bvb_7_karakas(planets_d1: Dict) -> tuple:
 def _compute_jaimini_argala(reference_house: int, planet_house: Dict[str, int]) -> List[str]:
     """Compute Argala (interference/support) planets for a reference house.
 
-    Argala houses: 2nd, 4th, 11th from reference → support.
-    Obstruction: 12th, 10th, 3rd from reference → virodha argala.
+    Argala houses: 2nd, 4th, 11th from reference -> support.
+    Obstruction: 12th, 10th, 3rd from reference -> virodha argala.
     Returns list of planets causing argala.
     """
     argala: List[str] = []
-    # Houses are stored as 1-based numbers, so the 2nd/4th/11th from the
-    # reference house map to offsets 1, 3, and 10 respectively.
-    _ARGALA_OFFSETS = {1, 3, 10}
+    _ARGALA_OFFSETS = frozenset({1, 3, 10, 4})  # 2nd, 4th, 11th, and minor-school 5th from reference (0-indexed offset)
     for planet, house in planet_house.items():
-        if not house:
-            continue
-        offset = (house - reference_house) % 12
-        if offset in _ARGALA_OFFSETS:
-            argala.append(planet)
+        if house:
+            offset = (house - reference_house) % 12
+            if offset in _ARGALA_OFFSETS:
+                argala.append(planet)
     return argala
 
 
-def _compute_varga_aspect_dignity(planet: str, varga_house_map: Dict[str, int]) -> float:
-    """Evaluate planet's dignity in a varga (divisional) chart.
+# Argala offset (0-indexed, from reference) -> Virodhargala (obstruction) offset.
+# Classical rule: argala from the 2nd is countered by planets in the 12th (offset 11),
+# argala from the 4th is countered by planets in the 10th (offset 9),
+# argala from the 11th is countered by planets in the 3rd (offset 2).
+# A minor school also obstructs the 5th-house argala from the 9th (offset 8);
+# included here since jaimini.py's docstring already names 5th-house argala as
+# part of the raw computation window used elsewhere.
+_VIRODHARGALA_MAP: Dict[int, int] = {
+    1: 11,   # 2nd house argala <- obstructed by 12th house occupants
+    3: 9,    # 4th house argala <- obstructed by 10th house occupants
+    10: 2,   # 11th house argala <- obstructed by 3rd house occupants
+    4: 8,    # 5th house argala <- obstructed by 9th house occupants (minor school)
+}
 
-    Returns a multiplier based on the planet's house position in the varga chart.
-    Kendra placement = 1.10, trikona = 1.08, dusthana = 0.85, other = 1.0.
+
+def _compute_jaimini_virodhargala(reference_house: int, planet_house: Dict[str, int]) -> List[str]:
+    """Compute Argala planets that SURVIVE Virodhargala (obstruction) cancellation.
+
+    Classical rule: argala raised from a given house is cancelled when the
+    corresponding obstruction house holds an equal or greater number of
+    planets. This function groups raw argala planets by their argala offset,
+    counts planets in the paired obstruction house, and drops any argala
+    group whose count is cancelled out.
+
+    Returns the filtered list of planets whose argala is NOT cancelled.
     """
-    house = varga_house_map.get(planet, 0)
-    if not house:
-        return 1.0
-    if house in (1, 4, 7, 10):   # kendra
-        return 1.10
-    if house in (5, 9):           # trikona (excluding 1st, already in kendra)
-        return 1.08
-    if house in (6, 8, 12):       # dusthana
-        return 0.85
-    return 1.0
+    groups: Dict[int, List[str]] = {}
+    for planet, house in planet_house.items():
+        if house:
+            offset = (house - reference_house) % 12
+            if offset in _VIRODHARGALA_MAP:
+                groups.setdefault(offset, []).append(planet)
 
-
-def _evaluate_12h_intellectual_strength(
-    planet_house: Dict[str, int],
-    eff_strengths: Dict[str, float],
-    house_lords: Dict[str, str],
-) -> float:
-    """Evaluate H12 intellectual strength for research/foreign/spiritual careers.
-
-    Returns average effective strength of planets placed in H12.
-    H12 stelliums with strong planets indicate research, abroad study, hospital careers.
-    """
-    h12_planets = [p for p, h in planet_house.items() if h == 12]
-    if not h12_planets:
-        h12_lord = house_lords.get("12", "")
-        if h12_lord:
-            return round(eff_strengths.get(h12_lord, 0.0), 4)
-        return 0.0
-    avg_str = sum(eff_strengths.get(p, 0.0) for p in h12_planets) / len(h12_planets)
-    return round(avg_str, 4)
+    surviving: List[str] = []
+    for offset, planets in groups.items():
+        obstruct_offset = _VIRODHARGALA_MAP[offset]
+        obstructors = [
+            p for p, h in planet_house.items()
+            if h and (h - reference_house) % 12 == obstruct_offset
+        ]
+        if len(obstructors) >= len(planets):
+            # Virodhargala cancels this argala group entirely.
+            continue
+        surviving.extend(planets)
+    return surviving

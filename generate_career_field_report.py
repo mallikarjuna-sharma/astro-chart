@@ -37,7 +37,7 @@ if _env_path.exists():
             if _k not in _os.environ:
                 _os.environ[_k] = _v
 
-from jyotish.career_field_report_v2 import generate_career_field_report_v2
+from Job_Career.career_field_report_v2 import generate_career_field_report_v2
 
 
 def main() -> None:

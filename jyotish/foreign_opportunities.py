@@ -242,6 +242,30 @@ body {
 .fop-geo-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
 .fop-geo-dir  { font-size: 13px; font-weight: 600; color: var(--accent2); margin-bottom: 4px; }
 .fop-geo-why  { font-size: 12px; color: var(--text2); line-height: 1.65; }
+/* Gap-review (4th round, Gap 20): structured geo pills */
+.fop-geo-direction { font-size: 13px; font-weight: 600; color: var(--accent2); }
+.fop-geo-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.fop-geo-pill {
+  display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--border); color: var(--text2);
+}
+.fop-geo-pill-secondary { opacity: .65; border-style: dashed; }
+
+/* Manifestation type breakdown (Phase 3, item #13) */
+.fop-manif-block {
+  background: rgba(255,255,255,.03); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.fop-manif-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.fop-manif-label { width: 140px; flex-shrink: 0; color: var(--text2); }
+.fop-manif-bar-wrap { flex: 1; background: rgba(255,255,255,.07); border-radius: 4px; height: 7px; overflow: hidden; }
+.fop-manif-bar-fill { height: 100%; background: linear-gradient(90deg, var(--ocean), var(--ocean2)); border-radius: 4px; }
+.fop-manif-pct { width: 36px; text-align: right; font-weight: 700; color: #fff; }
+.fop-confidence-note {
+  margin-top: 8px; font-size: 11px; color: var(--text2); line-height: 1.5;
+  padding: 8px 10px; background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25);
+  border-radius: 8px;
+}
 
 /* Scoring breakdown table */
 .fop-breakdown-table {
@@ -559,13 +583,17 @@ def _window_card(opp: Dict, idx: int) -> str:
     dur_cls  = {"SHORT_TRIP":"dur-trip","ASSIGNMENT":"dur-assign"}.get(dur_type, "dur-relocate")
     dur_lbl  = esc(opp.get("duration_label", ""))
 
-    # Confidence — derive from score to avoid mismatch (engine sometimes labels Moderate at 38%)
-    if sc >= 0.65:
-        conf = "High"
-    elif sc >= 0.45:
-        conf = "Moderate"
-    else:
-        conf = "Mild"
+    # Gap-31 (audit 2026-07) fix: single source of truth — use the engine's
+    # confidence_level (its bands are now aligned with the legend), deriving
+    # from score only as a fallback for old payloads.
+    conf = opp.get("confidence_level", "")
+    if conf not in ("High", "Moderate", "Mild"):
+        if sc >= 0.65:
+            conf = "High"
+        elif sc >= 0.45:
+            conf = "Moderate"
+        else:
+            conf = "Mild"
     conf_cls = {"High": "conf-high", "Moderate": "conf-mod", "Mild": "conf-mild"}.get(conf, "conf-mild")
 
     # Planets
@@ -578,13 +606,67 @@ def _window_card(opp: Dict, idx: int) -> str:
     story = esc(opp.get("planetary_story", ""))
 
     # Geo block
-    # geo_affinity can be a comma-separated list — show only the primary (first) region
-    _geo_raw = opp.get("geo_affinity", "") or ""
-    geo      = esc(_geo_raw.split(",")[0].strip())  # first region only
-    geo_why  = esc(opp.get("geo_why", ""))
+    # Gap-review (4th round, Gap 20): render structured geo data (direction +
+    # region pills) instead of parsing/truncating a flat comma-separated
+    # string — the old approach produced visible truncation like "Northwest
+    # / Water-adjacent regions (UK" when a UI sliced it by character count.
+    _geo_struct = opp.get("geo_affinity_structured") or {}
+    if _geo_struct.get("regions"):
+        _geo_dir = esc(_geo_struct.get("direction", ""))
+        _region_pills = "".join(f'<span class="fop-geo-pill">{esc(r)}</span>' for r in _geo_struct.get("regions", []))
+        _secondary_pills = "".join(f'<span class="fop-geo-pill fop-geo-pill-secondary">{esc(r)}</span>'
+                                     for r in _geo_struct.get("secondary_regions", []))
+        geo = (
+            f'<span class="fop-geo-direction">{_geo_dir}</span>'
+            f'<div class="fop-geo-pills">{_region_pills}{_secondary_pills}</div>'
+        )
+        geo_why = esc(_geo_struct.get("rationale", "") or opp.get("geo_why", ""))
+    else:
+        # Back-compat fallback for any opportunity dict computed before this
+        # change (or from a code path that hasn't been updated to attach
+        # geo_affinity_structured).
+        _geo_raw = opp.get("geo_affinity", "") or ""
+        geo      = esc(_geo_raw.split(",")[0].strip())
+        geo_why  = esc(opp.get("geo_why", ""))
 
     # Breakdown table
     breakdown_html = _breakdown_table(opp.get("scoring_breakdown", []))
+
+    # Phase 3 (2026-07-05, item #13): manifestation-type breakdown — a high
+    # foreign_score alone doesn't say whether this means a business trip, an
+    # onsite assignment, or emigration. These sub-scores (computed in
+    # timeline.py's _score_foreign_period) separate manifestation TYPE from
+    # overall STRENGTH.
+    _manif = opp.get("manifestation_scores") or {}
+    manifestation_html = ""
+    if _manif:
+        _manif_labels = {
+            "travel": "Short Travel", "foreign_client": "Foreign-Client Work",
+            "remote_global_delivery": "Remote Global Delivery",  # Gap-review 4th round, Gap 4
+            "onsite_assignment": "Onsite Assignment", "relocation": "Relocation",
+            "settlement": "Settlement/Emigration",
+        }
+        _rows = "".join(
+            f'<div class="fop-manif-row"><span class="fop-manif-label">{esc(_manif_labels.get(k, k))}</span>'
+            f'<div class="fop-manif-bar-wrap"><div class="fop-manif-bar-fill" '
+            f'style="width:{int(v*100)}%"></div></div>'
+            f'<span class="fop-manif-pct">{int(v*100)}%</span></div>'
+            for k, v in _manif.items()
+        )
+        manifestation_html = (
+            '<div class="fop-section-head">Manifestation Type Breakdown</div>'
+            f'<div class="fop-manif-block">{_rows}</div>'
+        )
+        # Gap-review (4th round, Gap 4): when the raw pre-cap score exceeded
+        # the confidence cap (i.e. only a single layer, like H12 activation,
+        # drove a near-100% reading without KP/D9/D10/PD corroboration), say
+        # so explicitly instead of letting the capped number pass as settled.
+        if opp.get("foreign_confidence_capped"):
+            manifestation_html += (
+                '<div class="fop-confidence-note">Note: this reading is capped at 85% because '
+                'not all corroborating layers (KP cusp alignment, D9 durability, D10 structure, '
+                'a PD trigger window) agree yet — treat as a strong signal, not a settled outcome.</div>'
+            )
 
     # Action steps
     steps = opp.get("action_steps", [])
@@ -668,6 +750,9 @@ def _window_card(opp: Dict, idx: int) -> str:
         <div class="fop-geo-why">{geo_why}</div>
       </div>
     </div>
+
+    <!-- 2b. Manifestation Type Breakdown (Phase 3, item #13) -->
+    {manifestation_html}
 
     <!-- 3. Scoring Breakdown -->
     <div class="fop-section-head">How This Score Was Calculated</div>
@@ -812,7 +897,8 @@ def generate_foreign_report(
             f"</style></head><body>"
             f"<h1 style='color:#e2e8f0'>No Foreign Opportunity Windows Found</h1>"
             f"<p>The foreign opportunity engine found no periods above the minimum threshold "
-            f"in the ± 5-year window from today. This typically means the current Vimshottari "
+            f"in the scanned window (recent career history through ~4 years ahead). "
+            f"This typically means the current Vimshottari "
             f"dasha sequence is not activating H9, H12, or the key foreign planets sufficiently. "
             f"Check again after the next Antardasha change.</p>"
             f"<p style='font-size:11px;margin-top:32px;color:#475569'>Generated {html.escape(gen_date)} · JyotishAI</p>"
@@ -827,8 +913,23 @@ def generate_foreign_report(
     mod     = sum(1 for o in foreign_opps if 0.45 <= o["foreign_score"] < 0.65)
     mild    = sum(1 for o in foreign_opps if o["foreign_score"] < 0.45)
     best    = max(foreign_opps, key=lambda o: o["foreign_score"])
-    geo_set = {o.get("geo_affinity","") for o in foreign_opps if o.get("geo_affinity")}
-    geo_summary = " / ".join(sorted(geo_set)[:3]) if geo_set else "Various"
+    # Gap fix (2026-07-05 audit): dedup was by full "Direction / Description"
+    # string, so two windows whose planets share the same directional-lord
+    # token (e.g. Sun and Mars both "South", or Moon and the pre-fix Venus
+    # both "Northwest") produced a summary strip that listed the same
+    # direction word twice ("Far East / ... / Northwest / ... / Northwest / ...").
+    # Dedup by the leading direction token instead, keeping the first full
+    # description seen for that direction.
+    def _geo_direction_token(s: str) -> str:
+        return s.split(" / ", 1)[0].strip() if s else ""
+    geo_by_direction: dict = {}
+    for o in foreign_opps:
+        ga = o.get("geo_affinity", "")
+        if not ga:
+            continue
+        tok = _geo_direction_token(ga)
+        geo_by_direction.setdefault(tok, ga)
+    geo_summary = " / ".join(sorted(geo_by_direction.values())[:3]) if geo_by_direction else "Various"
 
     # Header meta chips
     meta_html = f"""
@@ -928,3 +1029,168 @@ def generate_foreign_report_beside(
         stem = "foreign_opportunities_" + stem
     sister = main_path.parent / (stem + ".html")
     return generate_foreign_report(foreign_opps, sister, name=name, dob=dob, lagna=lagna)
+
+
+# ---------------------------------------------------------------------------
+# C-2: Global Mobility % scalar
+# ---------------------------------------------------------------------------
+
+# Gap-33 (audit 2026-07) fix: Saturn/Moon/Ketu were classed "root-binding
+# negatives" here while the timeline foreign scorer treats Saturn as a foreign
+# KARAKA and natal Moon-in-H12 as a classic diaspora indicator — the two modules
+# told users opposite stories. Doctrine unified with timeline.py: all planets in
+# foreign houses contribute (primary karakas at full weight, others at reduced
+# weight); nothing in a foreign house "mutes" it.
+_MOBILITY_POSITIVE_PLANETS  = {"Rahu", "Jupiter", "Mercury", "Venus", "Sun"}
+_MOBILITY_SECONDARY_PLANETS = {"Saturn", "Moon", "Ketu", "Mars"}   # reduced weight
+
+# House weights for mobility scoring
+_MOBILITY_HOUSE_WEIGHTS = {
+    12: 3.0,   # foreign settlement — highest weight
+    9:  2.5,   # long journeys, dharma abroad
+    3:  1.5,   # short journeys, courage to relocate
+    11: 1.0,   # gains from foreign networks
+    1:  0.5,   # self-drive
+}
+_ROOT_BINDING_HOUSES = {
+    4: -2.5,   # home, roots, mother — strong 4th reduces mobility
+    2: -1.0,   # family wealth ties
+    7: -0.5,   # partnership roots
+}
+
+
+def compute_global_mobility_pct(
+    house_lords: dict,
+    planet_house: dict,
+    eff_strengths: dict,
+    rahu_house: int = 0,
+    ketu_house: int = 0,
+    yogas_present: list = None,
+) -> dict:
+    """Compute a Global Mobility % scalar (0–100) for foreign relocation potential.
+
+    Aggregates:
+    - H9 (long journeys / dharmic travel) activation strength
+    - H12 (foreign settlement / detachment from homeland) activation strength
+    - H3 (short journeys, courage) activation strength
+    - Rahu in H9/H12 → strong foreign pull
+    - Ketu in H4 → roots loosened
+    - H4 lord strength → counter-weight (strong roots reduce mobility)
+
+    Returns
+    -------
+    dict with keys:
+        mobility_pct (int 0-100),
+        mobility_label (str),
+        positive_factors (list[str]),
+        negative_factors (list[str]),
+        insight (str)
+    """
+    if yogas_present is None:
+        yogas_present = []
+
+    positive_factors = []
+    negative_factors = []
+    raw_score = 0.0
+
+    # ── Positive: mobility houses activation ──────────────────────────────────
+    for house, wt in _MOBILITY_HOUSE_WEIGHTS.items():
+        h_lord = house_lords.get(str(house), "")
+        if not h_lord:
+            continue
+        strength = eff_strengths.get(h_lord, 1.0)
+        pts = wt * strength
+        raw_score += pts
+        if strength >= 1.1:
+            positive_factors.append(
+                f"H{house} lord {h_lord} strong (×{strength:.2f}) — mobility house activated"
+            )
+
+    # ── Planets occupying mobility houses ────────────────────────────────────
+    # Gap-33: unified doctrine — primary karakas 0.8×, secondary planets 0.5×.
+    for planet, house in planet_house.items():
+        if house in _MOBILITY_HOUSE_WEIGHTS:
+            if planet in _MOBILITY_POSITIVE_PLANETS:
+                pts = _MOBILITY_HOUSE_WEIGHTS[house] * 0.8 * eff_strengths.get(planet, 1.0)
+                raw_score += pts
+                positive_factors.append(f"{planet} in H{house} — amplifies foreign pull")
+            elif planet in _MOBILITY_SECONDARY_PLANETS:
+                pts = _MOBILITY_HOUSE_WEIGHTS[house] * 0.5 * eff_strengths.get(planet, 1.0)
+                raw_score += pts
+                positive_factors.append(
+                    f"{planet} in H{house} — sustained/karmic foreign thread (secondary karaka)"
+                )
+
+    # ── Rahu axis bonus (foreign karaka) ─────────────────────────────────────
+    if rahu_house in (9, 12, 3):
+        pts = 3.0 * eff_strengths.get("Rahu", 1.0)
+        raw_score += pts
+        positive_factors.append(f"Rahu in H{rahu_house} — strong foreign destiny axis")
+    if ketu_house == 4:
+        raw_score += 1.5
+        positive_factors.append("Ketu in H4 — natal roots loosened, detachment from homeland")
+
+    # ── Negative: root-binding houses ────────────────────────────────────────
+    for house, wt in _ROOT_BINDING_HOUSES.items():
+        h_lord = house_lords.get(str(house), "")
+        if not h_lord:
+            continue
+        strength = eff_strengths.get(h_lord, 1.0)
+        if strength >= 1.3:   # very strong H4/H2 lord → binding
+            raw_score += wt * strength
+            negative_factors.append(
+                f"H{house} lord {h_lord} strong (×{strength:.2f}) — root-binding reduces mobility"
+            )
+
+    # ── Yoga bonuses ─────────────────────────────────────────────────────────
+    yoga_lower = [y.lower() for y in yogas_present]
+    if any("pravrajya" in y for y in yoga_lower):
+        raw_score += 2.0
+        positive_factors.append("Pravrajya yoga — strong renunciation / detachment from roots")
+    if any("viparita" in y for y in yoga_lower):
+        raw_score += 1.5
+        positive_factors.append("Viparita Raja yoga — gains through foreign / foreign lands likely")
+
+    # ── Normalise to 0-100 ────────────────────────────────────────────────────
+    # Gap-37 (audit 2026-07): unused _NEUTRAL constant removed. Cap raised 20→22
+    # to absorb the secondary-planet contributions added by the Gap-33 doctrine
+    # unification (keeps typical charts in the same band as before).
+    _MAX_RAW = 22.0
+    mobility_pct = int(round(min(max((raw_score / _MAX_RAW) * 100, 0), 99)))
+
+    # ── Label ─────────────────────────────────────────────────────────────────
+    if mobility_pct >= 75:
+        label   = "High Global Mobility"
+        insight = (
+            f"Chart shows strong foreign relocation potential ({mobility_pct}%). "
+            "H9/H12 lords are well-activated and Rahu/Ketu axis supports international destiny. "
+            "Actively pursuing overseas opportunities is highly favoured."
+        )
+    elif mobility_pct >= 50:
+        label   = "Moderate Global Mobility"
+        insight = (
+            f"Moderate foreign mobility ({mobility_pct}%). "
+            "Select dashas and transits will open international windows. "
+            "Strategic timing — especially Rahu or Jupiter dasha — is key."
+        )
+    elif mobility_pct >= 30:
+        label   = "Conditional Mobility"
+        insight = (
+            f"Foreign opportunity is possible but requires active pursuit ({mobility_pct}%). "
+            "Root-binding factors (H4/H2 strength) need to be consciously released."
+        )
+    else:
+        label   = "Low Global Mobility"
+        insight = (
+            f"Chart leans strongly toward domestic growth ({mobility_pct}%). "
+            "Short-term international projects may be feasible; long-term foreign "
+            "settlement is unlikely without exceptional dasha triggers."
+        )
+
+    return {
+        "mobility_pct":       mobility_pct,
+        "mobility_label":     label,
+        "positive_factors":   positive_factors,
+        "negative_factors":   negative_factors,
+        "insight":            insight,
+    }
