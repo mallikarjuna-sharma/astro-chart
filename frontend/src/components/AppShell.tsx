@@ -293,17 +293,50 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function PageHeader({ title, subtitle, action, eyebrow }: { title: string; subtitle?: string; action?: ReactNode; eyebrow?: string }) {
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+  eyebrow,
+  compact,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  eyebrow?: string;
+  compact?: boolean;
+}) {
   return (
-    <div className="mb-7 flex items-end justify-between gap-4 flex-wrap animate-rise">
+    <div
+      className={cn(
+        "flex items-end justify-between gap-4 flex-wrap animate-rise",
+        compact ? "mb-3" : "mb-7",
+      )}
+    >
       <div>
         {eyebrow && (
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/90 mb-1.5">
             {eyebrow}
           </div>
         )}
-        <h1 className="font-serif text-3xl md:text-[2.15rem] font-semibold tracking-tight leading-tight">{title}</h1>
-        {subtitle && <p className="text-sm md:text-[0.95rem] text-muted-foreground mt-2 max-w-2xl leading-relaxed">{subtitle}</p>}
+        <h1
+          className={cn(
+            "font-serif font-semibold tracking-tight leading-tight",
+            compact ? "text-xl md:text-2xl" : "text-3xl md:text-[2.15rem]",
+          )}
+        >
+          {title}
+        </h1>
+        {subtitle && (
+          <p
+            className={cn(
+              "text-muted-foreground max-w-2xl leading-relaxed",
+              compact ? "text-xs mt-1" : "text-sm md:text-[0.95rem] mt-2",
+            )}
+          >
+            {subtitle}
+          </p>
+        )}
       </div>
       {action}
     </div>

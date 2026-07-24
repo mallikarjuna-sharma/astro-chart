@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/AppShell";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { ChartLegend, SouthIndianChart } from "@/components/charts/SouthIndianChart";
+import { SouthIndianChart } from "@/components/charts/SouthIndianChart";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { useDisplayName } from "@/hooks/use-display-name";
 import type { DivisionalChart } from "@/lib/pyjhora/types";
@@ -60,8 +60,9 @@ function ChartsPage() {
   }
 
   return (
-    <div className="max-w-none w-full overflow-x-hidden">
+    <div className="flex flex-col h-[calc(100dvh-10.5rem)] max-h-[calc(100dvh-10.5rem)] overflow-hidden">
       <PageHeader
+        compact
         title="Divisional Charts"
         subtitle={
           session.chartId
@@ -70,12 +71,11 @@ function ChartsPage() {
         }
       />
 
-      <Tabs value={activeKey} onValueChange={setActive} className="w-full">
-        {/* Mobile: dropdown picker */}
-        <div className="md:hidden mb-4">
-          <label className="text-xs text-muted-foreground mb-1.5 block">Select chart</label>
+      <Tabs value={activeKey} onValueChange={setActive} className="flex flex-col flex-1 min-h-0">
+        <div className="md:hidden shrink-0 mb-2">
+          <label className="text-[10px] text-muted-foreground mb-1 block">Select chart</label>
           <Select value={activeKey} onValueChange={setActive}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Select chart" />
             </SelectTrigger>
             <SelectContent>
@@ -88,13 +88,12 @@ function ChartsPage() {
           </Select>
         </div>
 
-        {/* Tablet+: horizontally scrollable tab pills */}
-        <TabsList className="hidden md:flex w-full h-auto flex-nowrap justify-start overflow-x-auto overflow-y-hidden gap-1 pb-1 scrollbar-thin">
+        <TabsList className="hidden md:flex shrink-0 w-full h-8 flex-nowrap justify-start overflow-x-auto gap-0.5 p-0.5">
           {allCharts.map((c) => (
             <TabsTrigger
               key={c.factor}
               value={String(c.factor)}
-              className="shrink-0 px-3 py-1.5 text-sm"
+              className="shrink-0 px-2.5 py-1 text-xs h-7"
             >
               D{c.factor}
             </TabsTrigger>
@@ -102,29 +101,31 @@ function ChartsPage() {
         </TabsList>
 
         {allCharts.map((c) => (
-          <TabsContent key={c.factor} value={String(c.factor)} className="mt-4 md:mt-6">
-            <Card className="border-border/80">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl">{c.name}</CardTitle>
-                <CardDescription>South-Indian style · factor D{c.factor}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex flex-col xl:flex-row gap-8 xl:gap-12 items-center xl:items-start">
-                  <SouthIndianChart chart={c} meta={meta} size="large" />
-                  <div className="w-full xl:flex-1 min-w-0">
-                    <h3 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+          <TabsContent
+            key={c.factor}
+            value={String(c.factor)}
+            className="flex-1 min-h-0 mt-2 data-[state=inactive]:hidden"
+          >
+            <Card className="border-border/80 h-full flex flex-col">
+              <CardContent className="flex-1 min-h-0 p-3 md:p-4 flex flex-col gap-2">
+                <div className="flex flex-col lg:flex-row gap-3 lg:gap-5 items-center lg:items-start flex-1 min-h-0">
+                  <div className="shrink-0 w-full max-w-[min(34vh,17rem)] lg:max-w-[min(38vh,18rem)] mx-auto lg:mx-0">
+                    <SouthIndianChart chart={c} meta={meta} compact />
+                  </div>
+                  <div className="w-full lg:flex-1 min-h-0 min-w-0 overflow-hidden">
+                    <h3 className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
                       Graha by rasi
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-0 text-[11px] leading-tight">
                       {(c.houses ?? []).map((h) => (
                         <div
                           key={h.rasi}
-                          className="flex gap-2 border-b border-border/40 py-1.5 min-w-0"
+                          className="flex gap-1.5 border-b border-border/30 py-0.5 min-w-0"
                         >
-                          <span className="text-muted-foreground w-24 shrink-0 truncate">
+                          <span className="text-muted-foreground w-14 shrink-0 truncate">
                             {h.rasi_name}
                           </span>
-                          <span className="text-gold font-medium break-words">
+                          <span className="text-gold font-medium truncate">
                             {h.bodies.join(", ") || "—"}
                           </span>
                         </div>
@@ -132,7 +133,9 @@ function ChartsPage() {
                     </div>
                   </div>
                 </div>
-                <ChartLegend />
+                <p className="shrink-0 text-[10px] text-muted-foreground leading-snug">
+                  Codes: La Lagna · Su Sun · Mo Moon · Ma Mars · Me Mercury · Ju Jupiter · Ve Venus · Sa Saturn · Ra Rahu · Ke Ketu
+                </p>
               </CardContent>
             </Card>
           </TabsContent>

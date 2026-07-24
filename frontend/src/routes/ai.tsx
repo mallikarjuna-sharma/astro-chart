@@ -1,12 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/AppShell";
 import { AiAssistanceTabs } from "@/components/ai/AiAssistanceTabs";
+import { ComingSoonCard } from "@/components/ComingSoonCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
+import { featureFlags } from "@/lib/feature-flags";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { Bot } from "lucide-react";
 
 export const Route = createFileRoute("/ai")({
   head: () => ({ meta: [{ title: "AI Assistant — JyotishAI" }] }),
@@ -22,6 +25,28 @@ const SAMPLES = [
 ];
 
 function AIPage() {
+  if (!featureFlags.aiAssistant) {
+    return (
+      <div>
+        <PageHeader
+          title="AI Assistance"
+          subtitle="Natural language chat and horary (Prashna) questions across all four systems."
+        />
+        <ComingSoonCard
+          icon={Bot}
+          title="AI Assistant"
+          description="Conversational guidance across KP, KN Rao, Parashari and Prashna is coming soon. Prashna (horary) remains available from the sidebar."
+          ctaHref="/prashna"
+          ctaLabel="Open Prashna"
+        />
+      </div>
+    );
+  }
+
+  return <AiAssistantFull />;
+}
+
+function AiAssistantFull() {
   const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string; score?: number }[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,7 +55,8 @@ function AIPage() {
     const prompt = (text ?? input).trim();
     if (!prompt) return;
     setMessages((m) => [...m, { role: "user", text: prompt }]);
-    setInput(""); setLoading(true);
+    setInput("");
+    setLoading(true);
     const r = await api.askAI(prompt);
     setMessages((m) => [...m, { role: "ai", text: r.answer, score: r.score }]);
     setLoading(false);
@@ -50,14 +76,14 @@ function AIPage() {
               <div key={i} className={m.role === "user" ? "text-right" : ""}>
                 <div className={`inline-block px-4 py-2 rounded-lg max-w-[80%] text-sm ${m.role === "user" ? "bg-secondary" : "bg-card border border-gold/30"}`}>
                   {m.text}
-                  {m.score && <div className="mt-2"><ConfidenceBadge score={m.score} size="sm" /></div>}
+                  {m.score ? <div className="mt-2"><ConfidenceBadge score={m.score} size="sm" /></div> : null}
                 </div>
               </div>
             ))}
             {loading && <div className="text-sm text-muted-foreground italic">Consulting all four systems…</div>}
           </CardContent>
           <div className="border-t border-border p-3 flex gap-2">
-            <Textarea value={input} onChange={(e)=>setInput(e.target.value)} placeholder="Ask anything about career, education, timing…" className="min-h-[60px]" />
+            <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything about career, education, timing…" className="min-h-[60px]" />
             <Button className="gradient-gold text-primary-foreground" onClick={() => send()} disabled={loading}>Send</Button>
           </div>
         </Card>
