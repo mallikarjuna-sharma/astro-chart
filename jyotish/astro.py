@@ -172,6 +172,33 @@ def compute_d10_chart(planets_d1: Dict, lagna_sign: str = "", lagna_degree: floa
         chart[planet] = {"sign": compute_d10_sign(sign, float(degree))}
     return chart
 
+
+def compute_d24_sign(sign: str, degree: float) -> str:
+    """Classical Chaturvimshamsha (D24) sign for a single planet/point."""
+    if sign not in _SIGN_NUM:
+        return ""
+    deg = max(0.0, min(degree, 29.999999))
+    segment_index = int(deg // 1.25)
+
+    sign_num = _SIGN_NUM[sign]
+    is_odd = (sign_num % 2) == 1
+    start_num = 5 if is_odd else 4
+
+    result_num = ((start_num - 1 + segment_index) % 12) + 1
+    return _SIGN_ORDER[result_num - 1]
+
+
+def compute_d24_chart(planets_d1: Dict) -> Dict[str, str]:
+    """Build in-house D24 planet signs from D1 longitudes for cross-checking."""
+    chart: Dict[str, str] = {}
+    for planet, pdata in (planets_d1 or {}).items():
+        sign = pdata.get("sign", "")
+        degree = pdata.get("degree")
+        if not sign or degree is None:
+            continue
+        chart[planet] = compute_d24_sign(sign, float(degree))
+    return chart
+
 def _planet_abs_degree(sign, degree):
     return (_SIGN_NUM.get(sign, 1) - 1) * 30 + degree
 

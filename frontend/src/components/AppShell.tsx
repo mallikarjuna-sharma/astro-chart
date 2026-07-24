@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { ReactNode, useEffect, useState } from "react";
+import { type ComponentType, ReactNode, useEffect, useState } from "react";
 import {
   Sparkles, Star, BookOpen, Compass, ClipboardList, GraduationCap,
   LineChart, MessageCircleQuestion, Bot, Settings,
@@ -12,7 +12,18 @@ import { useDisplayName } from "@/hooks/use-display-name";
 import { initialsFromName } from "@/stores/user-store";
 import { useAuthStore, useIsAuthenticated } from "@/stores/auth-store";
 
-interface NavItem { to: string; label: string; icon: any; group: string; }
+interface NavChild {
+  to: string;
+  label: string;
+}
+
+interface NavItem {
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  group: string;
+  to?: string;
+  children?: NavChild[];
+}
 
 const NAV: NavItem[] = [
   { to: "/", label: "Profiles", icon: User2, group: "Overview" },
@@ -23,7 +34,15 @@ const NAV: NavItem[] = [
   { to: "/kn-rao", label: "KN Rao / Jaimini", icon: BookOpen, group: "Systems" },
   { to: "/parashari", label: "Parashari Strength", icon: ClipboardList, group: "Systems" },
 
-  { to: "/education-analysis", label: "Career Field", icon: GraduationCap, group: "Intelligence" },
+  {
+    label: "Education Analysis",
+    icon: GraduationCap,
+    group: "Intelligence",
+    children: [
+      { to: "/education-analysis/puc", label: "PUC" },
+      { to: "/education-analysis/ug", label: "UG" },
+    ],
+  },
   { to: "/career-timeline", label: "Job Timeline", icon: LineChart, group: "Intelligence" },
 
   { to: "/ai", label: "AI Assistant", icon: Bot, group: "AI Assistance" },
@@ -67,6 +86,49 @@ function Brand({ onClick }: { onClick?: () => void }) {
 
 function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
+
+  const renderNavLink = (
+    to: string,
+    label: string,
+    Icon: NavItem["icon"],
+    opts?: { nested?: boolean },
+  ) => {
+    const active = pathname === to || (to !== "/" && pathname.startsWith(`${to}/`));
+  return (
+      <Link
+        to={to}
+        onClick={onNavigate}
+        className={cn(
+          "group relative flex items-center gap-3 rounded-lg text-sm transition-all",
+          opts?.nested ? "px-3 py-1.5 pl-9" : "px-3 py-2",
+          active
+            ? "bg-sidebar-accent text-foreground font-medium"
+            : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-foreground",
+        )}
+      >
+        {active && !opts?.nested ? (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full gradient-gold" />
+        ) : null}
+        {!opts?.nested ? (
+          <Icon
+            className={cn(
+              "w-[18px] h-[18px] shrink-0 transition-colors",
+              active ? "text-gold" : "text-sidebar-foreground/55 group-hover:text-gold/80",
+            )}
+          />
+        ) : (
+          <span
+            className={cn(
+              "w-1.5 h-1.5 shrink-0 rounded-full",
+              active ? "bg-gold" : "bg-sidebar-foreground/35 group-hover:bg-gold/60",
+            )}
+          />
+        )}
+        <span className="truncate">{label}</span>
+      </Link>
+    );
+  };
+
   return (
     <nav className="flex-1 overflow-y-auto py-4 px-3">
       {groups.map((g) => (
@@ -76,26 +138,42 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
           </div>
           <ul className="space-y-0.5">
             {NAV.filter((n) => n.group === g).map((item) => {
-              const active = pathname === item.to;
               const Icon = item.icon;
+              const sectionActive =
+                item.children?.some((child) => pathname === child.to || pathname.startsWith(`${child.to}/`)) ??
+                false;
+
+              if (item.children?.length) {
+                return (
+                  <li key={item.label}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 text-sm font-medium",
+                        sectionActive ? "text-foreground" : "text-sidebar-foreground/80",
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          "w-[18px] h-[18px] shrink-0",
+                          sectionActive ? "text-gold" : "text-sidebar-foreground/55",
+                        )}
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+                    <ul className="mt-0.5 mb-1 space-y-0.5">
+                      {item.children.map((child) => (
+                        <li key={child.to}>{renderNavLink(child.to, child.label, Icon, { nested: true })}</li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              }
+
+              if (!item.to) return null;
+
               return (
                 <li key={item.to}>
-                  <Link
-                    to={item.to}
-                    onClick={onNavigate}
-                    className={cn(
-                      "group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all",
-                      active
-                        ? "bg-sidebar-accent text-foreground font-medium"
-                        : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-foreground",
-                    )}
-                  >
-                    {active && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full gradient-gold" />
-                    )}
-                    <Icon className={cn("w-[18px] h-[18px] shrink-0 transition-colors", active ? "text-gold" : "text-sidebar-foreground/55 group-hover:text-gold/80")} />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
+                  {renderNavLink(item.to, item.label, Icon)}
                 </li>
               );
             })}

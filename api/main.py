@@ -33,7 +33,8 @@ from api.db import repository as chart_repository
 from api.db.dynamo import DynamoDBNotConfiguredError, dynamo_client_error
 from api.geocode import GeocodeError, geocode_location, geocode_place_id, places_autocomplete
 from api.jhora_bootstrap import init_jhora
-from api.education_analysis import EducationAnalysisError, run_education_analysis
+from api.education_analysis import EducationAnalysisError, run_education_analysis, run_ug_analysis
+from api.puc_analysis import PucAnalysisError, run_puc_analysis
 from api.education_service import (
     delete_education_analysis as delete_profile_education_analysis,
     get_or_create_education_analysis,
@@ -44,6 +45,7 @@ from api.schemas.education_analysis import (
     EducationAnalysisRequest,
     EducationAnalysisResponse,
     ProfileEducationAnalysisRequest,
+    PucAnalysisResponse,
 )
 from api.schemas.career_timeline import CareerTimelineRequest, CareerTimelineResponse
 from api.schemas.prashna import (
@@ -977,9 +979,37 @@ def kp_endpoint(body: BirthChartBody) -> dict[str, Any]:
     return _run_extended("KP", extended.compute_kp, body)
 
 
+@app.post("/api/education-analysis/ug", response_model=EducationAnalysisResponse)
+def ug_education_analysis_endpoint(body: EducationAnalysisRequest) -> EducationAnalysisResponse:
+    """UG career-field analysis — ranked vocational fields and education routes."""
+    try:
+        result = run_ug_analysis(body.user_json)
+    except EducationAnalysisError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502, detail=f"UG education analysis failed: {exc}"
+        ) from exc
+    return EducationAnalysisResponse.model_validate(result)
+
+
+@app.post("/api/education-analysis/puc", response_model=PucAnalysisResponse)
+def puc_education_analysis_endpoint(body: EducationAnalysisRequest) -> PucAnalysisResponse:
+    """PUC stream analysis — Science / Commerce / Humanities direction for school-age charts."""
+    try:
+        result = run_puc_analysis(body.user_json)
+    except PucAnalysisError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502, detail=f"PUC stream analysis failed: {exc}"
+        ) from exc
+    return PucAnalysisResponse.model_validate(result)
+
+
 @app.post("/api/education-analysis", response_model=EducationAnalysisResponse)
 def education_analysis_endpoint(body: EducationAnalysisRequest) -> EducationAnalysisResponse:
-    """Run the JyotishAI career engine on consolidated chart JSON.
+    """Run the JyotishAI UG career engine on consolidated chart JSON (back-compat alias).
 
     Returns ranked field recommendations and a structured ``report`` JSON sufficient
     to render the parent/astrologer HTML report on the client.
