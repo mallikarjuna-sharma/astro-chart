@@ -6,6 +6,7 @@ import type {
   ConsolidatedRequest,
   DivisionalChartsResponse,
   EducationAnalysisResponse,
+  PucAnalysisResponse,
   GeocodeResponse,
   JaiminiResponse,
   KpResponse,
@@ -171,6 +172,20 @@ export const pyjhora = {
 
   educationAnalysis: (userJson: Record<string, unknown>) =>
     request<EducationAnalysisResponse>("/api/education-analysis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_json: userJson }),
+    }),
+
+  ugEducationAnalysis: (userJson: Record<string, unknown>) =>
+    request<EducationAnalysisResponse>("/api/education-analysis/ug", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_json: userJson }),
+    }),
+
+  pucEducationAnalysis: (userJson: Record<string, unknown>) =>
+    request<PucAnalysisResponse>("/api/education-analysis/puc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_json: userJson }),

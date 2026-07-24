@@ -16,6 +16,7 @@ from typing import Any
 from jyotish.astro import _get_active_dasha_lord
 from jyotish.engine_io import parse_json_payload
 from jyotish.payload import ENGINE_VERSION, NatalPayloadV2
+from api.llm_policy import prepare_chart_for_api_llm
 
 logger = logging.getLogger("api.career_timeline")
 
@@ -279,6 +280,7 @@ def run_career_timeline(
         existing.update(career_context_override)
         chart["career_context"] = existing
 
+    chart = prepare_chart_for_api_llm(chart)
     payload = parse_json_payload(chart, build_timeline=True)
 
     cc = payload.career_context or {}
@@ -305,7 +307,7 @@ def run_career_timeline(
     if enrich_llm:
         enrichment_ok = _maybe_enrich_llm(payload)
         timeline = payload.career_timeline or timeline
-        llm_ran = enrichment_ok and _narrative_llm_configured()
+        llm_ran = enrichment_ok
 
     outcome             = _compute_outcome(cc, timeline)
     trajectory          = _build_trajectory(timeline)

@@ -664,7 +664,13 @@ def _call_llm_for_report(
             "[career_field_report_v2] LLM provider preflight failed: %s. Install with `%s`.",
             preflight, preflight.get("install_extra", ""),
         )
-        return None
+        return None, {
+            "attempted": False,
+            "succeeded": False,
+            "provider": provider_name,
+            "model": model_override,
+            "error_message": f"LLM provider preflight failed: {preflight}",
+        }
 
     if not api_key:
         logger.warning(
@@ -672,7 +678,13 @@ def _call_llm_for_report(
             env_var,
             provider_name,
         )
-        return None
+        return None, {
+            "attempted": False,
+            "succeeded": False,
+            "provider": provider_name,
+            "model": model_override,
+            "error_message": f"{env_var} missing for provider={provider_name}",
+        }
 
     allowed_fields = {
         _field_display_name(r)
@@ -712,13 +724,20 @@ def _call_llm_for_report(
     schema = {"schema": {"required": [], "properties": {}}}
 
     try:
-        return _run_llm_with_retry(
+        report = _run_llm_with_retry(
             client,
             messages,
             schema,
             _strict_validator,
             max_retries=3,
         )
+        return report, {
+            "attempted": True,
+            "succeeded": True,
+            "provider": provider_name,
+            "model": model_override,
+            "error_message": "",
+        }
     except Exception as exc:
         msg = str(exc)
         if "billing_not_active" in msg or "account is not active" in msg:
@@ -727,10 +746,30 @@ def _call_llm_for_report(
                 "Enable API billing or use a key from an active billed project.",
                 provider_name,
             )
-            return None
+            return None, {
+                "attempted": True,
+                "succeeded": False,
+                "provider": provider_name,
+                "model": model_override,
+                "error_message": "Billing inactive for LLM provider",
+            }
+        if "quota" in msg.lower() or "credit" in msg.lower() or "rate limit" in msg.lower():
+            return None, {
+                "attempted": True,
+                "succeeded": False,
+                "provider": provider_name,
+                "model": model_override,
+                "error_message": msg,
+            }
 
         logger.error("[career_field_report_v2] Unexpected LLM report failure: %s", exc)
-        return None
+        return None, {
+            "attempted": True,
+            "succeeded": False,
+            "provider": provider_name,
+            "model": model_override,
+            "error_message": msg,
+        }
 
 
 # =============================================================================
@@ -2469,6 +2508,7 @@ def build_career_field_report_from_chart(
     precomputed_results: Optional[List[Dict[str, Any]]] = None,
     enable_llm_field_explanations: bool = False,
     output_dir: str = "educational_records",
+    force_llm_report: bool = False,
 ) -> Dict[str, Any]:
     """API adapter: run the deterministic ``--mode field`` pipeline and return
     the JSON bundle the astro API consumes, without writing an HTML file.
@@ -2501,8 +2541,14 @@ def build_career_field_report_from_chart(
     name = student_name or getattr(payload, "name", "Unknown")
 
     _env_llm_consent = str(os.getenv("LLM_REPORT_CONSENT", "")).strip().lower() in {"1", "true", "yes", "on"}
-    _llm_consent = bool(getattr(payload, "external_llm_consent", False)) or _env_llm_consent
-    if _env_llm_consent:
+    _llm_consent = (
+        force_llm_report
+        or bool(getattr(payload, "external_llm_consent", False))
+        or _env_llm_consent
+    )
+    if force_llm_report:
+        logger.info("[career_field_report_v2] API mode: LLM report narrative forced on.")
+    elif _env_llm_consent:
         logger.info("[career_field_report_v2] LLM consent granted via LLM_REPORT_CONSENT env var.")
 
     # Field-mode parity: the deterministic engine owns the Top-20 ranking.
@@ -2576,8 +2622,15 @@ def build_career_field_report_from_chart(
     chart_facts = _build_chart_signature_facts(payload, active_lord, peak_lord)
     macro_clusters = _macro_cluster_ranking(results, top_n=20)
 
+    llm_meta = {
+        "attempted": False,
+        "succeeded": False,
+        "provider": "",
+        "model": "",
+        "error_message": "LLM report not attempted (consent or API key missing)",
+    }
     if _llm_consent:
-        report = _call_llm_for_report(
+        report, llm_meta = _call_llm_for_report(
             name, career_phase, active_lord, peak_lord, chart_facts, results, macro_clusters,
         )
     else:
@@ -2605,6 +2658,7 @@ def build_career_field_report_from_chart(
         "peak_lord": peak_lord,
         "career_phase": career_phase,
         "name": name,
+        "llm_meta": llm_meta,
     }
 
     if render_html:
@@ -2800,8 +2854,15 @@ def generate_career_field_report_v2(
     chart_facts = _build_chart_signature_facts(payload, active_lord, peak_lord)
     macro_clusters = _macro_cluster_ranking(results, top_n=20)
 
+    llm_meta = {
+        "attempted": False,
+        "succeeded": False,
+        "provider": "",
+        "model": "",
+        "error_message": "LLM report not attempted (consent or API key missing)",
+    }
     if _llm_consent:
-        report = _call_llm_for_report(
+        report, llm_meta = _call_llm_for_report(
             name, career_phase, active_lord, peak_lord, chart_facts, results, macro_clusters,
         )
     else:

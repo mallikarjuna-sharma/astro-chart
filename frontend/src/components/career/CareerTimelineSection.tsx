@@ -91,12 +91,12 @@ export function CareerTimelineSection() {
           <CardDescription>
             This chart is currently age {currentAge!.toFixed(1)}. The Job Timeline engine activates
             from age {MIN_CAREER_AGE}+ when there is a real working career to plot. For students
-            (under {MIN_CAREER_AGE}), use Career Field instead.
+            (under {MIN_CAREER_AGE}), use Education Analysis → UG instead.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
-          <Link to="/education-analysis">
-            <Button>Go to Career Field</Button>
+          <Link to="/education-analysis/ug">
+            <Button>Go to Education Analysis</Button>
           </Link>
           <Link to="/">
             <Button variant="outline">Switch profile</Button>

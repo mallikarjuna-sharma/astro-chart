@@ -1,4 +1,4 @@
-"""Schemas for POST /api/education-analysis."""
+"""Schemas for education analysis APIs (UG career field + PUC stream)."""
 from __future__ import annotations
 
 from typing import Any
@@ -26,15 +26,26 @@ class ProfileEducationAnalysisRequest(BaseModel):
     )
 
 
+class AiDiagnostics(BaseModel):
+    """Temporary LLM diagnostics — for operator verification only."""
+
+    success: str = Field(default="", description="Success explanation when LLM narrative ran.")
+    error: str = Field(default="", description="Error explanation when LLM narrative failed or was skipped.")
+
+
 class EducationAnalysisResponse(BaseModel):
+    analysis_type: str = Field(default="ug", description="``ug`` for undergraduate career-field analysis.")
     engine_version: str = Field(..., description="Jyotish career engine version.")
     generated_at: str = Field(..., description="ISO-8601 timestamp (UTC).")
+    default_tab: str | None = Field(
+        default=None,
+        description="Suggested UI tab based on student age: ``puc`` for ages 15–17, else ``ug``.",
+    )
     student: dict[str, Any] = Field(..., description="Student/chart summary for the report header.")
     summary: dict[str, Any] = Field(
         ...,
         description="Parent and astrologer overview text from the LLM selection step.",
     )
-    # --- frozen html-payload-contract v1: the four report payloads ---
     results: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Payload 1 — ranked career-field rows (scores, LLM reasons, registry metadata).",
@@ -75,3 +86,28 @@ class EducationAnalysisResponse(BaseModel):
         default=None,
         description="True when served from DynamoDB; False when freshly computed by the engine.",
     )
+    AI: AiDiagnostics | None = Field(
+        default=None,
+        description="Temporary operator diagnostics for LLM/OpenAI/Gemini call status.",
+    )
+
+
+class PucAnalysisResponse(BaseModel):
+    analysis_type: str = Field(default="puc", description="PUC stream determination analysis.")
+    engine_version: str = Field(..., description="Stream determination engine version.")
+    generated_at: str = Field(..., description="ISO-8601 timestamp (UTC).")
+    default_tab: str | None = Field(
+        default=None,
+        description="Suggested UI tab based on student age: ``puc`` for ages 15–17, else ``ug``.",
+    )
+    student: dict[str, Any] = Field(..., description="Student/chart summary.")
+    report: dict[str, Any] = Field(..., description="Full stream-determination report JSON.")
+    stream_narrative: dict[str, Any] | None = Field(
+        default=None,
+        description="LLM or fallback narrative explaining the locked stream decision.",
+    )
+    AI: AiDiagnostics | None = Field(
+        default=None,
+        description="Temporary operator diagnostics for LLM/OpenAI/Gemini call status.",
+    )
+

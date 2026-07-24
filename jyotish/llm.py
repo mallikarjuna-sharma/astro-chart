@@ -646,6 +646,48 @@ _LLM_PROVIDERS: Dict[str, tuple] = {
 }
 
 
+def _provider_api_key(provider: str, env_var: str) -> str:
+    key = (os.getenv(env_var) or "").strip()
+    if provider == "gemini" and not key:
+        key = (os.getenv("GOOGLE_API_KEY") or "").strip()
+    return key
+
+
+def call_llm_text_prompt(
+    prompt: str,
+    *,
+    providers: list[str] | None = None,
+    model_override: str | None = None,
+) -> tuple[str, str, str]:
+    """Call the first configured LLM provider that succeeds.
+
+    Returns ``(response_text, provider_name, model_name)``.
+    Raises ``RuntimeError`` when every provider fails or none is configured.
+    """
+    primary = (os.getenv("LLM_PROVIDER") or "gemini").strip().lower()
+    order = providers or [primary] + [p for p in ("gemini", "openai", "anthropic") if p != primary]
+
+    errors: list[str] = []
+    for provider in order:
+        spec = _LLM_PROVIDERS.get(provider)
+        if not spec:
+            continue
+        env_var, default_model, call_fn = spec
+        api_key = _provider_api_key(provider, env_var)
+        if not api_key:
+            errors.append(f"{provider}: {env_var} missing")
+            continue
+        model = model_override or os.getenv("LLM_MODEL") or default_model
+        try:
+            return call_fn(prompt, api_key, model), provider, model
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{provider}: {type(exc).__name__}: {exc}")
+
+    if not errors:
+        raise RuntimeError("No LLM providers are configured (set GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY)")
+    raise RuntimeError("; ".join(errors))
+
+
 def llm_provider_preflight(provider: str) -> Dict[str, Any]:
     """Check SDK availability before attempting an external provider call."""
     import importlib.util

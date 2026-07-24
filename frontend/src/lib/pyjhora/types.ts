@@ -452,9 +452,16 @@ export interface CareerTimelineResponse {
   llm_enriched: boolean;
 }
 
+export interface AiDiagnostics {
+  success?: string;
+  error?: string;
+}
+
 export interface EducationAnalysisResponse {
+  analysis_type?: "ug";
   engine_version: string;
   generated_at: string;
+  default_tab?: "puc" | "ug" | null;
   student: {
     name?: string;
     dob?: string;
@@ -493,6 +500,29 @@ export interface EducationAnalysisResponse {
   profile_id?: string | null;
   user_id?: string | null;
   cached?: boolean | null;
+  AI?: AiDiagnostics | null;
+}
+
+export interface PucAnalysisResponse {
+  analysis_type?: "puc";
+  engine_version: string;
+  generated_at: string;
+  default_tab?: "puc" | "ug" | null;
+  student: {
+    name?: string;
+    dob?: string;
+    birth_place?: string;
+    gender?: string;
+    current_age?: number;
+    lagna_sign?: string;
+    lagna_lord?: string;
+    atmakaraka?: string;
+    amatyakaraka?: string;
+    school_board?: string;
+  };
+  report: Record<string, unknown>;
+  stream_narrative?: Record<string, unknown> | null;
+  AI?: AiDiagnostics | null;
 }
 
 export interface ChartSession {
@@ -513,6 +543,8 @@ export interface ChartSession {
   consolidated?: Record<string, unknown>;
   educationAnalysis?: EducationAnalysisResponse;
   educationAnalysisError?: string;
+  pucAnalysis?: PucAnalysisResponse;
+  pucAnalysisError?: string;
   careerTimeline?: CareerTimelineResponse;
   careerTimelineError?: string;
   careerContextInput?: CareerContextInput;

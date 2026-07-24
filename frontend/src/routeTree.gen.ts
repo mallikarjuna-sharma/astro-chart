@@ -21,13 +21,15 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as KpRouteImport } from './routes/kp'
 import { Route as KnRaoRouteImport } from './routes/kn-rao'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as EducationAnalysisRouteImport } from './routes/education-analysis'
 import { Route as ConfidenceRouteImport } from './routes/confidence'
 import { Route as ChartsRouteImport } from './routes/charts'
 import { Route as CareerTimelineRouteImport } from './routes/career-timeline'
 import { Route as BirthDataRouteImport } from './routes/birth-data'
 import { Route as AiRouteImport } from './routes/ai'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as EducationAnalysisIndexRouteImport } from './routes/education-analysis/index'
+import { Route as EducationAnalysisUgRouteImport } from './routes/education-analysis/ug'
+import { Route as EducationAnalysisPucRouteImport } from './routes/education-analysis/puc'
 
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
@@ -89,11 +91,6 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EducationAnalysisRoute = EducationAnalysisRouteImport.update({
-  id: '/education-analysis',
-  path: '/education-analysis',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ConfidenceRoute = ConfidenceRouteImport.update({
   id: '/confidence',
   path: '/confidence',
@@ -124,6 +121,21 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EducationAnalysisIndexRoute = EducationAnalysisIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EducationAnalysisRoute,
+} as any)
+const EducationAnalysisUgRoute = EducationAnalysisUgRouteImport.update({
+  id: '/education-analysis/ug',
+  path: '/education-analysis/ug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EducationAnalysisPucRoute = EducationAnalysisPucRouteImport.update({
+  id: '/education-analysis/puc',
+  path: '/education-analysis/puc',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -132,7 +144,6 @@ export interface FileRoutesByFullPath {
   '/career-timeline': typeof CareerTimelineRoute
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
-  '/education-analysis': typeof EducationAnalysisRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
@@ -145,6 +156,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/workspace': typeof WorkspaceRoute
+  '/education-analysis/puc': typeof EducationAnalysisPucRoute
+  '/education-analysis/ug': typeof EducationAnalysisUgRoute
+  '/education-analysis/': typeof EducationAnalysisIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -153,7 +167,6 @@ export interface FileRoutesByTo {
   '/career-timeline': typeof CareerTimelineRoute
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
-  '/education-analysis': typeof EducationAnalysisRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
@@ -166,6 +179,9 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/workspace': typeof WorkspaceRoute
+  '/education-analysis/puc': typeof EducationAnalysisPucRoute
+  '/education-analysis/ug': typeof EducationAnalysisUgRoute
+  '/education-analysis': typeof EducationAnalysisIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -175,7 +191,6 @@ export interface FileRoutesById {
   '/career-timeline': typeof CareerTimelineRoute
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
-  '/education-analysis': typeof EducationAnalysisRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/kn-rao': typeof KnRaoRoute
   '/kp': typeof KpRoute
@@ -188,6 +203,9 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/workspace': typeof WorkspaceRoute
+  '/education-analysis/puc': typeof EducationAnalysisPucRoute
+  '/education-analysis/ug': typeof EducationAnalysisUgRoute
+  '/education-analysis/': typeof EducationAnalysisIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -198,7 +216,6 @@ export interface FileRouteTypes {
     | '/career-timeline'
     | '/charts'
     | '/confidence'
-    | '/education-analysis'
     | '/forgot-password'
     | '/kn-rao'
     | '/kp'
@@ -211,6 +228,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/workspace'
+    | '/education-analysis/puc'
+    | '/education-analysis/ug'
+    | '/education-analysis/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -219,7 +239,6 @@ export interface FileRouteTypes {
     | '/career-timeline'
     | '/charts'
     | '/confidence'
-    | '/education-analysis'
     | '/forgot-password'
     | '/kn-rao'
     | '/kp'
@@ -232,6 +251,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/workspace'
+    | '/education-analysis/puc'
+    | '/education-analysis/ug'
+    | '/education-analysis'
   id:
     | '__root__'
     | '/'
@@ -240,7 +262,6 @@ export interface FileRouteTypes {
     | '/career-timeline'
     | '/charts'
     | '/confidence'
-    | '/education-analysis'
     | '/forgot-password'
     | '/kn-rao'
     | '/kp'
@@ -253,6 +274,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/workspace'
+    | '/education-analysis/puc'
+    | '/education-analysis/ug'
+    | '/education-analysis/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -262,7 +286,6 @@ export interface RootRouteChildren {
   CareerTimelineRoute: typeof CareerTimelineRoute
   ChartsRoute: typeof ChartsRoute
   ConfidenceRoute: typeof ConfidenceRoute
-  EducationAnalysisRoute: typeof EducationAnalysisRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   KnRaoRoute: typeof KnRaoRoute
   KpRoute: typeof KpRoute
@@ -275,6 +298,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   WorkspaceRoute: typeof WorkspaceRoute
+  EducationAnalysisPucRoute: typeof EducationAnalysisPucRoute
+  EducationAnalysisUgRoute: typeof EducationAnalysisUgRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -363,13 +388,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/education-analysis': {
-      id: '/education-analysis'
-      path: '/education-analysis'
-      fullPath: '/education-analysis'
-      preLoaderRoute: typeof EducationAnalysisRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/confidence': {
       id: '/confidence'
       path: '/confidence'
@@ -412,6 +430,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/education-analysis/': {
+      id: '/education-analysis/'
+      path: '/'
+      fullPath: '/education-analysis/'
+      preLoaderRoute: typeof EducationAnalysisIndexRouteImport
+      parentRoute: typeof EducationAnalysisRoute
+    }
+    '/education-analysis/ug': {
+      id: '/education-analysis/ug'
+      path: '/education-analysis/ug'
+      fullPath: '/education-analysis/ug'
+      preLoaderRoute: typeof EducationAnalysisUgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/education-analysis/puc': {
+      id: '/education-analysis/puc'
+      path: '/education-analysis/puc'
+      fullPath: '/education-analysis/puc'
+      preLoaderRoute: typeof EducationAnalysisPucRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -422,7 +461,6 @@ const rootRouteChildren: RootRouteChildren = {
   CareerTimelineRoute: CareerTimelineRoute,
   ChartsRoute: ChartsRoute,
   ConfidenceRoute: ConfidenceRoute,
-  EducationAnalysisRoute: EducationAnalysisRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   KnRaoRoute: KnRaoRoute,
   KpRoute: KpRoute,
@@ -435,6 +473,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   WorkspaceRoute: WorkspaceRoute,
+  EducationAnalysisPucRoute: EducationAnalysisPucRoute,
+  EducationAnalysisUgRoute: EducationAnalysisUgRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
