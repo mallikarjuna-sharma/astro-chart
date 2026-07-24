@@ -83,6 +83,22 @@ function fmtDate(iso?: string): string {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
+function formatConfidence(confidence: CareerTimelineBlock["confidence"]): string {
+  if (!confidence) return "";
+  if (typeof confidence === "string") return confidence;
+  if (typeof confidence === "object") {
+    const c = confidence as { label?: string; tier?: string; score?: number };
+    const label = c.label || c.tier?.replace(/_/g, " ");
+    if (label && typeof c.score === "number") return `${label} (${c.score})`;
+    if (label) return label;
+  }
+  return String(confidence);
+}
+
+function asHtmlString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
 // ─── Root ────────────────────────────────────────────────────────────────────
 
 export function CareerTimelineReport({ data }: Props) {
@@ -375,7 +391,7 @@ function BlockItem({ block, idx }: { block: CareerTimelineBlock; idx: number }) 
           <div className="space-y-3">
             {block.llm_plain_language_html ? (
               <Callout tone="success" label="In plain language">
-                <ProseBlock html={block.llm_plain_language_html} />
+                <ProseBlock html={asHtmlString(block.llm_plain_language_html)} />
               </Callout>
             ) : null}
             {block.llm_astro_explanation_html ? (
@@ -383,16 +399,16 @@ function BlockItem({ block, idx }: { block: CareerTimelineBlock; idx: number }) 
                 <summary className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground cursor-pointer select-none">
                   Astrological explanation
                 </summary>
-                <ProseBlock className="mt-2" html={block.llm_astro_explanation_html} />
+                <ProseBlock className="mt-2" html={asHtmlString(block.llm_astro_explanation_html)} />
               </details>
             ) : null}
           </div>
         ) : block.llm_ad_narrative_html ? (
-          <ProseBlock html={block.llm_ad_narrative_html} />
+          <ProseBlock html={asHtmlString(block.llm_ad_narrative_html)} />
         ) : null}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-          {block.confidence ? <Meta label="Confidence" value={block.confidence} /> : null}
+          {block.confidence ? <Meta label="Confidence" value={formatConfidence(block.confidence)} /> : null}
           {block.career_track ? <Meta label="Track" value={block.career_track} /> : null}
           {block.secondary_event_type && block.secondary_event_type !== block.event_type ? (
             <Meta label="Secondary" value={block.secondary_event_type.replace(/_/g, " ")} />
@@ -431,7 +447,7 @@ function BlockItem({ block, idx }: { block: CareerTimelineBlock; idx: number }) 
                     ) : null}
                   </div>
                   {pd.llm_narrative_html ? (
-                    <ProseBlock className="mt-1 text-xs text-muted-foreground" html={pd.llm_narrative_html as string} />
+                    <ProseBlock className="mt-1 text-xs text-muted-foreground" html={asHtmlString(pd.llm_narrative_html)} />
                   ) : pd.hint ? (
                     <p className="mt-1 text-xs text-muted-foreground">{pd.hint as string}</p>
                   ) : null}

@@ -28,7 +28,14 @@ def _is_stale(hit: dict[str, Any]) -> bool:
     build than the one currently deployed. When the engine is upgraded the
     ranking/report can change materially, so such analyses are recomputed once
     (and re-persisted) rather than served forever."""
-    return str(hit.get("engine_version") or "") != ENGINE_VERSION
+    if str(hit.get("engine_version") or "") != ENGINE_VERSION:
+        return True
+    # Legacy rows saved before AI diagnostics were persisted.
+    return "AI" not in hit
+
+
+def _missing_ai_diagnostics(hit: dict[str, Any]) -> bool:
+    return "AI" not in hit
 
 
 def _require_user_id(authorization: str | None) -> str:
@@ -98,6 +105,15 @@ def get_or_create_education_analysis(
                 "analysis to preserve deterministic LLM output (delete it to recompute).",
                 profile_id,
             )
+        return hit
+
+    if hit is not None and _missing_ai_diagnostics(hit) and not user_json:
+        from api.ai_status import ai_status
+
+        hit = dict(hit)
+        hit["AI"] = ai_status(
+            error="AI diagnostics not stored for this profile; refresh with chart JSON to recompute.",
+        )
         return hit
 
     if hit is not None:

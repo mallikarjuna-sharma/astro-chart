@@ -33,8 +33,11 @@ export function UgAnalysisSection() {
         if (profileId && !forceRefresh) {
           try {
             const cached = await profilesApi.educationAnalysis(profileId);
-            patchChartSession({ educationAnalysis: cached, educationAnalysisError: undefined });
-            return;
+            if (cached.AI != null) {
+              patchChartSession({ educationAnalysis: cached, educationAnalysisError: undefined });
+              return;
+            }
+            // Legacy cache without AI diagnostics — recompute below with chart JSON.
           } catch {
             // cache miss — compute below
           }

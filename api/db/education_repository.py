@@ -121,9 +121,13 @@ def response_from_item(item: dict[str, Any]) -> dict[str, Any]:
         "fields": fields,
         "career_field_report": career_field_report,
     }
-    return {
+    ai = _from_decimal(item.get("ai")) if item.get("ai") else None
+
+    out = {
+        "analysis_type": item.get("analysis_type", "ug"),
         "engine_version": item.get("engine_version", ""),
         "generated_at": item.get("generated_at", ""),
+        "default_tab": item.get("default_tab"),
         "student": student,
         "summary": summary,
         # --- frozen html-payload-contract v1: four payloads as top-level keys ---
@@ -139,6 +143,9 @@ def response_from_item(item: dict[str, Any]) -> dict[str, Any]:
         "user_id": item.get("user_id"),
         "cached": True,
     }
+    if ai is not None:
+        out["AI"] = ai
+    return out
 
 
 def get_education_analysis(profile_id: str, user_id: str | None = None) -> dict[str, Any] | None:
@@ -175,10 +182,13 @@ def save_education_analysis(
     chart_facts = result.get("chart_facts") or cfr.get("chart_facts") or {}
     now = _utc_now()
 
+    ai = result.get("AI")
     item = {
         "profile_id": profile_id,
         "user_id": user_id,
         "compression": _COMPRESSION,
+        "analysis_type": result.get("analysis_type", "ug"),
+        "default_tab": result.get("default_tab"),
         "engine_version": result.get("engine_version", ""),
         "generated_at": result.get("generated_at", now),
         "career_phase": cfr.get("career_phase", ""),
@@ -186,6 +196,7 @@ def save_education_analysis(
         "peak_lord": cfr.get("peak_lord", ""),
         "student": _to_decimal(result.get("student") or {}),
         "summary": _to_decimal(result.get("summary") or {}),
+        "ai": _to_decimal(ai) if ai else None,
         # The four frozen LLM payloads (see Job_Career/html_payload_contract.py):
         "results_gz": _pack(fields),
         "macro_clusters_gz": _pack(macro_clusters),
@@ -198,6 +209,8 @@ def save_education_analysis(
 
     out = response_from_item(item)
     out["cached"] = False
+    if ai is not None:
+        out["AI"] = ai
     return out
 
 

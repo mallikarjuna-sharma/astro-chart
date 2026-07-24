@@ -370,7 +370,13 @@ export interface CareerTimelineBlock {
   event_type: string;
   secondary_event_type?: string;
   career_score: number;
-  confidence?: string;
+  confidence?: string | {
+    score?: number;
+    tier?: string;
+    label?: string;
+    caveats?: string[];
+    retro_validation?: Record<string, unknown>;
+  };
   is_current?: boolean;
   is_past?: boolean;
   is_primary_opportunity?: boolean;
