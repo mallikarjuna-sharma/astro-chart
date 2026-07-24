@@ -107,25 +107,25 @@ function ChartsPage() {
             className="flex-1 min-h-0 mt-2 data-[state=inactive]:hidden"
           >
             <Card className="border-border/80 h-full flex flex-col">
-              <CardContent className="flex-1 min-h-0 p-3 md:p-4 flex flex-col gap-2">
-                <div className="flex flex-col lg:flex-row gap-3 lg:gap-5 items-center lg:items-start flex-1 min-h-0">
-                  <div className="shrink-0 w-full max-w-[min(34vh,17rem)] lg:max-w-[min(38vh,18rem)] mx-auto lg:mx-0">
-                    <SouthIndianChart chart={c} meta={meta} compact />
+              <CardContent className="flex-1 min-h-0 p-3 md:p-5 flex flex-col gap-3">
+                <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 min-h-0 items-stretch">
+                  <div className="w-full lg:w-[48%] xl:w-[50%] shrink-0 min-h-[min(52vh,28rem)] lg:min-h-0 flex">
+                    <SouthIndianChart chart={c} meta={meta} size="fit" />
                   </div>
-                  <div className="w-full lg:flex-1 min-h-0 min-w-0 overflow-hidden">
-                    <h3 className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+                  <div className="w-full lg:flex-1 min-h-0 min-w-0 flex flex-col">
+                    <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2 uppercase tracking-wide shrink-0">
                       Graha by rasi
                     </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-0 text-[11px] leading-tight">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5 text-sm md:text-[0.95rem] leading-snug flex-1 content-start">
                       {(c.houses ?? []).map((h) => (
                         <div
                           key={h.rasi}
-                          className="flex gap-1.5 border-b border-border/30 py-0.5 min-w-0"
+                          className="flex gap-2 border-b border-border/40 py-1 min-w-0"
                         >
-                          <span className="text-muted-foreground w-14 shrink-0 truncate">
+                          <span className="text-muted-foreground w-20 shrink-0">
                             {h.rasi_name}
                           </span>
-                          <span className="text-gold font-medium truncate">
+                          <span className="text-gold font-medium break-words">
                             {h.bodies.join(", ") || "—"}
                           </span>
                         </div>
@@ -133,7 +133,7 @@ function ChartsPage() {
                     </div>
                   </div>
                 </div>
-                <p className="shrink-0 text-[10px] text-muted-foreground leading-snug">
+                <p className="shrink-0 text-xs text-muted-foreground leading-snug">
                   Codes: La Lagna · Su Sun · Mo Moon · Ma Mars · Me Mercury · Ju Jupiter · Ve Venus · Sa Saturn · Ra Rahu · Ke Ketu
                 </p>
               </CardContent>
