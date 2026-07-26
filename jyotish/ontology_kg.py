@@ -703,11 +703,12 @@ def evidence_from_shadbala(shadbala: Dict[str, float]) -> Dict[str, float]:
 
 
 def evidence_from_chart(chart: Dict[str, Any]) -> Dict[str, float]:
-    """Convenience wrapper: pull shadbala_virupas directly out of a raw
-    chart_details.json payload (pyhora_calculations.planets_d1.<Planet>
-    .shadbala_virupas), then delegate to evidence_from_shadbala()."""
-    d1 = chart.get("pyhora_calculations", {}).get("planets_d1", {})
-    shadbala = {planet: pdata.get("shadbala_virupas") for planet, pdata in d1.items()
+    """Convenience wrapper: pull shadbala_virupas from D1 in pyhora_calculations."""
+    pyh = chart.get("pyhora_calculations", {})
+    d1 = (pyh.get("divisional_charts") or {}).get("D1_rashi") or {}
+    d1 = d1 if isinstance(d1, dict) else {}
+    planets = d1.get("planets") or pyh.get("planets_d1") or {}
+    shadbala = {planet: pdata.get("shadbala_virupas") for planet, pdata in planets.items()
                 if isinstance(pdata, dict) and pdata.get("shadbala_virupas") is not None}
     return evidence_from_shadbala(shadbala)
 

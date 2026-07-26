@@ -1172,9 +1172,9 @@ def prashna_batch_endpoint(body: PrashnaBatchRequest) -> PrashnaBatchResponse:
 def consolidated_endpoint(req: ConsolidatedRequest) -> dict[str, Any]:
     """Single consolidated KP-oriented JSON (KP ayanamsa, true nodes, 7-karaka).
 
-    Bundles system config, student context, D1 planets (with retrograde/latitude/
-    shadbala), D9/D10/D24 signs, KP cusps + significators, Jaimini (KN Rao), SAV
-    and the Vimshottari maha sequence into one copy-friendly object.
+    Bundles system config, student context, full divisional charts (D1–D9, D10,
+    D16, D24, D60, D81 under pyhora_calculations.divisional_charts), KP cusps +
+    significators, Jaimini (KN Rao), SAV and the Vimshottari maha sequence.
     """
     sc = req.student_context.model_dump() if req.student_context else None
     try:

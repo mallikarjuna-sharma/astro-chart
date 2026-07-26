@@ -13,7 +13,9 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/AppShell";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { ProfileSessionBootstrap } from "@/components/profile/ProfileSessionBootstrap";
+import { isAuthRoute } from "@/lib/auth/routes";
 import { useChartSessionStore } from "@/stores/chart-session-store";
 import { syncUserProfileFromSession } from "@/stores/profile-sync";
 import { getStoredDisplayName } from "@/stores/user-store";
@@ -144,8 +146,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isAuthPage =
-    pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password";
+  const isAuthPage = isAuthRoute(pathname);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -155,7 +156,9 @@ function RootComponent() {
         <Outlet />
       ) : (
         <AppShell>
-          <Outlet />
+          <AuthGate>
+            <Outlet />
+          </AuthGate>
         </AppShell>
       )}
     </QueryClientProvider>

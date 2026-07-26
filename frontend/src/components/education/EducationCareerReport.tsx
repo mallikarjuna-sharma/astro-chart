@@ -47,6 +47,25 @@ interface MacroCluster {
   member_fields?: string[];
 }
 
+function sortMacroClustersByStrength(clusters: MacroCluster[]): MacroCluster[] {
+  return [...clusters]
+    .sort((a, b) => {
+      const byStrength = (b.strength_pct ?? 0) - (a.strength_pct ?? 0);
+      if (byStrength !== 0) return byStrength;
+      return (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER);
+    })
+    .map((cluster, index) => ({ ...cluster, rank: index + 1 }));
+}
+
+function fieldsInCluster(
+  cluster: MacroCluster,
+  rankedFields: EducationFieldResult[],
+): EducationFieldResult[] {
+  const members = new Set(cluster.member_fields ?? []);
+  if (!members.size) return [];
+  return rankedFields.filter((row) => members.has(row.field_label));
+}
+
 interface AstroSignatureRow {
   factor?: string;
   observation?: string;
@@ -203,6 +222,7 @@ function DecisionSnapshot({
   identity,
   snapshot,
   topCluster,
+  dominantClusterLabel,
   topScore,
   v12Count,
   v12Total,
@@ -214,6 +234,7 @@ function DecisionSnapshot({
   identity: FinalIdentity;
   snapshot: Snapshot;
   topCluster: MacroCluster;
+  dominantClusterLabel: string;
   topScore: number;
   v12Count: number;
   v12Total: number;
@@ -234,7 +255,9 @@ function DecisionSnapshot({
           <StatTile value={`${v12Count}/${v12Total}`} label="Top-20 rows with v12 registry data" tone="info" />
         </div>
         <Callout tone="gold" label="Plain answer">
-          <strong className="text-foreground">{top1}</strong> is the cleanest starting point.
+          <strong className="text-foreground">{top1}</strong> is the cleanest starting point in{" "}
+          <strong className="text-foreground">{dominantClusterLabel}</strong> (
+          {Math.round(topCluster.strength_pct ?? 0)}% cluster strength).
           {top3 ? <> {top3} is the best specialization direction.</> : null}
         </Callout>
       </Panel>
@@ -245,6 +268,7 @@ function DecisionSnapshot({
           <div className="space-y-1.5 text-sm text-foreground">
             <p><span className="font-semibold text-muted-foreground">UG:</span> {top1}</p>
             <p><span className="font-semibold text-muted-foreground">PG:</span> {top3 || "—"}</p>
+            <p><span className="font-semibold text-muted-foreground">Cluster:</span> {dominantClusterLabel}</p>
             <p><span className="font-semibold text-muted-foreground">Work style:</span> {snapshot.best_working_style || "—"}</p>
           </div>
         </Panel>
@@ -285,7 +309,7 @@ function ClusterScorePanels({
   if (!clusters.length) return null;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {clusters.slice(0, 4).map((c, i) => {
+      {clusters.map((c, i) => {
         const rows = (c.member_fields ?? [])
           .map((name) => labelToRow.get(name))
           .filter((r): r is EducationFieldResult => Boolean(r))
@@ -293,7 +317,10 @@ function ClusterScorePanels({
         return (
           <div key={c.cluster ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
             <div className="flex items-baseline justify-between gap-2 mb-3">
-              <h3 className="font-semibold text-foreground text-[0.95rem] leading-snug">{c.cluster}</h3>
+              <h3 className="font-semibold text-foreground text-[0.95rem] leading-snug">
+                {c.rank ? `#${c.rank} · ` : ""}
+                {c.cluster}
+              </h3>
               <span className="text-[11px] font-bold text-gold shrink-0">
                 {Math.round(c.strength_pct ?? 0)}% strength
               </span>
@@ -345,7 +372,10 @@ export function EducationCareerReport({ data }: Props) {
   const report = (data.report ?? {}) as ReportNarrative;
   const identity = report.final_identity ?? {};
   const snapshot = report.snapshot ?? {};
-  const macroClusters = (data.macro_clusters ?? []) as MacroCluster[];
+  const macroClusters = useMemo(
+    () => sortMacroClustersByStrength((data.macro_clusters ?? []) as MacroCluster[]),
+    [data.macro_clusters],
+  );
   const chartFacts = (data.chart_facts ?? {}) as ChartFacts;
 
   const payload = data.report_bundle?.payload as Record<string, unknown> | undefined;
@@ -355,11 +385,33 @@ export function EducationCareerReport({ data }: Props) {
     (payload?.chart_type as ChartType | undefined) ??
     {};
 
-  const top1Label = topFields[0]?.field_label ?? snapshot.best_ug_route ?? "Undetermined";
-  const top2Label = topFields[1]?.field_label ?? snapshot.strong_backup_route ?? "";
-  const top3Label = snapshot.best_pg_route ?? topFields[2]?.field_label ?? "";
   const topCluster = macroClusters[0] ?? { cluster: identity.macro_identity, strength_pct: 0 };
-  const topScore = topFields[0]?.final_score ?? 0;
+  const topClusterFields = useMemo(
+    () => fieldsInCluster(topCluster, topFields),
+    [topCluster, topFields],
+  );
+
+  const top1Label =
+    topClusterFields[0]?.field_label ??
+    topFields[0]?.field_label ??
+    snapshot.best_ug_route ??
+    "Undetermined";
+  const top2Label =
+    topClusterFields[1]?.field_label ??
+    topFields[1]?.field_label ??
+    snapshot.strong_backup_route ??
+    "";
+  const top3Label =
+    topClusterFields.find((field) => {
+      const realism = field.registry as { education_realism?: { pg_required_for_good_outcome?: boolean } } | undefined;
+      return realism?.education_realism?.pg_required_for_good_outcome;
+    })?.field_label ??
+    snapshot.best_pg_route ??
+    topClusterFields[2]?.field_label ??
+    topFields[2]?.field_label ??
+    "";
+  const topScore = topClusterFields[0]?.final_score ?? topFields[0]?.final_score ?? 0;
+  const dominantClusterLabel = topCluster.cluster ?? identity.macro_identity ?? "Undetermined";
 
   const activeLord = summary.active_dasha_lord ?? chartFacts.active_mahadasha_lord ?? "";
   const peakLord = summary.peak_career_dasha ?? chartFacts.peak_career_mahadasha_lord ?? "";
@@ -441,7 +493,10 @@ export function EducationCareerReport({ data }: Props) {
           </p>
         ) : null}
         <div className="flex justify-center flex-wrap gap-2">
-          {identity.macro_identity ? <Tag tone="gold">{identity.macro_identity}</Tag> : null}
+          {dominantClusterLabel ? <Tag tone="gold">{dominantClusterLabel}</Tag> : null}
+          {topCluster.strength_pct != null ? (
+            <Tag tone="gold">{Math.round(topCluster.strength_pct)}% cluster strength</Tag>
+          ) : null}
           {careerPhase ? <Tag tone="info">Phase: {careerPhase}</Tag> : null}
           {activeLord ? <Tag tone="royal">Active MD: {activeLord}</Tag> : null}
           {peakLord ? <Tag tone="royal">Peak MD: {peakLord}</Tag> : null}
@@ -454,6 +509,7 @@ export function EducationCareerReport({ data }: Props) {
         identity={identity}
         snapshot={snapshot}
         topCluster={topCluster}
+        dominantClusterLabel={dominantClusterLabel}
         topScore={topScore}
         v12Count={v12Count}
         v12Total={topFields.length}
@@ -488,7 +544,7 @@ export function EducationCareerReport({ data }: Props) {
                 ["Best UG Route", top1Label, "Main education decision."],
                 ["Strong Backup", top2Label || "—", "Keep available, but secondary to the primary identity."],
                 ["Best PG Route", top3Label || "—", "Specialization direction after the core UG base."],
-                ["Career Cluster", topCluster.cluster || "—", "Dominant macro identity from engine cluster ranking."],
+                ["Career Cluster", dominantClusterLabel, `Dominant macro identity (${Math.round(topCluster.strength_pct ?? 0)}% strength).`],
               ].map(([label, value, note]) => (
                 <div key={label} className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
@@ -530,8 +586,8 @@ export function EducationCareerReport({ data }: Props) {
               <SectionTitle title="Field scores by cluster" chip="Engine normalized scale" />
               <ClusterScorePanels clusters={macroClusters} labelToRow={labelToRow} />
               <p className="text-[11px] text-muted-foreground mt-3 leading-snug">
-                Each panel is one macro-cluster; fields inside a panel are ranked highest to lowest by
-                engine-normalized score.
+                Cluster panels are ordered highest to lowest by engine-normalized strength; fields inside
+                each panel are ranked highest to lowest by score.
               </p>
             </Panel>
           ) : null}

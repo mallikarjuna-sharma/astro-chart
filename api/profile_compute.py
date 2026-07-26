@@ -10,6 +10,7 @@ from api.db.profiles_repository import (
     CHUNK_JAIMINI,
     CHUNK_KP,
 )
+from jyotish.pyhora_schema import normalize_consolidated
 from api import extended
 from api.schemas.chart import BirthChartBody, DivisionalChartsResponse, TableResponse
 
@@ -40,8 +41,8 @@ def _strip_html_fields(obj: Any) -> Any:
 
 
 def _compact_consolidated(consolidated: dict[str, Any]) -> dict[str, Any]:
-    """Strip HTML-only fields; keep pyhora_calculations for education/career engines."""
-    return _strip_html_fields(consolidated)
+    """Strip HTML-only fields; normalize divisional_charts for education/career engines."""
+    return normalize_consolidated(_strip_html_fields(consolidated))
 
 
 def compute_profile_sections(

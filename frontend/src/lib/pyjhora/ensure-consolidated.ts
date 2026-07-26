@@ -1,14 +1,45 @@
 import { pyjhora } from "./client";
 import type { BirthInput, CareerContextInput, StudentContext } from "./types";
 
-/** True when consolidated JSON has planets_d1 under pyhora_calculations (engine requirement). */
+const EXPECTED_DIVISIONAL_KEYS = [
+  "D1_rashi",
+  "D2_hora",
+  "D3_drekkana",
+  "D4_chaturthamsa",
+  "D5_panchamsa",
+  "D6_shashthamsa",
+  "D7_saptamsa",
+  "D8_ashtamsa",
+  "D9_navamsha",
+  "D10_dashamsha",
+  "D16_shodasamsa",
+  "D24_siddhamsam",
+  "D60_shashtiamsam",
+  "D81_ashtottariamsa",
+] as const;
+
+/** True when consolidated JSON has D1 planets under pyhora_calculations.divisional_charts. */
 export function consolidatedHasEngineData(
   consolidated: Record<string, unknown> | null | undefined,
 ): boolean {
   if (!consolidated) return false;
   const pyh = consolidated.pyhora_calculations as Record<string, unknown> | undefined;
-  const planets = pyh?.planets_d1;
+  if (!pyh) return false;
+  const div = pyh.divisional_charts as Record<string, unknown> | undefined;
+  const d1 = div?.D1_rashi as Record<string, unknown> | undefined;
+  const planets = (d1?.planets ?? pyh.planets_d1) as Record<string, unknown> | undefined;
   return !!planets && typeof planets === "object" && Object.keys(planets).length > 0;
+}
+
+/** Re-fetch when legacy flat D1 fields exist or divisional charts are incomplete. */
+export function consolidatedNeedsRefresh(
+  consolidated: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!consolidatedHasEngineData(consolidated)) return true;
+  const pyh = consolidated!.pyhora_calculations as Record<string, unknown>;
+  if (pyh.planets_d1 || pyh.d1_lagna || pyh.d1_lagna_degree) return true;
+  const div = (pyh.divisional_charts as Record<string, unknown> | undefined) ?? {};
+  return EXPECTED_DIVISIONAL_KEYS.some((key) => !div[key]);
 }
 
 /**
@@ -23,7 +54,7 @@ export async function ensureConsolidatedForEngine(
   displayName?: string | null,
 ): Promise<Record<string, unknown>> {
   let out: Record<string, unknown>;
-  if (consolidatedHasEngineData(consolidated)) {
+  if (!consolidatedNeedsRefresh(consolidated)) {
     out = { ...consolidated! };
   } else {
     out = await pyjhora.consolidated({

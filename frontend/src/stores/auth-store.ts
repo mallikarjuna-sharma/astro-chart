@@ -2,17 +2,21 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { authApi, getStoredAuthToken, setStoredAuthToken } from "@/lib/auth/client";
 import type { AuthUser } from "@/lib/auth/types";
+import { clearChartSession } from "@/lib/pyjhora/session";
+import { PYJHORA_LS_USER } from "@/lib/pyjhora/client";
 import { useUserStore } from "@/stores/user-store";
 import { useProfileStore } from "@/stores/profile-store";
-import { PYJHORA_LS_USER } from "@/lib/pyjhora/client";
 
 interface AuthState {
   user: AuthUser | null;
   accessToken: string | null;
   hydrated: boolean;
   setSession: (token: string, user: AuthUser) => void;
+  /** Wipe chart, profile, and display data without touching auth tokens. */
+  clearAllAppData: () => void;
   clearSession: () => void;
   restoreSession: () => Promise<void>;
+  ensureAuthenticated: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -33,17 +37,28 @@ export const useAuthStore = create<AuthState>()(
         set({ accessToken: token, user, hydrated: true });
       },
 
+      clearAllAppData: () => {
+        useUserStore.getState().resetProfile();
+        useProfileStore.getState().reset();
+        clearChartSession();
+        try {
+          localStorage.removeItem(PYJHORA_LS_USER);
+        } catch {
+          /* ignore */
+        }
+      },
+
       clearSession: () => {
         setStoredAuthToken(null);
-        // Drop the cached profiles list so it can't leak into the next session.
-        useProfileStore.getState().reset();
+        get().clearAllAppData();
         set({ accessToken: null, user: null, hydrated: true });
       },
 
       restoreSession: async () => {
         const token = get().accessToken || getStoredAuthToken();
         if (!token) {
-          set({ hydrated: true });
+          get().clearAllAppData();
+          set({ accessToken: null, user: null, hydrated: true });
           return;
         }
         try {
@@ -52,6 +67,13 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           get().clearSession();
         }
+      },
+
+      ensureAuthenticated: async () => {
+        if (!get().hydrated) {
+          await get().restoreSession();
+        }
+        return Boolean(get().user && get().accessToken);
       },
     }),
     {

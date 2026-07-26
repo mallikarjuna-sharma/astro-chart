@@ -25,6 +25,13 @@ from .affinity import (
     SPACE_AEROSPACE_REGISTRY_EXTENSIONS,
     LIFE_SCIENCE_REGISTRY_EXTENSIONS,
 )
+from .pyhora_schema import (
+    flat_divisional_charts,
+    get_lagna_degree,
+    get_lagna_sign,
+    get_planets_d1,
+    divisional_signs,
+)
 
 _ZODIAC_ORDER = [
     "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
@@ -143,9 +150,9 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         except Exception:
             pass  # best-effort only -- never let this safeguard break the real parse
 
-    lagna_sign = pyh.get("d1_lagna", "")
-    lagna_deg  = pyh.get("d1_lagna_degree", 15.0) 
-    planets_d1 = pyh.get("planets_d1", {})
+    lagna_sign = get_lagna_sign(pyh)
+    lagna_deg  = get_lagna_degree(pyh)
+    planets_d1 = get_planets_d1(pyh)
     
     planet_retrograde = {p: bool(planets_d1[p].get("is_retrograde", False)) for p in planets_d1}
     
@@ -195,8 +202,8 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
     kp_cusps = pyh.get("kp_cusp_data", {})
     jaimini = pyh.get("kn_rao_jaimini_data", {})
     karakas = jaimini.get("chara_karakas", {})
-    div_charts = pyh.get("divisional_charts", {})
-    _d10_upstream = div_charts.get("D10_dashamsha", {})
+    div_charts = flat_divisional_charts(pyh)
+    _d10_upstream = divisional_signs(pyh, "D10_dashamsha")
     # Audit-2026-07 fix: D10 was previously trusted verbatim from the upstream
     # pyhora JSON with no in-repo way to verify its odd/even sign-counting —
     # a critical gap since Dashamsha carries the largest single method weight
@@ -223,8 +230,8 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
             return v.get("sign", "")
         return v if isinstance(v, str) else ""
     d10 = {p: _d10_sign_str(v) for p, v in d10_raw.items()}
-    d9 = div_charts.get("D9_navamsha", {})
-    d24 = div_charts.get("D24_siddhamsam", {})
+    d9 = divisional_signs(pyh, "D9_navamsha")
+    d24 = divisional_signs(pyh, "D24_siddhamsam")
     # E-1: extract D24 lagna and compute house lords for EduAlign stream score
     _D24_SIGNS = [
         "Aries","Taurus","Gemini","Cancer","Leo","Virgo",

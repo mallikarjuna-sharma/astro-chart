@@ -27,6 +27,9 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
 
 
 def _flat(chart: Mapping[str, Any] | None) -> dict[str, str]:
+    if chart and chart.get("planets"):
+        from .pyhora_schema import chart_to_signs
+        return chart_to_signs(chart)
     out = {}
     for body, value in (chart or {}).items():
         sign = value.get("sign", "") if isinstance(value, Mapping) else value

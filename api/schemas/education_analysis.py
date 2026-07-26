@@ -11,7 +11,7 @@ class EducationAnalysisRequest(BaseModel):
         ...,
         description=(
             "Consolidated chart JSON (system_config, student_context, "
-            "pyhora_calculations, …) — consolidated chart from /api/consolidated."
+            "pyhora_calculations.divisional_charts with D1–D81, …) from /api/consolidated."
         ),
     )
 

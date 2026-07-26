@@ -114,6 +114,8 @@ def _macro_cluster_ranking(results: List[Dict], top_n: int = 20) -> List[Dict]:
 
     max_strength = max((g["raw_strength"] for g in raw_groups), default=1.0) or 1.0
 
+    raw_groups.sort(key=lambda g: g["raw_strength"], reverse=True)
+
     out = []
     for i, g in enumerate(raw_groups, 1):
         rows = g["rows"]

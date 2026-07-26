@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Plus, ArrowLeft, UserRound, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -289,23 +289,6 @@ export function ProfileWizard() {
       setProgress("");
     }
   };
-
-  if (!isAuthenticated) {
-    return (
-      <Card className="max-w-lg mx-auto">
-        <CardHeader>
-          <CardTitle>Sign in to manage profiles</CardTitle>
-          <CardDescription>
-            Create up to four birth profiles. Each profile is computed once, saved to your account, and loaded from the database when opened.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-2">
-          <Link to="/login"><Button className="gradient-gold text-primary-foreground">Log in</Button></Link>
-          <Link to="/signup"><Button variant="outline">Sign up</Button></Link>
-        </CardContent>
-      </Card>
-    );
-  }
 
   if (view === "list") {
     const canCreate = profiles.length < maxProfiles;

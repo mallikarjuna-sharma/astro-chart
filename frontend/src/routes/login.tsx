@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AuthLayout } from "@/components/auth/AuthLayout";
@@ -9,20 +9,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authApi } from "@/lib/auth/client";
 import { validateLoginInput } from "@/lib/auth/validation";
-import { useAuthStore } from "@/stores/auth-store";
+import { useAuthStore, useIsAuthenticated } from "@/stores/auth-store";
+
+type LoginSearch = {
+  redirect?: string;
+};
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Log in — JyotishAI" }] }),
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const setSession = useAuthStore((s) => s.setSession);
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const isAuthenticated = useIsAuthenticated();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (hydrated && isAuthenticated) {
+      navigate({ to: redirect || "/" });
+    }
+  }, [hydrated, isAuthenticated, redirect, navigate]);
 
   const submit = async () => {
     const check = validateLoginInput(identifier, password);
@@ -35,7 +51,7 @@ function LoginPage() {
       const res = await authApi.login(identifier.trim(), password);
       setSession(res.access_token, res.user);
       toast.success(`Welcome back, ${res.user.username}`);
-      navigate({ to: "/" });
+      navigate({ to: redirect || "/" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {

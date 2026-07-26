@@ -24,6 +24,11 @@ from jhora.panchanga import drik
 
 from api.jhora_bootstrap import init_jhora
 from api.schemas.chart import BirthChartBody
+from jyotish.pyhora_schema import (
+    CONSOLIDATED_DIVISIONAL_FACTORS,
+    DIVISIONAL_CHART_META,
+    normalize_consolidated,
+)
 
 _PLANET_NAMES = {
     0: "Sun", 1: "Moon", 2: "Mars", 3: "Mercury", 4: "Jupiter",
@@ -560,14 +565,87 @@ def _house_num(sign0: int, lagna_sign0: int) -> int:
     return ((int(sign0) - int(lagna_sign0)) % 12) + 1
 
 
-def _divisional_signs(jd: float, place: Any, factor: int) -> dict[str, str]:
+_DIVISIONAL_META = DIVISIONAL_CHART_META
+
+
+def _build_d1_chart(
+    pp: list,
+    jd: float,
+    place: Any,
+    retro: set[int],
+    virupas: list,
+    jd_ut: float,
+) -> dict[str, Any]:
+    lagna_rasi = next((int(h) for p, (h, _l) in pp if p == "L"), 0)
+    lagna_deg = next((float(l) for p, (h, l) in pp if p == "L"), 0.0)
+    node_for_ketu = swe.TRUE_NODE
+    planets: dict[str, Any] = {}
+    for pid in range(0, 9):
+        sign = None
+        deg = 0.0
+        for p, (h, lon) in pp:
+            if p == pid:
+                sign, deg = _sign_and_deg(h, lon)
+                break
+        if sign is None:
+            continue
+        if pid <= 6:
+            swe_id, off = _SWE_ID[pid], 0.0
+        elif pid == 7:
+            swe_id, off = swe.TRUE_NODE, 0.0
+        else:
+            swe_id, off = node_for_ketu, 180.0
+        try:
+            res = swe.calc_ut(jd_ut, swe_id)[0]
+            lat = round(float(res[1]), 4)
+        except Exception:
+            lat = 0.0
+        entry: dict[str, Any] = {
+            "sign": sign,
+            "degree": deg,
+            "is_retrograde": pid in retro,
+            "latitude": lat,
+        }
+        if pid <= 6:
+            entry["shadbala_virupas"] = round(float(virupas[pid]), 2)
+        planets[_PLANET_NAMES[pid]] = entry
+    key, name = _DIVISIONAL_META[1]
+    return {
+        "factor": 1,
+        "name": name,
+        "lagna": _rasi_name(lagna_rasi),
+        "lagna_degree": round(lagna_deg, 4),
+        "planets": planets,
+    }
+
+
+def _build_divisional_chart(jd: float, place: Any, factor: int, retro: set[int]) -> dict[str, Any]:
     positions = charts.divisional_chart(jd, place, divisional_chart_factor=factor)
-    out: dict[str, str] = {}
-    for pid, (rasi_idx, _lon) in positions:
-        key = "Lagna" if pid == "L" else _PLANET_NAMES.get(pid)
-        if key:
-            out[key] = _rasi_name(int(rasi_idx))
-    return out
+    lagna_sign = ""
+    lagna_degree = 0.0
+    planets: dict[str, Any] = {}
+    for pid, (rasi_idx, lon) in positions:
+        sign, deg = _sign_and_deg(int(rasi_idx), float(lon))
+        if pid == "L":
+            lagna_sign = sign
+            lagna_degree = deg
+            continue
+        key = _PLANET_NAMES.get(pid)
+        if not key:
+            continue
+        planets[key] = {
+            "sign": sign,
+            "degree": deg,
+            "is_retrograde": pid in retro,
+        }
+    _key, name = _DIVISIONAL_META[factor]
+    return {
+        "factor": factor,
+        "name": name,
+        "lagna": lagna_sign,
+        "lagna_degree": lagna_degree,
+        "planets": planets,
+    }
 
 
 def _decimal_year(jd: float) -> float:
@@ -635,48 +713,19 @@ def compute_consolidated(body: BirthChartBody, student_context: dict | None = No
     lagna_rasi = next((int(h) for p, (h, _l) in pp if p == "L"), 0)
     lagna_deg = next((float(l) for p, (h, l) in pp if p == "L"), 0.0)
 
-    # planets_d1
     retro = set(int(x) for x in drik.planets_in_retrograde(jd, place))
     sb = strength.shad_bala(jd, place)
-    virupas = sb[6]  # total shadbala in virupas (shashtiamsa), per planet Sun..Saturn
+    virupas = sb[6]
     jd_ut = jd - place.timezone / 24.0
-    node_for_ketu = swe.TRUE_NODE
-    planets_d1: dict[str, Any] = {}
-    for pid in range(0, 9):
-        sign = None
-        for p, (h, lon) in pp:
-            if p == pid:
-                sign, deg = _sign_and_deg(h, lon)
-                break
-        if sign is None:
-            continue
-        if pid <= 6:
-            swe_id, off = _SWE_ID[pid], 0.0
-        elif pid == 7:
-            swe_id, off = swe.TRUE_NODE, 0.0
-        else:
-            swe_id, off = node_for_ketu, 180.0
-        try:
-            res = swe.calc_ut(jd_ut, swe_id)[0]
-            lat = round(float(res[1]), 4)  # nodes lie on the ecliptic (~0)
-        except Exception:
-            lat = 0.0
-        entry: dict[str, Any] = {
-            "sign": sign,
-            "degree": deg,
-            "is_retrograde": pid in retro,
-            "latitude": lat,
-        }
-        if pid <= 6:
-            entry["shadbala_virupas"] = round(float(virupas[pid]), 2)
-        planets_d1[_PLANET_NAMES[pid]] = entry
 
-    # divisional charts
-    divisional = {
-        "D9_navamsha": _divisional_signs(jd, place, 9),
-        "D10_dashamsha": _divisional_signs(jd, place, 10),
-        "D24_siddhamsam": _divisional_signs(jd, place, 24),
-    }
+    d1_chart = _build_d1_chart(pp, jd, place, retro, virupas, jd_ut)
+    divisional_charts: dict[str, Any] = {}
+    for factor in CONSOLIDATED_DIVISIONAL_FACTORS:
+        chart_key, _name = _DIVISIONAL_META[factor]
+        if factor == 1:
+            divisional_charts[chart_key] = d1_chart
+        else:
+            divisional_charts[chart_key] = _build_divisional_chart(jd, place, factor, retro)
 
     # KP cusp data (H1..H12 in bhava order)
     bhava = charts.bhava_chart(jd, place)
@@ -744,7 +793,7 @@ def compute_consolidated(body: BirthChartBody, student_context: dict | None = No
             "age_end": round((end_jd - jd) / 365.25, 1) if i + 1 < len(items) else None,
         })
 
-    return {
+    return normalize_consolidated({
         "system_config": {
             "ayanamsa": "KP_Krishnamurti",
             "node_type": "True",
@@ -768,10 +817,7 @@ def compute_consolidated(body: BirthChartBody, student_context: dict | None = No
             },
         },
         "pyhora_calculations": {
-            "d1_lagna": _rasi_name(lagna_rasi),
-            "d1_lagna_degree": round(lagna_deg, 4),
-            "planets_d1": planets_d1,
-            "divisional_charts": divisional,
+            "divisional_charts": divisional_charts,
             "kp_cusp_data": kp_cusp,
             "kp_planetary_significators": significators,
             "kn_rao_jaimini_data": {
@@ -787,4 +833,4 @@ def compute_consolidated(body: BirthChartBody, student_context: dict | None = No
             "ashtakavarga_sav": sav,
             "vimshottari_dasha_sequence": dasha_seq,
         },
-    }
+    })

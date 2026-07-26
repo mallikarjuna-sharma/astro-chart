@@ -51,28 +51,28 @@ function KPPage() {
         <Card>
           <CardContent className="pt-6 overflow-x-auto">
             {kp?.rows?.length ? (
-              <table className="w-full text-sm min-w-[36rem]">
+              <table className="w-full text-sm min-w-[36rem] border-collapse">
                 <thead className="text-xs text-muted-foreground uppercase">
                   <tr>
-                    <th className="text-left py-1">Body</th>
-                    <th>Rasi</th>
-                    <th>KP #</th>
-                    <th>Sign lord</th>
-                    <th>Star lord</th>
-                    <th>Sub lord</th>
-                    <th>Sub-sub</th>
+                    <th className="text-left py-1 px-2">Body</th>
+                    <th className="text-left py-1 px-2">Rasi</th>
+                    <th className="text-right py-1 px-2">KP #</th>
+                    <th className="text-left py-1 px-2">Sign lord</th>
+                    <th className="text-left py-1 px-2">Star lord</th>
+                    <th className="text-left py-1 px-2">Sub lord</th>
+                    <th className="text-left py-1 px-2">Sub-sub</th>
                   </tr>
                 </thead>
                 <tbody>
                   {kp.rows.map((r) => (
                     <tr key={r.body} className="border-t border-border">
-                      <td className="py-1.5 text-gold">{r.body}</td>
-                      <td>{r.rasi}</td>
-                      <td className="tabular-nums">{r.kp_number}</td>
-                      <td>{r.sign_lord}</td>
-                      <td>{r.star_lord}</td>
-                      <td className="text-gold">{r.sub_lord}</td>
-                      <td className="text-muted-foreground">{r.sub_sub_lord}</td>
+                      <td className="py-1.5 px-2 text-gold">{r.body}</td>
+                      <td className="py-1.5 px-2">{r.rasi}</td>
+                      <td className="py-1.5 px-2 text-right tabular-nums">{r.kp_number}</td>
+                      <td className="py-1.5 px-2">{r.sign_lord}</td>
+                      <td className="py-1.5 px-2">{r.star_lord}</td>
+                      <td className="py-1.5 px-2 text-gold">{r.sub_lord}</td>
+                      <td className="py-1.5 px-2 text-muted-foreground">{r.sub_sub_lord}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -98,20 +98,20 @@ function KPPage() {
           </CardHeader>
           <CardContent>
             {vim?.periods?.length ? (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm border-collapse">
                 <thead className="text-xs text-muted-foreground uppercase">
                   <tr>
-                    <th className="text-left py-1">Mahadasha</th>
-                    <th>Start</th>
-                    <th>End</th>
+                    <th className="text-left py-1 px-2">Mahadasha</th>
+                    <th className="text-left py-1 px-2">Start</th>
+                    <th className="text-left py-1 px-2">End</th>
                   </tr>
                 </thead>
                 <tbody>
                   {vim.periods.map((p, i) => (
                     <tr key={i} className="border-t border-border">
-                      <td className="py-1.5 text-gold">{p.planet}</td>
-                      <td>{p.start}</td>
-                      <td>{p.end ?? "—"}</td>
+                      <td className="py-1.5 px-2 text-gold">{p.planet}</td>
+                      <td className="py-1.5 px-2 tabular-nums">{p.start}</td>
+                      <td className="py-1.5 px-2 tabular-nums">{p.end ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>

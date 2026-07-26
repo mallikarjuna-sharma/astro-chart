@@ -47,18 +47,18 @@ function KNRaoPage() {
         <Card>
           <CardContent className="pt-6">
             {jaimini?.karakas?.length ? (
-              <table className="w-full text-sm max-w-lg">
+              <table className="w-full text-sm max-w-lg border-collapse">
                 <thead className="text-xs text-muted-foreground uppercase">
                   <tr>
-                    <th className="text-left py-1">Karaka</th>
-                    <th>Planet</th>
+                    <th className="text-left py-1 px-2">Karaka</th>
+                    <th className="text-left py-1 px-2">Planet</th>
                   </tr>
                 </thead>
                 <tbody>
                   {jaimini.karakas.map((k) => (
                     <tr key={k.karaka} className="border-t border-border">
-                      <td className="py-1.5">{k.karaka}</td>
-                      <td className="text-gold font-medium">{k.planet}</td>
+                      <td className="py-1.5 px-2">{k.karaka}</td>
+                      <td className="py-1.5 px-2 text-gold font-medium">{k.planet}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -98,22 +98,22 @@ function KNRaoPage() {
           </CardHeader>
           <CardContent>
             {jaimini?.chara_dasha?.length ? (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm border-collapse">
                 <thead className="text-xs text-muted-foreground uppercase">
                   <tr>
-                    <th className="text-left py-1">Rasi</th>
-                    <th>Start</th>
-                    <th>End</th>
-                    <th>Duration</th>
+                    <th className="text-left py-1 px-2">Rasi</th>
+                    <th className="text-left py-1 px-2">Start</th>
+                    <th className="text-left py-1 px-2">End</th>
+                    <th className="text-right py-1 px-2">Duration</th>
                   </tr>
                 </thead>
                 <tbody>
                   {jaimini.chara_dasha.map((c, i) => (
                     <tr key={i} className="border-t border-border">
-                      <td className="py-1.5 text-gold">{c.rasi}</td>
-                      <td>{c.start_year}</td>
-                      <td>{c.end_year}</td>
-                      <td>{c.years}y</td>
+                      <td className="py-1.5 px-2 text-gold">{c.rasi}</td>
+                      <td className="py-1.5 px-2 tabular-nums">{c.start_year}</td>
+                      <td className="py-1.5 px-2 tabular-nums">{c.end_year}</td>
+                      <td className="py-1.5 px-2 text-right tabular-nums">{c.years}y</td>
                     </tr>
                   ))}
                 </tbody>

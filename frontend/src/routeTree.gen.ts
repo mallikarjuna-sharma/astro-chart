@@ -122,9 +122,9 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const EducationAnalysisIndexRoute = EducationAnalysisIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => EducationAnalysisRoute,
+  id: '/education-analysis/',
+  path: '/education-analysis/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EducationAnalysisUgRoute = EducationAnalysisUgRouteImport.update({
   id: '/education-analysis/ug',
@@ -300,6 +300,7 @@ export interface RootRouteChildren {
   WorkspaceRoute: typeof WorkspaceRoute
   EducationAnalysisPucRoute: typeof EducationAnalysisPucRoute
   EducationAnalysisUgRoute: typeof EducationAnalysisUgRoute
+  EducationAnalysisIndexRoute: typeof EducationAnalysisIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -432,10 +433,10 @@ declare module '@tanstack/react-router' {
     }
     '/education-analysis/': {
       id: '/education-analysis/'
-      path: '/'
+      path: '/education-analysis'
       fullPath: '/education-analysis/'
       preLoaderRoute: typeof EducationAnalysisIndexRouteImport
-      parentRoute: typeof EducationAnalysisRoute
+      parentRoute: typeof rootRouteImport
     }
     '/education-analysis/ug': {
       id: '/education-analysis/ug'
@@ -475,6 +476,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkspaceRoute: WorkspaceRoute,
   EducationAnalysisPucRoute: EducationAnalysisPucRoute,
   EducationAnalysisUgRoute: EducationAnalysisUgRoute,
+  EducationAnalysisIndexRoute: EducationAnalysisIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
