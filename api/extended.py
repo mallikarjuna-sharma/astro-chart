@@ -545,7 +545,8 @@ def _prepare_kp(body: BirthChartBody) -> dict[str, Any]:
     jd = utils.julian_day_number(
         (body.year, body.month, body.day), (body.hour, body.minute, body.second)
     )
-    drik.set_ayanamsa_mode("KP")
+    mode = (body.ayanamsa or "KP").upper()
+    drik.set_ayanamsa_mode(mode)
     pp = charts.rasi_chart(jd, place)
     return {"jd": jd, "place": place, "pp": pp}
 
