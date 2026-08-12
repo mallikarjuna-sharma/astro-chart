@@ -857,6 +857,67 @@ def _fallback_report_json(top35, macro_clusters, student_name):
     core_subjects = curriculum.get("core_subjects_ug", []) if isinstance(curriculum, dict) else []
     outcome_core = outcomes.get("core", []) if isinstance(outcomes, dict) else []
 
+    def _route_dict(row, route_name: str, variant: str) -> dict:
+        """Build one education-route card from registry v12 metadata."""
+        row = row or {}
+        r_edu = sec(row, "education_realism")
+        r_market = sec(row, "market")
+        r_outcomes = sec(row, "career_outcomes")
+        r_routes = sec(row, "routes")
+        if not isinstance(r_routes, dict):
+            r_routes = {}
+        careers = r_outcomes.get("core", []) if isinstance(r_outcomes, dict) else []
+        ambitious = r_routes.get("ambitious_route") if isinstance(r_routes.get("ambitious_route"), dict) else {}
+        backup = r_routes.get("backup_route") if isinstance(r_routes.get("backup_route"), dict) else {}
+
+        if variant == "specialised":
+            title = ambitious.get("label") or label(row)
+            ug = ambitious.get("ug") or label(row)
+            pg = ambitious.get("pg") or label(pg_row) or label(row)
+            phd = (
+                ambitious.get("phd_or_research")
+                or ambitious.get("phd")
+                or "Optional PhD if research orientation becomes strong."
+            )
+            best_for = ambitious.get("why") or (
+                "Students aiming for depth, research, or high-end specialization."
+            )
+        elif variant == "backup":
+            title = backup.get("label") or label(row)
+            ug = backup.get("path") or label(row)
+            pg = f"Bridge toward {label(top1)} or an adjacent PG specialization."
+            phd = "Optional only after UG/PG direction is clear."
+            best_for = backup.get("why") or (
+                "Practical fallback if entrance rank, finance, or interest shifts."
+            )
+        else:
+            title = label(row)
+            ug = label(row)
+            pg_path = route_path(r_routes)
+            pg = f"{label(pg_row)}: {pg_path}" if pg_path and pg_row else label(pg_row)
+            phd = (
+                f"Optional PhD extension of {label(pg_row)} only if research orientation becomes strong."
+                if pg_row else "Optional only if research orientation becomes strong."
+            )
+            best_for = (
+                "Students comfortable with physics, chemistry, mathematics, lab work, and engineering systems."
+            )
+
+        return {
+            "route_name": route_name,
+            "title": title,
+            "ug_options": ug,
+            "pg_options": pg,
+            "phd_options": phd,
+            "careers": ", ".join(careers[:5]) if careers else ", ".join(outcome_core[:5]),
+            "best_for": best_for,
+            "risk_level": r_edu.get("risk_level", "Medium"),
+            "long_term_value": (
+                r_market.get("india_2035_demand", "Medium")
+                if isinstance(r_market, dict) else "Medium"
+            ),
+        }
+
     top_cluster = macro_clusters[0]["cluster"] if macro_clusters else "Undetermined"
 
     return {
@@ -918,20 +979,9 @@ def _fallback_report_json(top35, macro_clusters, student_name):
             for i, r in enumerate(top35[:20])
         ],
         "education_routes": [
-            {
-                "route_name": "Route A - Primary Route",
-                "title": label(top1),
-                "ug_options": label(top1),
-                "pg_options": f"{label(pg_row)}: {pg_safe_route}" if pg_safe_route else label(pg_row),
-                "phd_options": (
-                    f"Optional PhD extension of {label(pg_row)} only if research orientation becomes strong."
-                    if pg_row else "Optional only if research orientation becomes strong."
-                ),
-                "careers": ", ".join(outcome_core[:5]),
-                "best_for": "Students comfortable with physics, chemistry, mathematics, lab work, and engineering systems.",
-                "risk_level": edu.get("risk_level", "Medium"),
-                "long_term_value": market.get("india_2035_demand", "Medium") if isinstance(market, dict) else "Medium",
-            }
+            _route_dict(top1, "Route A - Primary Route", "primary"),
+            _route_dict(pg_row or top1, "Route B - High-End Specialised Route", "specialised"),
+            _route_dict(top2 or top1, "Route C - Safe Practical Backup", "backup"),
         ],
         # True "avoid" list: only fields with independent, multi-dimensional
         # adverse evidence (STATUS_NOT_PRIMARY). Fields that merely need a PG

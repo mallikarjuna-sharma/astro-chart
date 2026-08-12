@@ -52,11 +52,13 @@ export function ConsolidatedExportPanel({ data, chartLabel }: ConsolidatedExport
   if (!data) {
     return (
       <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-        Consolidated KP export appears here after you run{" "}
-        <span className="text-foreground font-medium">Save & generate charts</span> on Birth Data.
+        Consolidated export appears here after you save a profile with charts.
       </div>
     );
   }
+
+  const sys = data.system_config as { ayanamsa?: string; ayanamsa_mode?: string } | undefined;
+  const ayanamsaLabel = sys?.ayanamsa ?? sys?.ayanamsa_mode;
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
@@ -65,6 +67,9 @@ export function ConsolidatedExportPanel({ data, chartLabel }: ConsolidatedExport
           <h3 className="font-semibold text-sm">Consolidated export (JSON)</h3>
           {chartLabel && (
             <p className="text-xs text-muted-foreground truncate">{chartLabel}</p>
+          )}
+          {ayanamsaLabel && (
+            <p className="text-xs text-muted-foreground">Ayanamsa: {ayanamsaLabel}</p>
           )}
         </div>
         <Button type="button" variant="outline" size="sm" onClick={() => setCollapsed((c) => !c)}>

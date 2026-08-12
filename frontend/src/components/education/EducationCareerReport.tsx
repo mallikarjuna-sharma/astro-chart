@@ -18,6 +18,7 @@ import {
   StatTile,
   Tag,
 } from "@/components/report/primitives";
+import { resolveEducationRoutes } from "@/lib/education-report/routes";
 
 interface Props {
   data: EducationAnalysisResponse;
@@ -449,6 +450,8 @@ export function EducationCareerReport({ data }: Props) {
 
   const routeCautions = report.route_cautions?.length ? report.route_cautions : report.fields_to_avoid ?? [];
 
+  const educationRoutes = useMemo(() => resolveEducationRoutes(report), [report]);
+
   const ugStartYear = Number(chartFacts.ug_start_year);
   const timelinePhases = Number.isFinite(ugStartYear) && ugStartYear > 0
     ? [
@@ -465,7 +468,7 @@ export function EducationCareerReport({ data }: Props) {
       snapshot,
       macro_clusters: macroClusters,
       top_20_fields: report.top_20_fields ?? [],
-      education_routes: report.education_routes ?? [],
+      education_routes: educationRoutes,
       route_cautions: report.route_cautions ?? [],
       engine_output_comparison: report.engine_output_comparison ?? [],
       engine_gap_audit: report.engine_gap_audit ?? [],
@@ -474,7 +477,7 @@ export function EducationCareerReport({ data }: Props) {
       final_recommendation: report.final_recommendation ?? "",
       chart_facts: chartFacts,
     }),
-    [identity, snapshot, macroClusters, report, chartFacts],
+    [identity, snapshot, macroClusters, report, chartFacts, educationRoutes],
   );
 
   return (
@@ -636,11 +639,11 @@ export function EducationCareerReport({ data }: Props) {
 
         {/* ── Routes & plan ────────────────────────────────────────── */}
         <TabsContent value="routes" className="mt-5 space-y-5">
-          {report.education_routes?.length ? (
+          {educationRoutes.length ? (
             <Panel>
               <SectionTitle title="Education route map" chip="UG to PG to career" chipTone="info" />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {report.education_routes.map((route, i) => (
+                {educationRoutes.map((route, i) => (
                   <article key={route.route_name ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
                     <div className="mb-2">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-gold">
@@ -679,7 +682,7 @@ export function EducationCareerReport({ data }: Props) {
             </Panel>
           ) : null}
 
-          {!report.education_routes?.length && !timelinePhases.length ? (
+          {!educationRoutes.length && !timelinePhases.length ? (
             <Panel>
               <p className="text-sm text-muted-foreground text-center py-4">
                 No education route map was generated for this chart.

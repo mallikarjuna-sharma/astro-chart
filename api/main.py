@@ -265,7 +265,7 @@ def _compute_birth_chart(body: BirthChartBody) -> TableResponse:
         (body.year, body.month, body.day),
         (body.hour, body.minute, body.second),
     )
-    mode = (body.ayanamsa or const._DEFAULT_AYANAMSA_MODE).upper()
+    mode = (body.ayanamsa or "LAHIRI").upper()
     try:
         drik.set_ayanamsa_mode(mode)
     except Exception as exc:
@@ -721,7 +721,7 @@ def _compute_divisional_charts(
         (body.year, body.month, body.day),
         (body.hour, body.minute, body.second),
     )
-    mode = (body.ayanamsa or const._DEFAULT_AYANAMSA_MODE).upper()
+    mode = (body.ayanamsa or "LAHIRI").upper()
     try:
         drik.set_ayanamsa_mode(mode)
     except Exception as exc:

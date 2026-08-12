@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { useEffect, useState } from "react";
+import { SouthIndianChart } from "@/components/charts/SouthIndianChart";
+import { prashnaToSouthIndianChart } from "@/lib/prashna-chart";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { pyjhora } from "@/lib/pyjhora";
 import type { PrashnaCategoryMeta, PrashnaResponse } from "@/lib/pyjhora/types";
@@ -98,6 +100,17 @@ function PrashnaPage() {
   };
 
   const confidencePct = answer ? Math.round(answer.confidence * 100) : 0;
+  const prashnaChart = useMemo(
+    () => (answer ? prashnaToSouthIndianChart(answer) : null),
+    [answer],
+  );
+  const chartMeta = answer
+    ? {
+        place_label: answer.city || "Question place",
+        birth_local: answer.moment,
+        ayanamsa_mode: "LAHIRI",
+      }
+    : undefined;
 
   return (
     <div>
@@ -189,6 +202,11 @@ function PrashnaPage() {
             )}
             {answer && (
               <div className="space-y-4">
+                {prashnaChart && (
+                  <div className="max-w-md mx-auto">
+                    <SouthIndianChart chart={prashnaChart} meta={chartMeta} size="large" />
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-3">
                   <Badge className={
                     answer.verdict === "YES" ? "bg-gold text-primary-foreground text-base px-3 py-1" :

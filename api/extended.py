@@ -131,7 +131,7 @@ def _prepare(body: BirthChartBody) -> dict[str, Any]:
     jd = utils.julian_day_number(
         (body.year, body.month, body.day), (body.hour, body.minute, body.second)
     )
-    mode = (body.ayanamsa or const._DEFAULT_AYANAMSA_MODE).upper()
+    mode = (body.ayanamsa or "LAHIRI").upper()
     drik.set_ayanamsa_mode(mode)
     dob = drik.Date(body.year, body.month, body.day)
     tob = (body.hour, body.minute, body.second)
@@ -545,10 +545,10 @@ def _prepare_kp(body: BirthChartBody) -> dict[str, Any]:
     jd = utils.julian_day_number(
         (body.year, body.month, body.day), (body.hour, body.minute, body.second)
     )
-    mode = (body.ayanamsa or "KP").upper()
+    mode = (body.ayanamsa or "LAHIRI").upper()
     drik.set_ayanamsa_mode(mode)
     pp = charts.rasi_chart(jd, place)
-    return {"jd": jd, "place": place, "pp": pp}
+    return {"jd": jd, "place": place, "pp": pp, "mode": mode}
 
 
 def _sign_and_deg(rasi_idx: int, lon_in_rasi: float) -> tuple[str, float]:
@@ -708,6 +708,7 @@ def _kp_significators(pp: list, kp: dict, bhava_houses: dict, lagna_sign0: int) 
 def compute_consolidated(body: BirthChartBody, student_context: dict | None = None) -> dict[str, Any]:
     ctx = _prepare_kp(body)
     jd, place, pp = ctx["jd"], ctx["place"], ctx["pp"]
+    ayanamsa_mode = ctx.get("mode", "LAHIRI")
     sc = student_context or {}
     pref = sc.get("student_preference") or {}
 
@@ -796,7 +797,8 @@ def compute_consolidated(body: BirthChartBody, student_context: dict | None = No
 
     return normalize_consolidated({
         "system_config": {
-            "ayanamsa": "KP_Krishnamurti",
+            "ayanamsa": {"KP": "KP_Krishnamurti", "LAHIRI": "Lahiri"}.get(ayanamsa_mode, ayanamsa_mode),
+            "ayanamsa_mode": ayanamsa_mode,
             "node_type": "True",
             "karaka_system": 7,
             "birth_time_uncertainty_minutes": 0.0,

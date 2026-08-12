@@ -83,9 +83,10 @@ function ReportsPage() {
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Consolidated KP export (JSON)</CardTitle>
+          <CardTitle>Consolidated export (JSON)</CardTitle>
           <CardDescription>
-            Generated via <code className="text-xs">POST /api/consolidated</code> when charts are saved.
+            Generated via <code className="text-xs">POST /api/consolidated</code> when a profile is saved.
+            Ayanamsa follows <code className="text-xs">birth_input.ayanamsa</code> (default Lahiri).
             All divisional charts live under <code className="text-xs">pyhora_calculations.divisional_charts</code> with
             the same structure as D1 (lagna, lagna_degree, planets with sign/degree).
           </CardDescription>
