@@ -4,6 +4,7 @@ import type {
   CareerContextInput,
   CareerTimelineResponse,
   ConsolidatedRequest,
+  D1BodiesResponse,
   DivisionalChartsResponse,
   EducationAnalysisResponse,
   PucAnalysisResponse,
@@ -128,6 +129,13 @@ export const pyjhora = {
       body: JSON.stringify(body),
     }),
 
+  d1Bodies: (body: BirthInput) =>
+    request<D1BodiesResponse>("/api/d1-bodies", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
   ashtakavarga: (body: BirthInput) =>
     request<AshtakavargaResponse>("/api/ashtakavarga", {
       method: "POST",
@@ -205,8 +213,7 @@ export const pyjhora = {
       }),
     }),
 
-  prashnaCategories: () =>
-    request<PrashnaCategoriesResponse>("/api/prashna/categories"),
+  prashnaCategories: () => request<PrashnaCategoriesResponse>("/api/prashna/categories"),
 
   prashna: (body: PrashnaRequest) =>
     request<PrashnaResponse>("/api/prashna", {

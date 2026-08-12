@@ -949,6 +949,16 @@ def panchanga_endpoint(body: BirthChartBody) -> dict[str, Any]:
     return _run_extended("Panchanga", extended.compute_panchanga, body)
 
 
+@app.post("/api/d1-bodies")
+def d1_bodies_endpoint(body: BirthChartBody) -> dict[str, Any]:
+    """D-1 per-body detail: longitude, nakshatra + pada, rasi and navamsa sign.
+
+    Includes Lagna, the nine grahas (with chara karaka and retrograde flags),
+    Maandi/Gulika and the Bhava/Hora/Ghati/Vighati lagnas.
+    """
+    return _run_extended("D1 bodies", extended.compute_d1_bodies, body)
+
+
 @app.post("/api/ashtakavarga")
 def ashtakavarga_endpoint(body: BirthChartBody) -> dict[str, Any]:
     """Sarvashtakavarga (SAV) per house + Bhinnashtakavarga (BAV) per contributor."""

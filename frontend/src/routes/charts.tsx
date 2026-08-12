@@ -11,9 +11,12 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { SouthIndianChart } from "@/components/charts/SouthIndianChart";
+import { D1BodyTable } from "@/components/charts/D1BodyTable";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { useDisplayName } from "@/hooks/use-display-name";
+import { pyjhora } from "@/lib/pyjhora/client";
 import type { DivisionalChart } from "@/lib/pyjhora/types";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/charts")({
@@ -40,6 +43,14 @@ function ChartsPage() {
     ? active
     : String(allCharts[0]?.factor ?? "1");
 
+  const birthInput = session?.birthInput;
+  const d1Bodies = useQuery({
+    queryKey: ["d1-bodies", birthInput],
+    queryFn: () => pyjhora.d1Bodies(birthInput!),
+    enabled: Boolean(birthInput),
+    staleTime: Infinity,
+  });
+
   if (!session?.birthInput || allCharts.length === 0) {
     return (
       <div>
@@ -49,7 +60,9 @@ function ChartsPage() {
         />
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            <p className="mb-4">Charts load from your saved profile. Open or create one on the Profiles page.</p>
+            <p className="mb-4">
+              Charts load from your saved profile. Open or create one on the Profiles page.
+            </p>
             <Link to="/">
               <Button className="gradient-gold text-primary-foreground">Go to Profiles</Button>
             </Link>
@@ -104,12 +117,12 @@ function ChartsPage() {
           <TabsContent
             key={c.factor}
             value={String(c.factor)}
-            className="flex-1 min-h-0 mt-2 data-[state=inactive]:hidden"
+            className="flex-1 min-h-0 mt-2 overflow-y-auto pr-1 data-[state=inactive]:hidden"
           >
-            <Card className="border-border/80 h-full flex flex-col">
-              <CardContent className="flex-1 min-h-0 p-3 md:p-5 flex flex-col gap-3">
-                <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 min-h-0 items-stretch">
-                  <div className="w-full lg:w-[48%] xl:w-[50%] shrink-0 min-h-[min(52vh,28rem)] lg:min-h-0 flex">
+            <Card className="border-border/80 flex flex-col">
+              <CardContent className="p-3 md:p-5 flex flex-col gap-3">
+                <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch">
+                  <div className="w-full lg:w-[48%] xl:w-[50%] shrink-0 min-h-[min(52vh,28rem)] flex">
                     <SouthIndianChart chart={c} meta={meta} size="fit" />
                   </div>
                   <div className="w-full lg:flex-1 min-h-0 min-w-0 flex flex-col">
@@ -122,9 +135,7 @@ function ChartsPage() {
                           key={h.rasi}
                           className="flex gap-2 border-b border-border/40 py-1 min-w-0"
                         >
-                          <span className="text-muted-foreground w-20 shrink-0">
-                            {h.rasi_name}
-                          </span>
+                          <span className="text-muted-foreground w-20 shrink-0">{h.rasi_name}</span>
                           <span className="text-gold font-medium break-words">
                             {h.bodies.join(", ") || "—"}
                           </span>
@@ -134,8 +145,33 @@ function ChartsPage() {
                   </div>
                 </div>
                 <p className="shrink-0 text-xs text-muted-foreground leading-snug">
-                  Codes: La Lagna · Su Sun · Mo Moon · Ma Mars · Me Mercury · Ju Jupiter · Ve Venus · Sa Saturn · Ra Rahu · Ke Ketu
+                  Codes: La Lagna · Su Sun · Mo Moon · Ma Mars · Me Mercury · Ju Jupiter · Ve Venus
+                  · Sa Saturn · Ra Rahu · Ke Ketu
                 </p>
+
+                {c.factor === 1 ? (
+                  <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
+                    <h3 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                      Body positions
+                    </h3>
+                    {d1Bodies.data?.rows?.length ? (
+                      <>
+                        <D1BodyTable rows={d1Bodies.data.rows} />
+                        <p className="text-xs text-muted-foreground leading-snug">
+                          Karakas: AK Atma · AmK Amatya · BK Bhratru · MK Matru · PiK Pitru · PK
+                          Putra · GK Gnati · DK Dara. (R) marks a retrograde graha.
+                        </p>
+                      </>
+                    ) : d1Bodies.isPending ? (
+                      <p className="text-xs text-muted-foreground">Loading body positions…</p>
+                    ) : (
+                      <p className="text-xs text-destructive">
+                        Could not load body positions
+                        {d1Bodies.error ? `: ${(d1Bodies.error as Error).message}` : "."}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </TabsContent>

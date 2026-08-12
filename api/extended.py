@@ -179,6 +179,139 @@ def compute_panchanga(body: BirthChartBody) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# D-1 body table: longitude, nakshatra + pada, rasi and navamsa per body.
+# Covers Lagna, the nine grahas, Maandi/Gulika and the four time-based
+# special lagnas, matching the classic JHora body grid.
+# ---------------------------------------------------------------------------
+# Short karaka codes in the order house.chara_karakas() returns planet ids.
+# Index 4/5 are Pitru/Putra karaka, shown as PiK/PK to match JHora.
+_KARAKA8 = ["AK", "AmK", "BK", "MK", "PiK", "PK", "GK", "DK"]
+
+_SPECIAL_LAGNAS = [
+    ("Bhava Lagna", "bhava_lagna"),
+    ("Hora Lagna", "hora_lagna"),
+    ("Ghati Lagna", "ghati_lagna"),
+    ("Vighati Lagna", "vighati_lagna"),
+]
+
+
+def _lon_with_sign(rasi_idx: int, lon_in_rasi: float) -> str:
+    """Format as `15 Li 11' 25.29"` — degrees, sign, arcminutes, arcseconds."""
+    deg = abs(float(lon_in_rasi))
+    d = int(deg)
+    minutes = (deg - d) * 60.0
+    m = int(minutes)
+    s = round((minutes - m) * 60.0, 2)
+    if s >= 60.0:
+        s -= 60.0
+        m += 1
+    if m >= 60:
+        m -= 60
+        d += 1
+    return f"{d} {utils.SIGN_ABBR[rasi_idx % 12]} {m:02d}' {s:05.2f}\""
+
+
+def _nak_short(nak_index_1_to_27: int) -> str:
+    short = utils.NAKSHATRA_SHORT_LIST
+    i = int(nak_index_1_to_27) - 1
+    return short[i] if 0 <= i < len(short) else ""
+
+
+def _d1_body_row(
+    name: str,
+    rasi_idx: int,
+    lon_in_rasi: float,
+    navamsa_rasi: int | None,
+    karaka: str = "",
+    retrograde: bool = False,
+) -> dict[str, Any]:
+    full_lon = (int(rasi_idx) % 12) * 30.0 + float(lon_in_rasi)
+    nak_idx, pada, _ = drik.nakshatra_pada(full_lon)
+    return {
+        "body": name,
+        "karaka": karaka,
+        "retrograde": retrograde,
+        "longitude": _lon_with_sign(int(rasi_idx), float(lon_in_rasi)),
+        "longitude_decimal": round(float(lon_in_rasi), 6),
+        "nakshatra": _nak_short(int(nak_idx)),
+        "nakshatra_full": _nak_name(int(nak_idx)),
+        "pada": int(pada),
+        "rasi": utils.SIGN_ABBR[int(rasi_idx) % 12],
+        "rasi_full": _rasi_name(int(rasi_idx)),
+        "navamsa": "" if navamsa_rasi is None else utils.SIGN_ABBR[int(navamsa_rasi) % 12],
+        "navamsa_full": "" if navamsa_rasi is None else _rasi_name(int(navamsa_rasi)),
+    }
+
+
+def compute_d1_bodies(body: BirthChartBody) -> dict[str, Any]:
+    ctx = _prepare(body)
+    jd, place, pp = ctx["jd"], ctx["place"], ctx["pp"]
+    dob = drik.Date(body.year, body.month, body.day)
+    tob = (body.hour, body.minute, body.second)
+
+    navamsa: dict[Any, int] = {
+        pid: int(rasi_idx)
+        for pid, (rasi_idx, _lon) in charts.divisional_chart(
+            jd, place, divisional_chart_factor=9
+        )
+    }
+    retro = {int(x) for x in drik.planets_in_retrograde(jd, place)}
+    karaka_of: dict[int, str] = {}
+    for i, pid in enumerate(house.chara_karakas(pp)):
+        if i < len(_KARAKA8):
+            karaka_of[int(pid)] = _KARAKA8[i]
+
+    by_body = {p: (int(h), float(lon)) for p, (h, lon) in pp}
+    rows: list[dict[str, Any]] = []
+    warnings: list[str] = []
+
+    if "L" in by_body:
+        rasi_idx, lon = by_body["L"]
+        rows.append(_d1_body_row("Lagna", rasi_idx, lon, navamsa.get("L")))
+
+    for pid in range(0, 9):
+        if pid not in by_body:
+            continue
+        rasi_idx, lon = by_body[pid]
+        rows.append(
+            _d1_body_row(
+                _PLANET_NAMES[pid],
+                rasi_idx,
+                lon,
+                navamsa.get(pid),
+                karaka=karaka_of.get(pid, ""),
+                # Rahu/Ketu are perpetually retrograde, so they carry no (R) marker.
+                retrograde=pid in retro and pid not in (7, 8),
+            )
+        )
+
+    for label, lon_fn in (("Maandi", drik.maandi_longitude), ("Gulika", drik.gulika_longitude)):
+        try:
+            rasi_idx, lon = lon_fn(dob, tob, place)
+            nav, _nav_lon = lon_fn(dob, tob, place, divisional_chart_factor=9)
+            rows.append(_d1_body_row(label, int(rasi_idx), float(lon), int(nav)))
+        except Exception as exc:  # noqa: BLE001 - one upagraha must not fail the table
+            warnings.append(f"{label}: {exc}")
+
+    for label, fn_name in _SPECIAL_LAGNAS:
+        lagna_fn = getattr(drik, fn_name, None)
+        if lagna_fn is None:
+            warnings.append(f"{label}: not available in this PyJHora build")
+            continue
+        try:
+            rasi_idx, lon = lagna_fn(jd, place)
+            nav, _nav_lon = lagna_fn(jd, place, divisional_chart_factor=9)
+            rows.append(_d1_body_row(label, int(rasi_idx), float(lon), int(nav)))
+        except Exception as exc:  # noqa: BLE001 - one lagna must not fail the table
+            warnings.append(f"{label}: {exc}")
+
+    meta = _base_meta(body, ctx)
+    if warnings:
+        meta["warnings"] = warnings
+    return {"rows": rows, "meta": meta}
+
+
+# ---------------------------------------------------------------------------
 # Ashtakavarga: SAV (per house) + BAV (per planet contributor)
 # ---------------------------------------------------------------------------
 _BAV_CONTRIBUTORS = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Lagna"]

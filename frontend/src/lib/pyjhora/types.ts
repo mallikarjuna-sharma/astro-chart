@@ -108,8 +108,32 @@ export interface PanchangaResponse {
   items: { label: string; value: string }[];
 }
 
+/** One row of the D-1 body table: Lagna, grahas, Maandi/Gulika, special lagnas. */
+export interface D1BodyRow {
+  body: string;
+  /** Chara karaka short code ("AK", "AmK", …); empty when the body has none. */
+  karaka: string;
+  retrograde: boolean;
+  /** Formatted as `15 Li 11' 25.29"`. */
+  longitude: string;
+  longitude_decimal: number;
+  nakshatra: string;
+  nakshatra_full: string;
+  pada: number;
+  rasi: string;
+  rasi_full: string;
+  navamsa: string;
+  navamsa_full: string;
+}
+
+export interface D1BodiesResponse {
+  rows: D1BodyRow[];
+  meta: Record<string, unknown>;
+}
+
 export interface AshtakavargaResponse {
-  sav: { house: number; rasi: string; points: number }[];
+  /** One row per rasi (Aries..Pisces); `house` is the backend's "H1".."H12" label. */
+  sav: { house: string; rasi: string; points: number }[];
   sav_total: number;
   bav: { contributor: string; houses: number[]; total: number }[];
 }
@@ -370,13 +394,15 @@ export interface CareerTimelineBlock {
   event_type: string;
   secondary_event_type?: string;
   career_score: number;
-  confidence?: string | {
-    score?: number;
-    tier?: string;
-    label?: string;
-    caveats?: string[];
-    retro_validation?: Record<string, unknown>;
-  };
+  confidence?:
+    | string
+    | {
+        score?: number;
+        tier?: string;
+        label?: string;
+        caveats?: string[];
+        retro_validation?: Record<string, unknown>;
+      };
   is_current?: boolean;
   is_past?: boolean;
   is_primary_opportunity?: boolean;
