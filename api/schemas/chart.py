@@ -9,15 +9,15 @@ from pydantic import BaseModel, Field
 class BirthChartBody(BaseModel):
     """Local civil date/time at `timezone_offset_hours` east of UTC (e.g. India 5.5)."""
 
-    year: int = Field(..., examples=[1990])
-    month: int = Field(..., ge=1, le=12, examples=[6])
-    day: int = Field(..., ge=1, le=31, examples=[15])
-    hour: int = Field(0, ge=0, le=23)
-    minute: int = Field(0, ge=0, le=59)
-    second: int = Field(0, ge=0, le=59)
-    place_label: str = Field("Birth place", description="Display name only")
-    latitude: float = Field(..., ge=-90, le=90, examples=[13.0827])
-    longitude: float = Field(..., ge=-180, le=180, examples=[80.2707])
+    year: int = Field(..., examples=[2008])
+    month: int = Field(..., ge=1, le=12, examples=[11])
+    day: int = Field(..., ge=1, le=31, examples=[16])
+    hour: int = Field(0, ge=0, le=23, examples=[6])
+    minute: int = Field(0, ge=0, le=59, examples=[1])
+    second: int = Field(0, ge=0, le=59, examples=[0])
+    place_label: str = Field("Srirangam, Tiruchirappalli, Tamil Nadu, India", description="Display name only")
+    latitude: float = Field(..., ge=-90, le=90, examples=[10.8655])
+    longitude: float = Field(..., ge=-180, le=180, examples=[78.6882])
     timezone_offset_hours: float = Field(
         ...,
         description="Hours east of UTC (IST = 5.5; US Eastern = -5)",

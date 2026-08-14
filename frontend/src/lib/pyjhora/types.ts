@@ -140,6 +140,7 @@ export interface AshtakavargaResponse {
 
 export interface ShadbalaRow {
   planet: string;
+  virupas: number;
   rupas: number;
   percentage: number;
 }

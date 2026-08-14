@@ -34,8 +34,6 @@ _PLANET_NAMES = {
     0: "Sun", 1: "Moon", 2: "Mars", 3: "Mercury", 4: "Jupiter",
     5: "Venus", 6: "Saturn", 7: "Rahu", 8: "Ketu",
 }
-# The 7 planets used by shadbala (Sun..Saturn) in library column order.
-_SHADBALA_PLANETS = [0, 1, 2, 3, 4, 5, 6]
 
 _TITHI_BASE = [
     "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi",
@@ -346,32 +344,45 @@ def compute_ashtakavarga(body: BirthChartBody) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Shadbala (percentage of required strength)
+# Shadbala (PyJHora strength.shad_bala)
 # ---------------------------------------------------------------------------
+_SHADBALA_COMPONENTS = (
+    "sthana_bala",
+    "kala_bala",
+    "dig_bala",
+    "cheshta_bala",
+    "naisargika_bala",
+    "drik_bala",
+)
+
+
 def compute_shadbala(body: BirthChartBody) -> dict[str, Any]:
     ctx = _prepare(body)
     jd, place = ctx["jd"], ctx["place"]
     sb = strength.shad_bala(jd, place)
-    # Row 7 = total in Rupas, Row 8 = ratio to required strength.
-    rupas = sb[7]
-    ratio = sb[8]
-    rows = []
-    for col, pid in enumerate(_SHADBALA_PLANETS):
-        pct = round(float(ratio[col]) * 100.0, 1)
-        rows.append(
-            {
-                "planet": _PLANET_NAMES[pid],
-                "rupas": round(float(rupas[col]), 2),
-                "percentage": pct,
-            }
-        )
+
+    rows = [
+        {
+            "planet": _PLANET_NAMES[i],
+            "virupas": round(float(sb[6][i]), 2),
+            "rupas": round(float(sb[7][i]), 2),
+            "percentage": round(float(sb[8][i]) * 100.0, 1),
+        }
+        for i in range(7)
+    ]
     ranked = sorted(rows, key=lambda r: r["percentage"], reverse=True)
-    strongest = ranked[0]["planet"] if ranked else ""
-    weakest = ranked[-1]["planet"] if ranked else ""
     return {
         "rows": rows,
-        "strongest": strongest,
-        "weakest": weakest,
+        "strongest": ranked[0]["planet"] if ranked else "",
+        "weakest": ranked[-1]["planet"] if ranked else "",
+        "components": {
+            key: [round(float(v), 2) for v in sb[idx]]
+            for idx, key in enumerate(_SHADBALA_COMPONENTS)
+        },
+        "minimum_virupas": {
+            _PLANET_NAMES[i]: round(float(const.shad_bala_factors[i]) * 60.0, 1)
+            for i in range(7)
+        },
         "meta": _base_meta(body, ctx),
     }
 

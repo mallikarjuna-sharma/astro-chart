@@ -38,8 +38,8 @@ class _GeoResult:
 _KNOWN_PLACES: dict[str, dict[str, object]] = {
     "srirangam": {
         "place_label": "Srirangam, Tiruchirappalli, Tamil Nadu, India",
-        "latitude": 10.8627,
-        "longitude": 78.6928,
+        "latitude": 10.8655,
+        "longitude": 78.6882,
     },
     "madurai": {
         "place_label": "Madurai, Tamil Nadu, India",

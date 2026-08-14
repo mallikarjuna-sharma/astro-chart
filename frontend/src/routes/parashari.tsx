@@ -98,7 +98,7 @@ function ParashariPage() {
               {shadbala ? (
                 <p className="text-[10px] text-muted-foreground">
                   Strongest: {shadbala.strongest ?? "—"} · Weakest: {shadbala.weakest ?? "—"} · 100%
-                  = minimum required
+                  = PyJHora minimum strength
                 </p>
               ) : null}
             </CardHeader>
@@ -108,6 +108,7 @@ function ParashariPage() {
                   <thead className="text-[10px] text-muted-foreground uppercase">
                     <tr>
                       <th className="text-left py-0.5">Planet</th>
+                      <th className="text-center">Virupas</th>
                       <th className="text-center">Rupas</th>
                       <th className="text-right">Strength %</th>
                     </tr>
@@ -123,6 +124,7 @@ function ParashariPage() {
                           >
                             {r.planet}
                           </td>
+                          <td className="tabular-nums text-center">{r.virupas}</td>
                           <td className="tabular-nums text-center">{r.rupas}</td>
                           <td className="text-right tabular-nums">{r.percentage}%</td>
                         </tr>

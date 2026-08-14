@@ -72,11 +72,11 @@ type FormState = {
 
 const defaultForm = (): FormState => ({
   profileName: "",
-  date: "1985-09-29",
-  time: "12:35:00",
-  placeLabel: "Dharmapuri, Tamil Nadu, India",
-  latitude: "12.1211",
-  longitude: "78.158214",
+  date: "2008-11-16",
+  time: "06:01:00",
+  placeLabel: "Srirangam, Tiruchirappalli, Tamil Nadu, India",
+  latitude: "10.8655",
+  longitude: "78.6882",
   timezoneOffsetHours: "5.5",
   ayanamsa: "LAHIRI",
   useTrueNodes: false,
