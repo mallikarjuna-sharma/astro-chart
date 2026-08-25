@@ -3494,7 +3494,15 @@ def build_career_field_report_from_chart(
     career_phase_raw = _resolve_career_phase(payload)
     career_phase = _career_phase_label(age_stage, career_phase_raw)
     chart_facts = _build_chart_signature_facts(payload, active_lord, peak_lord)
+    chart_facts["education_intent"] = _resolve_education_intent(data, current_age)
     macro_clusters = _macro_cluster_ranking(results, top_n=20)
+
+    locked_routes = _select_headline_routes(results[:20])
+    logger.info(
+        "[career_field_report_v2] Locked headline selection: ug=%s pg=%s backup=%s alt_backup=%s",
+        locked_routes.get("ug_label"), locked_routes.get("pg_label"),
+        locked_routes.get("backup_label"), locked_routes.get("alt_backup_label"),
+    )
 
     llm_meta = {
         "attempted": False,
@@ -3503,20 +3511,45 @@ def build_career_field_report_from_chart(
         "model": "",
         "error_message": "LLM report not attempted (consent or API key missing)",
     }
+    report: Optional[Dict[str, Any]] = None
     if _llm_consent:
-        report, llm_meta = _call_llm_for_report(
-            name, career_phase, active_lord, peak_lord, chart_facts, results, macro_clusters,
+        llm_meta["attempted"] = True
+        llm_meta["provider"] = os.getenv("LLM_PROVIDER", "gemini")
+        llm_meta["model"] = os.getenv("LLM_MODEL", "")
+        report = _call_llm_for_report(
+            name,
+            career_phase,
+            active_lord,
+            peak_lord,
+            chart_facts,
+            results,
+            macro_clusters,
+            locked=locked_routes,
         )
+        if report:
+            llm_meta["succeeded"] = True
+            llm_meta["error_message"] = ""
+        else:
+            llm_meta["error_message"] = "LLM report call failed or returned no data"
     else:
         logger.info("[PRIVACY] External report LLM skipped: explicit consent not supplied.")
-        report = None
+
     if not report:
         logger.warning(
             "[career_field_report_v2] LLM report generation failed/unavailable — using deterministic fallback."
         )
-        report = _fallback_report_json(results, macro_clusters, name)
+        report = _fallback_report_json(
+            results,
+            macro_clusters,
+            name,
+            chart_facts.get("education_intent", "first_ug_selection"),
+            locked=locked_routes,
+        )
+        if llm_meta["attempted"] and not llm_meta["succeeded"]:
+            llm_meta["error_message"] = llm_meta.get("error_message") or "using deterministic fallback"
 
-    report = _apply_deterministic_suitability_to_report(report, results)
+    report = _enforce_deterministic_headline(report, locked_routes)
+    report = _apply_deterministic_suitability_to_report(report, results, locked=locked_routes)
     report["privacy"] = privacy_contract(payload)
     report["calculation_identity"] = calculation_identity(
         build_policy_json(), engine=ENGINE_VERSION, degraded=False,

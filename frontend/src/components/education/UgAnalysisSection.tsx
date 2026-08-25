@@ -30,19 +30,6 @@ export function UgAnalysisSection() {
       setLoading(true);
       patchChartSession({ educationAnalysisError: undefined });
       try {
-        if (profileId && !forceRefresh) {
-          try {
-            const cached = await profilesApi.educationAnalysis(profileId);
-            if (cached.AI != null) {
-              patchChartSession({ educationAnalysis: cached, educationAnalysisError: undefined });
-              return;
-            }
-            // Legacy cache without AI diagnostics — recompute below with chart JSON.
-          } catch {
-            // cache miss — compute below
-          }
-        }
-
         const engineJson = await ensureConsolidatedForEngine(
           session.birthInput,
           session.studentContext,
@@ -53,6 +40,20 @@ export function UgAnalysisSection() {
         if (!consolidatedHasEngineData(consolidated)) {
           patchChartSession({ consolidated: engineJson });
         }
+
+        if (profileId && !forceRefresh) {
+          try {
+            const cached = await profilesApi.educationAnalysis(profileId, engineJson);
+            if (cached.AI != null) {
+              patchChartSession({ educationAnalysis: cached, educationAnalysisError: undefined });
+              return;
+            }
+            // Legacy cache without AI diagnostics — recompute below with chart JSON.
+          } catch {
+            // cache miss — compute below
+          }
+        }
+
         const result = profileId
           ? await profilesApi.educationAnalysis(profileId, engineJson, { refresh: forceRefresh })
           : await pyjhora.ugEducationAnalysis(engineJson);

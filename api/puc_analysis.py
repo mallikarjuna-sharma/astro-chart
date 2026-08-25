@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from api.ai_status import ai_status_from_stream_narrative
-from api.llm_policy import prepare_chart_for_api_llm
+from api.llm_policy import API_LLM_NARRATIVE_ENABLED, API_LLM_RUNTIME_CONSENT, prepare_chart_for_api_llm
 from jyotish.engine_io import parse_json_payload
 from jyotish.payload import ENGINE_VERSION
 from Stream_Determination.cross_validate import safe_cross_validate
@@ -93,7 +93,8 @@ def run_puc_analysis(chart: dict[str, Any]) -> dict[str, Any]:
     stream_narrative = generate_stream_narrative(
         payload,
         determination,
-        api_mode=True,
+        enabled=API_LLM_NARRATIVE_ENABLED,
+        runtime_consent=API_LLM_RUNTIME_CONSENT,
     )
 
     report = build_report_payload(
