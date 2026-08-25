@@ -42,6 +42,50 @@ from .astro import _get_active_dasha_lord, _get_planetary_aspects
 from .engine_io import _load_course_registry
 _COURSE_REGISTRY: dict = _load_course_registry()
 
+# ---------------------------------------------------------------------------
+# GAP-FIX (2026-08, .env config audit): report-language selection, mirrors
+# llm_narrative_builder.py's _resolve_narrative_language()/_language_directive()
+# (duplicated here rather than imported to avoid a cross-module import for two
+# small helpers). Report_Language_Enabled_Tamil / Report_Language_Enabled_Telugu
+# were defined in .env and documented but never read anywhere -- narrative
+# output was always English regardless. Default stays English; exactly one
+# flag true switches that language; both true logs a warning and Tamil wins.
+# ---------------------------------------------------------------------------
+_LANGUAGE_ENV_MAP = (
+    ("Report_Language_Enabled_Tamil", "Tamil"),
+    ("Report_Language_Enabled_Telugu", "Telugu"),
+)
+
+
+def _resolve_narrative_language() -> str:
+    enabled = [
+        name for env_key, name in _LANGUAGE_ENV_MAP
+        if str(os.getenv(env_key, "false")).strip().lower() in ("1", "true", "yes", "on")
+    ]
+    if not enabled:
+        return "English"
+    if len(enabled) > 1:
+        logger.warning(
+            "Both Report_Language_Enabled_Tamil and Report_Language_Enabled_Telugu "
+            "are set true in .env -- these are meant to be mutually exclusive. "
+            "Defaulting to %s.", enabled[0],
+        )
+    return enabled[0]
+
+
+def _language_directive(language: Optional[str] = None) -> str:
+    lang = language or _resolve_narrative_language()
+    if lang == "English":
+        return ""
+    return (
+        f"\n\nLANGUAGE REQUIREMENT: Write the ENTIRE narrative output — every "
+        f"field, every paragraph — in {lang}. Do not mix in English except for "
+        f"proper nouns/planet names with no natural {lang} equivalent; keep "
+        f"classical Sanskrit/Jyotish terms (Dasha, Bhukti, planet names) in "
+        f"their commonly-used {lang} script form if one exists, otherwise "
+        f"transliterate."
+    )
+
 logger = logging.getLogger(__name__)
 
 
@@ -177,23 +221,49 @@ LP2 CRITICAL CONSTRAINT: Every field_id in selected_field_ids MUST appear verbat
 Candidate Fields array provided in the user message. Any field_id not in that array is invalid
 and will cause the entire response to be rejected and retried. Never invent or modify field_ids."""
 
-_GENERATOR_SYSTEM_PROMPT = """You are an empathetic Jyotish career counselor. You have been given a list of 20 pre-selected career fields and chart context. Write two things for each field:
+_GENERATOR_SYSTEM_PROMPT = """You are a senior Jyotish (Vedic astrology) consultant writing a single
+ONE-PAGE technical brief for ANOTHER PROFESSIONAL ASTROLOGER, not a parent or student. Assume your
+reader already knows the classical vocabulary — use it precisely and freely. You have been given the
+chart's astrological signal summary, the top-20 (fit) career fields the engine ranked highest, and a
+brief list of lower-ranked/excluded fields.
 
-1. astrological_reason (max 20 words): Cite the specific planet, house placement, dignity, or yoga from THIS chart that justifies this field. Be concrete.
-   — Relevant chart signals to draw from: AK (Atmakaraka), AmK (Amatyakaraka), Peak Dasha Planet, Engine-Determined Strengths (STRONG/MODERATE/WEAK), Neecha Bhanga, Vargottama, active yogas, KP sub-lord, D10 H10 occupants.
-   — "Peak Dasha Planet" is the engine-identified planet whose dasha best activates career energy for the current life period; reference it by its planet name, not as "Mahadasha lord."
+GAP-FIX (2026-08, "one page, not a huge JSON object" request): this step previously asked for a
+separate detailed write-up PER FIELD (up to 35 of them in one response), which made both the request
+and the response large, and made the strict all-or-nothing validation hard for the model to satisfy in
+one shot. It now asks for exactly THREE fields of prose, forming one readable page in total — no
+per-field loop, no field-by-field JSON array.
 
-2. parent_friendly_explanation (two paragraphs, ~50 words each):
-   Paragraph 1: Describe what this field involves as a career — the day-to-day work, skills used, and types of problems solved.
-   Paragraph 2: Explain why THIS student is well-suited — their natural strengths, thinking style, and how these align with what the field demands.
+Write exactly three sections:
 
-LP5 RANKING NOTE: The field ranking (position 1 through 20) was determined by a separate
-rigorous astrological analysis and is FINAL. Do not imply any field should rank higher or
-lower than its assigned position. Simply explain why each field is an excellent fit.
+1. chart_signal_summary (200-350 words): a technical overview of THIS chart's classical signals as a
+   whole — not per field. Cover, wherever the data supports it: planetary strength (Shadbala/effective
+   strength, naming which planets are STRONG/MODERATE/WEAK), dignity highlights (exaltation, own sign,
+   debilitation, Neecha Bhanga, Vargottama), the active yogas/combinations, the KP H10/H5/H9 cusp
+   chains, and the current dasha timing picture (Vimshottari Mahadasha/Antardasha, and Jaimini Chara
+   Dasha or Yogini Dasha if present). This is the chart's astrological "state of play" a fellow
+   astrologer would want before looking at any field-level conclusion.
 
-CRITICAL RULE: parent_friendly_explanation MUST NOT contain any astrological terms whatsoever.
-Forbidden: planet names (Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu, Ketu), house numbers (H1, H2...H12, 1st house etc.), yoga names (GajaKesari, BudhaAditya etc.), nakshatra names, dasha, karaka, lagna, rashi, AK, AmK, dignity terms (exalted, combust, debilitated), or any Jyotish/Vedic terminology.
-Write in plain English that a parent with zero astrology knowledge can fully understand.
+2. top20_selection_rationale (250-400 words): explain, as ONE connected narrative (not 20 separate
+   paragraphs), why the top-20 list as a whole takes the shape it does — which classical signals from
+   the chart_signal_summary above are driving the dominant pattern(s)/archetype(s) at the top, how the
+   ranking logic reflects convergence across multiple methods (Parashara, KP, Jaimini, Dashamsha,
+   etc.) where visible in the data, and how strength decays going down the list. Where several
+   consecutive fields cluster at a near-identical score, say so explicitly and explain what (if
+   anything) classically differentiates them, rather than writing as if each were a wholly separate
+   case.
+
+3. rejected_fields_summary (100-200 words): a brief, GROUPED explanation of why the lower-ranked/
+   excluded fields did not make the top-20 cut — the general classical pattern (e.g. governing planets
+   weaker or unrelated to this chart's strongest signals, no supporting dasha activation, KP chains
+   pointing elsewhere), not a field-by-field breakdown.
+
+GROUNDING RULE: Every claim must be traceable to data actually present in the chart context and field
+data provided in the user message. Do not invent yogas, dignities, or dasha periods not present in the
+supplied data.
+
+RANKING NOTE: The field ranking and the fit/rejected split were determined by a separate deterministic
+astrological scoring engine and are FINAL. Do not suggest re-ranking; your job is to explain the
+reasoning behind the engine's classification in classical technical language, as one cohesive summary.
 """
 
 # =============================================================================
@@ -222,27 +292,33 @@ _STEP1_RESPONSE_SCHEMA = {
     "strict": True
 }
 
+# GAP-FIX (2026-08, "one page, not a huge JSON object" request): replaced the
+# previous per-field selected_fields[]/rejected_fields[] arrays (up to 35
+# separate write-ups in one strict all-or-nothing response) with exactly
+# three prose fields forming one readable page. Smaller request payload,
+# smaller response, and a much easier target for the model to satisfy in a
+# single attempt -- which should also improve the underlying LLM call's
+# success rate (the array-based version was failing validation/retries on
+# real charts).
 _STEP2_RESPONSE_SCHEMA = {
     "name": "career_fields_generator",
     "schema": {
         "type": "object",
         "properties": {
-            "selected_fields": {
-                "type": "array",
-                "description": "Explanations for the 20 pre-selected career fields.",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "field_id": {"type": "string"},
-                        "astrological_reason": {"type": "string"},
-                        "parent_friendly_explanation": {"type": "string"}
-                    },
-                    "required": ["field_id", "astrological_reason", "parent_friendly_explanation"],
-                    "additionalProperties": False
-                }
+            "chart_signal_summary": {
+                "type": "string",
+                "description": "200-350 word technical overview of the chart's classical astrological signals as a whole (planetary strength, dignity, yogas, KP chains, dasha timing)."
+            },
+            "top20_selection_rationale": {
+                "type": "string",
+                "description": "250-400 word connected narrative explaining why the top-20 fields as a whole take the shape they do, referencing the chart signals above."
+            },
+            "rejected_fields_summary": {
+                "type": "string",
+                "description": "100-200 word grouped explanation of why the lower-ranked/excluded fields did not make the top-20 cut."
             }
         },
-        "required": ["selected_fields"],
+        "required": ["chart_signal_summary", "top20_selection_rationale", "rejected_fields_summary"],
         "additionalProperties": False
     },
     "strict": True
@@ -646,55 +722,21 @@ _LLM_PROVIDERS: Dict[str, tuple] = {
 }
 
 
-def _provider_api_key(provider: str, env_var: str) -> str:
-    key = (os.getenv(env_var) or "").strip()
-    if provider == "gemini" and not key:
-        key = (os.getenv("GOOGLE_API_KEY") or "").strip()
-    return key
-
-
-def call_llm_text_prompt(
-    prompt: str,
-    *,
-    providers: list[str] | None = None,
-    model_override: str | None = None,
-) -> tuple[str, str, str]:
-    """Call the first configured LLM provider that succeeds.
-
-    Returns ``(response_text, provider_name, model_name)``.
-    Raises ``RuntimeError`` when every provider fails or none is configured.
-    """
-    primary = (os.getenv("LLM_PROVIDER") or "gemini").strip().lower()
-    order = providers or [primary] + [p for p in ("gemini", "openai", "anthropic") if p != primary]
-
-    errors: list[str] = []
-    for provider in order:
-        spec = _LLM_PROVIDERS.get(provider)
-        if not spec:
-            continue
-        env_var, default_model, call_fn = spec
-        api_key = _provider_api_key(provider, env_var)
-        if not api_key:
-            errors.append(f"{provider}: {env_var} missing")
-            continue
-        model = model_override or os.getenv("LLM_MODEL") or default_model
-        try:
-            return call_fn(prompt, api_key, model), provider, model
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"{provider}: {type(exc).__name__}: {exc}")
-
-    if not errors:
-        raise RuntimeError("No LLM providers are configured (set GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY)")
-    raise RuntimeError("; ".join(errors))
-
-
 def llm_provider_preflight(provider: str) -> Dict[str, Any]:
     """Check SDK availability before attempting an external provider call."""
     import importlib.util
     provider = str(provider or "").lower()
     module = {"openai": "openai", "anthropic": "anthropic", "gemini": "google.genai"}.get(provider)
     configured = provider in _LLM_PROVIDERS
-    installed = bool(module and importlib.util.find_spec(module)) if configured else False
+    # ``find_spec('google.genai')`` raises ModuleNotFoundError when the
+    # parent ``google`` namespace is absent; optional SDK absence must be a
+    # normal not-ready result, never a validation crash.
+    installed = False
+    if configured and module:
+        try:
+            installed = importlib.util.find_spec(module) is not None
+        except (ImportError, ModuleNotFoundError, AttributeError, ValueError):
+            installed = False
     return {
         "provider": provider,
         "configured": configured,
@@ -802,11 +844,17 @@ def _run_llm_with_retry(client, messages: List[Dict], schema: Dict, validation_f
                 import time
                 wait = min(10 * attempt, 60)  # 10s, 20s, 30s … capped at 60s
                 logger.warning(f"503 UNAVAILABLE on attempt {attempt}. Retrying in {wait}s...")
-                # On attempt 3+ try a lighter model variant
-                if attempt >= 3 and hasattr(client, 'model') and "2.5-flash" in str(getattr(client, 'model', '')):
+                # On attempt 3+ try a lighter model variant.
+                # GAP-FIX: this previously checked hasattr(client, 'model') and set
+                # client.model = _alt, but _ProviderClientWrapper stores the model
+                # under the private attribute `_model` (see its __init__), not
+                # `model`. hasattr(client, 'model') was therefore always False, the
+                # branch never ran, and the cost/latency mitigation for sustained
+                # 503s was dead code. Fixed to read/write the real attribute name.
+                if attempt >= 3 and hasattr(client, '_model') and "2.5-flash" in str(getattr(client, '_model', '')):
                     _alt = "gemini-2.0-flash-lite"
                     logger.warning(f"Switching to fallback model: {_alt}")
-                    client.model = _alt
+                    client._model = _alt
                 time.sleep(wait)
                 continue
             logger.error(f"Unexpected LLM failure: {e}")
@@ -824,12 +872,36 @@ def call_llm_for_fields(
     top_35_fields: List[Dict],
     max_retries: int = 1,
 ) -> Optional[List[Dict]]:
-    """Post-scoring enrichment: attach natural-language explanations to the
-    deterministic top-20 career fields.
+    """Post-scoring enrichment: ask the LLM for a one-page, astrologer-facing
+    write-up of the chart's classical signals and why the deterministic
+    top-20 career fields take the shape they do — rather than a per-field
+    JSON array of individual write-ups.
 
-    The ranking is FIXED by the deterministic engine — this function adds:
-      • astrological_reason          ≤20 words citing AK/AmK/house/yoga from THIS chart
-      • parent_friendly_explanation  2 plain-English paragraphs, zero jargon
+    GAP-FIX (2026-08, "one page, not a huge JSON object" request): this
+    function previously asked the LLM to write a separate paragraph per
+    field (20 fit + up to 15 rejected write-ups) as two JSON arrays. It now
+    asks for exactly three prose sections forming a single page:
+      • chart_signal_summary       (~200-350 words) chart-level overview of
+                                    planetary strength, dignity, yogas, KP
+                                    chains, dasha timing.
+      • top20_selection_rationale  (~250-400 words) ONE connected narrative
+                                    explaining why the top-20 list as a whole
+                                    takes its shape (including near-tie
+                                    clusters), not 20 separate blurbs.
+      • rejected_fields_summary    (~100-200 words) brief, GROUPED account of
+                                    why the lower-ranked fields didn't make
+                                    the cut.
+    See _GENERATOR_SYSTEM_PROMPT / _STEP2_RESPONSE_SCHEMA for the exact
+    instructions and schema given to the model.
+
+    The ranking is FIXED by the deterministic engine — this function does not
+    rerank. It returns the deterministic top-20 list unchanged aside from the
+    pre-existing llm_rank/llm_score bookkeeping fields (Optional[List[Dict]],
+    falsy on failure). The one-page summary itself is not per-field, so it has
+    no natural home on individual field dicts — it is instead attached to
+    `payload.llm_astrological_summary` (a Dict with the three keys above) so a
+    report renderer can opt in to displaying it without changing this
+    function's existing return-type contract with run_engine.
 
     NOTE: LLM-as-reranker (the old Step 1 selector) is intentionally removed.
     It added non-determinism, latency, and cost with no ranking benefit over the
@@ -838,10 +910,26 @@ def call_llm_for_fields(
     # Deterministic top-20 is the authoritative ranking — use it directly.
     n_explain = min(20, len(top_35_fields))
     top20 = top_35_fields[:n_explain]
+    # Everything else the engine scored (ranks 21..35, typically) is the pool
+    # of fields the astrologer-facing narrative should explain the REJECTION
+    # of. This can legitimately be empty (e.g. a chart with <21 candidates).
+    rejected_pool = top_35_fields[n_explain:]
 
     # ── Init client ────────────────────────────────────────────────────────────
     try:
-        from .engine_io import _maybe_load_dotenv
+        # GAP-FIX (2026-08, "debug dump never created" investigation):
+        # this previously did `from .engine_io import _maybe_load_dotenv`,
+        # but engine_io.py has no such function -- only llm.py itself does
+        # (defined above, module-level). The import therefore always raised
+        # ImportError, which this bare `except Exception: pass` silently
+        # swallowed, so .env was NEVER actually loaded from inside this
+        # function -- it only worked at all when something upstream (e.g.
+        # the CLI wrapper script) happened to have already populated
+        # os.environ before this ran. Calling the local function directly
+        # (no import needed -- it's defined in this same module) fixes .env
+        # loading (including DEBUG=true, LLM_PROVIDER, API keys) for any
+        # caller that invokes run_engine()/call_llm_for_fields directly
+        # without going through a CLI wrapper that pre-loads .env itself.
         _maybe_load_dotenv()
     except Exception:
         pass
@@ -862,71 +950,631 @@ def call_llm_for_fields(
         logger.debug("Chart summary (SENDING TO LLM):\n%s", chart_summary_text[:2000])
 
     # ── Explanation generator ──────────────────────────────────────────────────
-    # Enrich each field with engine scores + top affinity planets so the LLM
-    # can write a specific astrological_reason rather than a generic summary.
-    def _enrich_for_explanation(f: Dict, rank: int) -> Dict:
-        aff   = f.get("affinity_planets", {})
-        top3  = sorted(aff.items(), key=lambda x: -x[1])[:3] if aff else []
-        trace = f.get("calc_trace", f.get("gap_detail", {}))
+    # Enrich each field with the classical-signal data actually present on the
+    # engine's result row so the LLM has real material to cite for all five
+    # categories (planetary strength, dignity, yogas, KP chain, dasha timing)
+    # rather than having to invent or generalize. Every read is defensive
+    # (.get with a default) since not every field/chart populates every key —
+    # the prompt explicitly tells the model to say "no strong signal" for a
+    # category rather than fabricate one when data is absent.
+    # GAP-FIX (2026-08, "one page, not a huge JSON object" request): the
+    # per-field enrichment previously built a large method_profiles/
+    # confidence_dimensions/career_archetype/etc. blob for EVERY one of the
+    # ~35 fields, sent as two big JSON arrays, and expected a matching array
+    # of per-field paragraphs back. The user asked for the LLM's output to
+    # collapse to one page: a chart-level signal summary + one connected
+    # narrative for why the top-20 looks the way it does + a brief grouped
+    # rejection note. Since the LLM no longer writes per-field prose, it no
+    # longer needs the full per-field data dump either — a compact row
+    # (rank, id, label, score, top planets) is enough context for it to spot
+    # clusters and cite specific fields in its narrative. This also shrinks
+    # the OUTBOUND payload, which the user's complaint plausibly covered too.
+    def _compact_row(f: Dict, rank: int) -> Dict:
+        aff  = f.get("affinity_planets", {})
+        top3 = sorted(aff.items(), key=lambda x: -x[1])[:3] if aff else []
         return {
-            "rank":             rank,
-            "field_id":         f.get("field_id", ""),
-            "field_label":      f.get("field_label", ""),
-            "domain":           f.get("domain", ""),
-            "engine_score":     round(f.get("final_score", 0), 1),
-            "top_planets":      [{"planet": p, "weight": round(w, 2)} for p, w in top3],
-            "verified_factors": (trace.get("verified_factors", "") if isinstance(trace, dict) else ""),
-            "gap_boost":        round(f.get("gap_boost", 0), 3),
+            "rank":         rank,
+            "field_id":     f.get("field_id", ""),
+            "field_label":  f.get("field_label", ""),
+            "domain":       f.get("domain", ""),
+            "engine_score": round(f.get("final_score", 0), 1),
+            "top_planets":  [p for p, _w in top3],
         }
+
+    fit_payload = [_compact_row(f, i + 1) for i, f in enumerate(top20)]
+    rejected_payload = [
+        _compact_row(f, n_explain + i + 1) for i, f in enumerate(rejected_pool)
+    ]
 
     expl_user_prompt = (
         f"Chart Context:\n{chart_summary_text}\n\n"
-        f"Selected Fields to Write For (deterministic ranking by engine score):\n"
-        + json.dumps(
-            [_enrich_for_explanation(f, i + 1) for i, f in enumerate(top20)],
-            indent=2,
+        f"TOP {n_explain} FIELDS (deterministic engine ranking, ranks 1-{n_explain}):\n"
+        + json.dumps(fit_payload, indent=2)
+        + "\n\n"
+        + (
+            f"LOWER-RANKED / REJECTED FIELDS (ranks {n_explain + 1}-{n_explain + len(rejected_pool)}):\n"
+            + json.dumps(rejected_payload, indent=2)
+            if rejected_payload else
+            "LOWER-RANKED / REJECTED FIELDS — none (fewer than 21 candidate fields were scored for "
+            "this chart); keep rejected_fields_summary brief and note that explicitly."
         )
     )
 
     expl_messages = [
-        {"role": "system", "content": _GENERATOR_SYSTEM_PROMPT},
+        {"role": "system", "content": _GENERATOR_SYSTEM_PROMPT + _language_directive()},
         {"role": "user",   "content": expl_user_prompt},
     ]
 
-    top20_ids = [f.get("field_id") for f in top20]
+    # GAP-FIX: soft-required classical-terminology anchors, mirroring (in
+    # spirit) the old forbidden-jargon check — but now REQUIRING technical
+    # grounding instead of forbidding it, since the audience is a fellow
+    # astrologer. Checked against the two prose sections most likely to
+    # carry real technical content; a response using none of these terms is
+    # a sign the model reverted to generic prose rather than the requested
+    # technical case, so it's rejected and retried with a corrective message.
+    _CLASSICAL_ANCHOR_TERMS = [
+        "shadbala", "graha bala", "strength",           # (1) planetary strength
+        "exalt", "debilitat", "own sign", "swakshetra", "moolatrikona",
+        "neecha bhanga", "vargottama", "dignity",        # (2) dignity
+        "yoga",                                          # (3) yogas/combinations
+        "kp", "sub-lord", "sub lord", "star lord", "significator",  # (4) KP chain
+        "dasha", "dasa", "bhukti", "antardasha", "mahadasha",       # (5) dasha timing
+    ]
+
+    def _anchor_hits(text: str) -> int:
+        _lower = text.lower()
+        return sum(1 for term in _CLASSICAL_ANCHOR_TERMS if term in _lower)
+
+    _MIN_ANCHOR_HITS = 5  # spread across a whole page, so require more than the old per-field bar of 3
+
+    def _word_count(text: str) -> int:
+        return len(str(text).split())
 
     def validate_explanations(data: Dict) -> None:
-        fields = data.get("selected_fields", [])
-        if len(fields) != n_explain:
-            raise ValueError(f"Expected {n_explain} explanations, got {len(fields)}.")
-        returned_ids = {f["field_id"] for f in fields}
-        missing = set(top20_ids) - returned_ids
-        if missing:
-            raise ValueError(f"Missing explanations for: {', '.join(sorted(missing))}")
+        chart_summary = str(data.get("chart_signal_summary", "") or "")
+        rationale     = str(data.get("top20_selection_rationale", "") or "")
+        rejected_sum  = str(data.get("rejected_fields_summary", "") or "")
 
-    logger.info("Starting LLM explanation generation for deterministic top-%d...", n_explain)
+        if not chart_summary.strip():
+            raise ValueError("chart_signal_summary is missing or empty.")
+        if not rationale.strip():
+            raise ValueError("top20_selection_rationale is missing or empty.")
+        if rejected_pool and not rejected_sum.strip():
+            raise ValueError(
+                "rejected_fields_summary is missing or empty, but there are "
+                f"{len(rejected_pool)} lower-ranked fields to explain."
+            )
+
+        # Generous word-count bounds (soft-enforced with headroom) so minor
+        # model overshoot/undershoot doesn't burn the whole retry budget,
+        # while still catching a one-line non-answer or a runaway wall of text.
+        if not (120 <= _word_count(chart_summary) <= 500):
+            raise ValueError(
+                f"chart_signal_summary is {_word_count(chart_summary)} words; "
+                "expected roughly 200-350 words (a full technical paragraph, not a one-liner or an essay)."
+            )
+        if not (150 <= _word_count(rationale) <= 550):
+            raise ValueError(
+                f"top20_selection_rationale is {_word_count(rationale)} words; "
+                "expected roughly 250-400 words as ONE connected narrative, not 20 separate blurbs."
+            )
+        if rejected_pool and not (50 <= _word_count(rejected_sum) <= 300):
+            raise ValueError(
+                f"rejected_fields_summary is {_word_count(rejected_sum)} words; "
+                "expected roughly 100-200 words, grouped rather than per-field."
+            )
+
+        if _anchor_hits(chart_summary) + _anchor_hits(rationale) < _MIN_ANCHOR_HITS:
+            raise ValueError(
+                "chart_signal_summary/top20_selection_rationale read as generic prose (fewer than "
+                f"{_MIN_ANCHOR_HITS} classical Jyotish terms found across both). Rewrite citing specific "
+                "planetary strength, dignity, yoga, KP chain, and/or dasha timing signals from the "
+                "supplied chart data."
+            )
+
+    logger.info(
+        "Starting LLM astrologer-facing one-page summary generation for %d fit + %d rejected fields...",
+        n_explain, len(rejected_pool),
+    )
     expl_result = _run_llm_with_retry(
         client, expl_messages, _STEP2_RESPONSE_SCHEMA, validate_explanations, max_retries
     )
 
+    final_results: Optional[List[Dict]] = None
+    llm_summary: Optional[Dict] = None
+
+    if expl_result:
+        # GAP-FIX (2026-08, one-page rewrite): there is no more per-field LLM
+        # text to merge — the response is now three chart/list-level prose
+        # fields, not a per-field array. top20 is therefore passed through
+        # unchanged aside from the pre-existing llm_rank/llm_score bookkeeping
+        # (kept for backward compatibility with any downstream renderer that
+        # reads them), and the new one-page summary is stashed separately on
+        # the payload rather than merged into individual field dicts.
+        final_results = []
+        for rank, f in enumerate(top20, 1):
+            merged = dict(f)
+            merged["llm_rank"]  = rank
+            merged["llm_score"] = round((1 - (rank - 1) / n_explain) * 100)
+            final_results.append(merged)
+
+        llm_summary = {
+            "chart_signal_summary":      str(expl_result.get("chart_signal_summary", "")),
+            "top20_selection_rationale": str(expl_result.get("top20_selection_rationale", "")),
+            "rejected_fields_summary":   str(expl_result.get("rejected_fields_summary", "")),
+        }
+        try:
+            payload.llm_astrological_summary = llm_summary
+        except Exception as _stash_exc:
+            logger.info(f"Could not attach llm_astrological_summary to payload: {_stash_exc}")
+
+    # GAP-FIX (debug dump): when DEBUG=true is set in .env (or the process
+    # environment), write everything this LLM step sent to and received from
+    # the model to <chart_name>_astrological_signals_debug.json, so a
+    # developer/astrologer reviewing a specific chart's LLM behavior doesn't
+    # have to re-run with log level DEBUG or dig through logs.
+    #
+    # GAP-FIX (2026-08, "file not getting created" follow-up): this call runs
+    # unconditionally, before either return path below, and
+    # _dump_astrological_signals_debug accepts expl_result=None/
+    # final_results=None and records the failure explicitly in the dumped
+    # JSON (llm_call_succeeded: false) instead of silently producing nothing.
+    _dump_astrological_signals_debug(
+        payload, chart_summary_text, fit_payload, rejected_payload,
+        expl_result, final_results, llm_summary,
+    )
+
+    # GAP-FIX (2026-08, "make the output html file... 1 page" request): the
+    # human-facing one-page HTML rendering of the summary. Written whenever
+    # the LLM call succeeded — this is the actual deliverable, not a debug
+    # aid, so it is NOT gated behind DEBUG=true the way the JSON dump is.
+    _write_astrological_summary_html(payload, llm_summary, final_results, rejected_pool)
+
     if not expl_result:
-        logger.error("LLM explanation generation failed — returning deterministic results.")
+        logger.error("LLM astrologer-facing summary generation failed — returning deterministic results.")
         return None
 
-    # ── Merge explanations into deterministic results (preserve engine order) ──
-    generated_dict = {f["field_id"]: f for f in expl_result["selected_fields"]}
-    final_results: List[Dict] = []
-    for rank, f in enumerate(top20, 1):
-        fid      = f.get("field_id", "")
-        llm_data = generated_dict.get(fid, {})
-        merged   = {**f, **llm_data}
-        # llm_rank mirrors deterministic rank (no reranking)
-        merged["llm_rank"]  = rank
-        merged["llm_score"] = round((1 - (rank - 1) / n_explain) * 100)
-        final_results.append(merged)
-
-    logger.info("LLM explanation generation complete for %d fields.", len(final_results))
+    logger.info("LLM astrologer-facing one-page summary complete (%d fit fields).", len(final_results))
     return final_results
+
+
+def _dump_astrological_signals_debug(
+    payload: Any,
+    chart_summary_text: str,
+    fit_payload: List[Dict],
+    rejected_payload: List[Dict],
+    expl_result: Optional[Dict],
+    final_results: Optional[List[Dict]],
+    llm_summary: Optional[Dict],
+) -> None:
+    """Write a <chart_name>_astrological_signals_debug.json capturing the
+    classical-signal data sent to the LLM and the fit/rejection analyses it
+    returned, but ONLY when DEBUG=true is set (case-insensitive, in .env or
+    the process environment). No-op (and never raises) otherwise — this is
+    diagnostic-only tooling and must never affect report generation.
+
+    GAP-FIX (2026-08, "file not getting created" follow-up): `expl_result`
+    and `final_results` may now be None (the LLM call failed / exhausted
+    retries) — the caller (call_llm_for_fields) intentionally calls this
+    BEFORE its own early-return-on-failure, specifically so a failed run
+    still produces a debug file. This function must handle both None
+    without raising (previously `for r in final_results` would have thrown
+    TypeError on None, which the outer try/except here would have silently
+    swallowed as "skipped/failed" -- defeating the whole point). The dumped
+    JSON now always records `llm_call_succeeded` explicitly so it's obvious
+    at a glance whether you're looking at a successful run's output or a
+    failed run's request/error context.
+    """
+    try:
+        _debug_flag = str(os.getenv("DEBUG", os.getenv("debug", "false"))).strip().lower()
+        if _debug_flag not in ("true", "1", "yes"):
+            return
+
+        import re as _re
+        import pathlib
+        from datetime import datetime as _datetime
+
+        _raw_name = str(getattr(payload, "name", "") or "chart").strip()
+        _chart_name = _re.sub(r"[^A-Za-z0-9_-]+", "_", _raw_name).strip("_") or "chart"
+
+        _out_dir = os.getenv("DEBUG_OUTPUT_DIR", "") or str(
+            (pathlib.Path(__file__).resolve().parent.parent / "debug_output")
+        )
+        os.makedirs(_out_dir, exist_ok=True)
+        _out_path = os.path.join(_out_dir, f"{_chart_name}_astrological_signals_debug.json")
+
+        # GAP-FIX (2026-08, "one page, not a huge JSON object" rewrite): the
+        # dump now mirrors the simplified call_llm_for_fields contract — a
+        # compact per-field table (rank/id/label/score/top planets) rather
+        # than the old rich method_profiles/confidence_dimensions blob, and
+        # one chart-level summary object instead of per-field analyses.
+        _debug_payload = {
+            "chart_name": _raw_name,
+            "generated_at": _datetime.now().isoformat(),
+            "llm_call_succeeded": bool(expl_result),
+            "chart_summary_sent_to_llm": chart_summary_text,
+            "top20_fields_sent_to_llm": fit_payload,
+            "rejected_fields_sent_to_llm": rejected_payload,
+            "llm_raw_response": expl_result,  # None if the call failed/exhausted retries
+            "llm_astrological_summary": llm_summary,  # chart_signal_summary / top20_selection_rationale / rejected_fields_summary
+            "top20_ranks": [
+                {
+                    "field_id": r.get("field_id", ""),
+                    "field_label": r.get("field_label", ""),
+                    "rank": r.get("rank"),
+                    "llm_rank": r.get("llm_rank"),
+                    "final_score": r.get("final_score"),
+                }
+                for r in (final_results or [])
+            ],
+        }
+        if not expl_result:
+            _debug_payload["note"] = (
+                "LLM call failed or exhausted its retry budget (see application logs for the "
+                "specific JSON/validation/provider errors from each attempt) -- "
+                "'llm_astrological_summary'/'top20_ranks' are empty and 'llm_raw_response' is null "
+                "because no valid response was ever produced."
+            )
+        with open(_out_path, "w", encoding="utf-8") as _fh:
+            json.dump(_debug_payload, _fh, indent=2, ensure_ascii=False, default=str)
+        logger.info(
+            f"DEBUG=true: wrote astrological signals debug dump to {_out_path} "
+            f"(llm_call_succeeded={bool(expl_result)})"
+        )
+    except Exception as _debug_exc:
+        # Diagnostic-only — never let a debug-dump failure break report generation.
+        logger.info(f"Astrological signals debug dump skipped/failed: {_debug_exc}")
+
+
+def _write_astrological_summary_html(
+    payload: Any,
+    llm_summary: Optional[Dict],
+    final_results: Optional[List[Dict]],
+    rejected_pool: List[Dict],
+) -> None:
+    """Write <chart_name>_astrological_signals_summary.html — the one-page,
+    human-readable rendering of the LLM's chart_signal_summary /
+    top20_selection_rationale / rejected_fields_summary, plus the top-20
+    rank table, so the whole thing is visible on one page in a browser
+    rather than requiring the reader to open a JSON file.
+
+    GAP-FIX (2026-08, "make the output html file... so the complete summary
+    can be seen in 1 page" request): the debug JSON dump above is
+    machine-oriented (raw request/response payloads, gated by DEBUG=true).
+    This is the human-facing counterpart — always written whenever the LLM
+    call actually succeeded (not gated by DEBUG, since this IS the
+    deliverable the user asked for, not a diagnostic aid). Never raises —
+    a failure here must not break report generation.
+    """
+    if not llm_summary:
+        return
+    try:
+        import re as _re
+        import html as _html
+        import pathlib
+        from datetime import datetime as _datetime
+
+        _raw_name = str(getattr(payload, "name", "") or "chart").strip()
+        _chart_name = _re.sub(r"[^A-Za-z0-9_-]+", "_", _raw_name).strip("_") or "chart"
+
+        _out_dir = os.getenv("DEBUG_OUTPUT_DIR", "") or str(
+            (pathlib.Path(__file__).resolve().parent.parent / "debug_output")
+        )
+        os.makedirs(_out_dir, exist_ok=True)
+        _out_path = os.path.join(_out_dir, f"{_chart_name}_astrological_signals_summary.html")
+
+        def _esc(s: Any) -> str:
+            return _html.escape(str(s or ""))
+
+        def _para(text: str) -> str:
+            # Preserve model-authored blank-line paragraph breaks, if any;
+            # otherwise render as a single paragraph.
+            _parts = [p.strip() for p in str(text or "").split("\n\n") if p.strip()]
+            if not _parts:
+                _parts = [str(text or "")]
+            return "\n".join(f"<p>{_esc(p)}</p>" for p in _parts)
+
+        _top20_rows = "".join(
+            f"<tr><td>{_esc(r.get('rank', ''))}</td><td>{_esc(r.get('field_label', r.get('field_id', '')))}</td>"
+            f"<td>{_esc(r.get('final_score', ''))}</td></tr>"
+            for r in (final_results or [])
+        )
+        _rejected_count = len(rejected_pool)
+
+        _html_doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Astrological Signals Summary — {_esc(_raw_name)}</title>
+<style>
+  body {{ font-family: Georgia, 'Times New Roman', serif; max-width: 860px; margin: 40px auto;
+         padding: 0 24px; color: #202020; line-height: 1.55; }}
+  h1 {{ font-size: 1.5rem; margin-bottom: 0.1em; }}
+  .meta {{ color: #666; font-size: 0.9rem; margin-bottom: 1.6em; }}
+  h2 {{ font-size: 1.1rem; border-bottom: 1px solid #ccc; padding-bottom: 0.2em; margin-top: 1.8em; }}
+  p {{ margin: 0.6em 0; text-align: justify; }}
+  table {{ border-collapse: collapse; width: 100%; margin-top: 0.8em; font-size: 0.92rem; }}
+  th, td {{ border: 1px solid #ddd; padding: 4px 8px; text-align: left; }}
+  th {{ background: #f4f4f4; }}
+  @media print {{ body {{ margin: 0; padding: 0 12px; }} }}
+</style>
+</head>
+<body>
+<h1>Astrological Signals &amp; Field Selection Summary</h1>
+<div class="meta">Chart: {_esc(_raw_name)} &middot; Generated: {_esc(_datetime.now().isoformat(timespec='seconds'))}</div>
+
+<h2>Chart Signal Summary</h2>
+{_para(llm_summary.get('chart_signal_summary', ''))}
+
+<h2>Why the Top {len(final_results or [])} Fields Were Selected</h2>
+{_para(llm_summary.get('top20_selection_rationale', ''))}
+
+<h2>Why Lower-Ranked Fields Were Not Selected{f' ({_rejected_count})' if _rejected_count else ''}</h2>
+{_para(llm_summary.get('rejected_fields_summary', '')) if _rejected_count else '<p>No lower-ranked fields were scored for this chart.</p>'}
+
+<h2>Top {len(final_results or [])} Fields (Deterministic Engine Ranking)</h2>
+<table>
+<tr><th>Rank</th><th>Field</th><th>Engine Score</th></tr>
+{_top20_rows}
+</table>
+</body>
+</html>
+"""
+        with open(_out_path, "w", encoding="utf-8") as _fh:
+            _fh.write(_html_doc)
+        logger.info(f"Wrote one-page astrological signals summary HTML to {_out_path}")
+    except Exception as _html_exc:
+        logger.info(f"Astrological signals summary HTML skipped/failed: {_html_exc}")
+
+
+# GAP-FIX (2026-08, "explain each of the 60 context variables" request):
+# schema for the scoring-context narrative feature. Uses a flat array of
+# {variable, explanation} pairs rather than one property per variable name,
+# since the ~60 variable names come from _prepare_chart_scoring_context's
+# dict keys at runtime and a JSON-schema "properties" block must be static.
+_CONTEXT_NARRATIVE_SCHEMA = {
+    "name": "scoring_context_narrative",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "variable_explanations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "variable": {"type": "string"},
+                        "explanation": {"type": "string"},
+                    },
+                    "required": ["variable", "explanation"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["variable_explanations"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+}
+
+_CONTEXT_NARRATIVE_SYSTEM_PROMPT = """You are a senior Jyotish (Vedic astrology) engineer documenting an
+astrology scoring engine's internal calculation context for another developer/astrologer who will
+maintain this code.
+
+You will be given a JSON object listing ~60 internal variable names, each with a short snapshot of its
+actual computed value for one specific chart. For EVERY variable listed, write exactly ONE paragraph
+(40-120 words) explaining, in plain but technically precise language:
+  1. What this variable represents astrologically (e.g. "the KP sub-lord of the 10th house cusp") or
+     structurally (e.g. "a lookup of house number to its ruling planet").
+  2. Why the scoring engine needs it — what downstream calculation or decision it feeds.
+  3. Where relevant, what the SPECIFIC value shown for this chart means in context.
+
+Do not skip any variable, do not merge two variables into one paragraph, and do not invent variables
+that were not listed. If a variable's value snapshot is empty/None, still explain its PURPOSE — say
+plainly that it is empty/not populated for this chart rather than fabricating a value.
+
+Return ONLY JSON matching the required schema: a "variable_explanations" array with one
+{"variable": ..., "explanation": ...} object per input variable, in the same order given.
+"""
+
+
+def _summarize_ctx_value(value: Any, max_chars: int = 400) -> str:
+    """Compact, safe, LLM-prompt-sized snapshot of one context variable's value.
+    Defensive against unserializable objects (functions, custom classes) —
+    never raises; falls back to a truncated repr() on any json failure.
+    """
+    try:
+        _s = json.dumps(value, default=str, ensure_ascii=False)
+    except Exception:
+        _s = repr(value)
+    if len(_s) > max_chars:
+        _s = _s[:max_chars] + f"...(truncated, {len(_s)} chars total)"
+    return _s
+
+
+def maybe_generate_scoring_context_narrative(payload: Any, ctx: Dict) -> None:
+    """GAP-FIX (2026-08, "explain each of the 60 variables" request): when both
+    DEBUG=true and LLM_NARRATIVE_ENABLED=true are set (case-insensitive, in
+    .env or the process environment), ask the LLM to write one paragraph per
+    variable in the `_prepare_chart_scoring_context` return dict (~60 vars:
+    dignities, dasha lords, Shadbala, KP lords, yogas, etc.) explaining what
+    it is and why the engine needs it, and write the result to
+    <chart_name>_prepare_chart_scoring_context.html under DEBUG_OUTPUT_DIR.
+
+    GAP-FIX (2026-08, "trace all 60 parameters, call LLM with the final
+    values" request): `_run_normalization_stage` now calls this AFTER both
+    its field-scoring loop AND `_finalize_pre_results` (normalization,
+    tiebreak, gap-correction, risk gates, display stretch, top-35 cut) have
+    completed — with `ctx["_all_pre_results"]` overwritten to hold
+    `_finalize_pre_results`'s actual return value first. Earlier this ran
+    right after the scoring loop but before finalization, so it still saw a
+    pre-finalization `_all_pre_results` (finalization repeatedly reassigns
+    that name to a new list rather than mutating in place, so nothing about
+    calling it "later in the same function" alone was enough). Every value
+    the LLM is given is now genuinely the last value that variable ever
+    takes for this chart's scoring run.
+
+    This is purely diagnostic/documentation tooling — gated behind both
+    flags, wrapped so it can never raise, and it never mutates `ctx` or
+    `payload` (unlike the Step 5 LLM enrichment, this feature does not stash
+    anything onto payload).
+    """
+    try:
+        _maybe_load_dotenv()
+    except Exception:
+        pass
+
+    _debug_flag = str(os.getenv("DEBUG", os.getenv("debug", "false"))).strip().lower()
+    _narrative_flag = str(os.getenv("LLM_NARRATIVE_ENABLED", "false")).strip().lower()
+    if _debug_flag not in ("true", "1", "yes") or _narrative_flag not in ("true", "1", "yes"):
+        return
+
+    try:
+        _provider_name  = os.getenv("LLM_PROVIDER", "gemini").lower()
+        _prov           = _LLM_PROVIDERS.get(_provider_name, _LLM_PROVIDERS["gemini"])
+        _env_var, _default_model, _call_fn = _prov
+        _model_override = os.getenv("LLM_MODEL", _default_model)
+        api_key         = os.getenv(_env_var)
+        if not api_key:
+            logger.error("%s missing (provider=%s) — skipping scoring context narrative.", _env_var, _provider_name)
+            return
+        client = _ProviderClientWrapper(_call_fn, api_key, _model_override)
+
+        # Every key in `ctx` is one of the ~60 variables threaded through
+        # _run_normalization_stage's field-scoring loop. Skip nothing —
+        # the request explicitly asked for ALL of them, including the large
+        # ones (_all_pre_results, planets_d1, etc.); each value is truncated
+        # per-variable by _summarize_ctx_value so the prompt stays bounded
+        # even though the full variable list is included.
+        var_names = sorted(ctx.keys())
+        var_snapshot = {name: _summarize_ctx_value(ctx[name]) for name in var_names}
+
+        narrative_user_prompt = (
+            f"Chart: {getattr(payload, 'name', '') or 'unknown'}\n\n"
+            f"Context variables ({len(var_names)} total) with their computed values for this chart:\n"
+            + json.dumps(var_snapshot, indent=2, ensure_ascii=False)
+        )
+        narrative_messages = [
+            {"role": "system", "content": _CONTEXT_NARRATIVE_SYSTEM_PROMPT},
+            {"role": "user",   "content": narrative_user_prompt},
+        ]
+
+        def _validate_narrative(data: Dict) -> None:
+            items = data.get("variable_explanations", [])
+            returned_names = [str(it.get("variable", "")) for it in items]
+            returned_set = set(returned_names)
+            missing = set(var_names) - returned_set
+            if missing:
+                raise ValueError(f"Missing explanations for variables: {', '.join(sorted(missing))}")
+            extra = returned_set - set(var_names)
+            if extra:
+                raise ValueError(f"Explanations given for unknown variable name(s): {', '.join(sorted(extra))}")
+            if len(returned_names) != len(set(returned_names)):
+                raise ValueError("Duplicate variable names found in variable_explanations.")
+            for it in items:
+                _expl = str(it.get("explanation", "")).strip()
+                if not _expl:
+                    raise ValueError(f"Empty explanation for variable={it.get('variable', '')!r}.")
+                _wc = len(_expl.split())
+                if not (15 <= _wc <= 220):
+                    raise ValueError(
+                        f"Explanation for variable={it.get('variable', '')!r} is {_wc} words; "
+                        "expected roughly 40-120 words — a full paragraph, not a fragment or an essay."
+                    )
+
+        logger.info("Starting LLM scoring-context narrative generation for %d variables...", len(var_names))
+        narrative_result = _run_llm_with_retry(
+            client, narrative_messages, _CONTEXT_NARRATIVE_SCHEMA, _validate_narrative, max_retries=1
+        )
+        if not narrative_result:
+            logger.error("LLM scoring-context narrative generation failed — no HTML written.")
+            return
+
+        explanations_by_var = {
+            str(it.get("variable", "")): str(it.get("explanation", ""))
+            for it in narrative_result.get("variable_explanations", [])
+        }
+
+        # ── Render one-page HTML ────────────────────────────────────────────
+        import re as _re
+        import html as _html
+        import pathlib
+        from datetime import datetime as _datetime
+
+        _raw_name = str(getattr(payload, "name", "") or "chart").strip()
+        _chart_name = _re.sub(r"[^A-Za-z0-9_-]+", "_", _raw_name).strip("_") or "chart"
+
+        _out_dir = os.getenv("DEBUG_OUTPUT_DIR", "") or str(
+            (pathlib.Path(__file__).resolve().parent.parent / "debug_output")
+        )
+        os.makedirs(_out_dir, exist_ok=True)
+        _out_path = os.path.join(_out_dir, f"{_chart_name}_prepare_chart_scoring_context.html")
+
+        def _esc(s: Any) -> str:
+            return _html.escape(str(s or ""))
+
+        # GAP-FIX (2026-08, "still isn't getting the values" follow-up): the
+        # table previously showed only the variable name and the LLM's prose
+        # explanation -- the actual computed value was mentioned only if the
+        # model happened to mention it inline, which is inconsistent and easy
+        # to miss. `var_snapshot` (built above, from `_summarize_ctx_value`)
+        # is the exact same value data the LLM was given as ground truth for
+        # its explanation -- it is now rendered as its own "Value" column so
+        # the raw computed value and the LLM's inference from that value are
+        # both explicitly visible side by side, rather than the value being
+        # implicit inside the prose.
+        def _value_cell(name: str) -> str:
+            _raw_val = var_snapshot.get(name, "")
+            return f"<pre>{_esc(_raw_val)}</pre>"
+
+        _rows = "".join(
+            f"<tr><td class='var'>{_esc(name)}</td>"
+            f"<td class='val'>{_value_cell(name)}</td>"
+            f"<td>{_esc(explanations_by_var.get(name, '(no explanation returned)'))}</td></tr>"
+            for name in var_names
+        )
+
+        _html_doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scoring Context Variables — {_esc(_raw_name)}</title>
+<style>
+  body {{ font-family: Georgia, 'Times New Roman', serif; max-width: 980px; margin: 40px auto;
+         padding: 0 24px; color: #202020; line-height: 1.5; }}
+  h1 {{ font-size: 1.5rem; margin-bottom: 0.1em; }}
+  .meta {{ color: #666; font-size: 0.9rem; margin-bottom: 1.4em; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 0.92rem; table-layout: fixed; }}
+  th, td {{ border: 1px solid #ddd; padding: 6px 10px; text-align: left; vertical-align: top;
+            word-wrap: break-word; overflow-wrap: break-word; }}
+  th {{ background: #f4f4f4; }}
+  th:nth-child(1), td:nth-child(1) {{ width: 16%; }}
+  th:nth-child(2), td:nth-child(2) {{ width: 26%; }}
+  th:nth-child(3), td:nth-child(3) {{ width: 58%; }}
+  td.var {{ font-family: 'Consolas', 'Courier New', monospace; font-weight: bold;
+            background: #fafafa; }}
+  td.val {{ font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82rem; background: #fcfcfc; }}
+  td.val pre {{ margin: 0; white-space: pre-wrap; word-break: break-word; }}
+  @media print {{ body {{ margin: 0; padding: 0 12px; }} }}
+</style>
+</head>
+<body>
+<h1>Chart Scoring Context — Variable Reference</h1>
+<div class="meta">Chart: {_esc(_raw_name)} &middot; {len(var_names)} variables
+&middot; Generated: {_esc(_datetime.now().isoformat(timespec='seconds'))}</div>
+<table>
+<tr><th>Variable</th><th>Value</th><th>Explanation / Inference</th></tr>
+{_rows}
+</table>
+</body>
+</html>
+"""
+        with open(_out_path, "w", encoding="utf-8") as _fh:
+            _fh.write(_html_doc)
+        logger.info(f"Wrote scoring context variable narrative HTML to {_out_path}")
+    except Exception as _narrative_exc:
+        # Diagnostic-only — never let this feature break report generation.
+        logger.info(f"Scoring context narrative generation skipped/failed: {_narrative_exc}")
+
 
 # ── Domain hint lists for field-promotion logic in _llm_fallback_from_top35 ──
 # Space/aerospace: field_ids or labels containing these tokens are protected from
@@ -1116,7 +1764,19 @@ def generate_top3_narrative(
 
     # ── Init client ───────────────────────────────────────────────────────────
     try:
-        from .engine_io import _maybe_load_dotenv
+        # GAP-FIX (2026-08, "debug dump never created" investigation):
+        # this previously did `from .engine_io import _maybe_load_dotenv`,
+        # but engine_io.py has no such function -- only llm.py itself does
+        # (defined above, module-level). The import therefore always raised
+        # ImportError, which this bare `except Exception: pass` silently
+        # swallowed, so .env was NEVER actually loaded from inside this
+        # function -- it only worked at all when something upstream (e.g.
+        # the CLI wrapper script) happened to have already populated
+        # os.environ before this ran. Calling the local function directly
+        # (no import needed -- it's defined in this same module) fixes .env
+        # loading (including DEBUG=true, LLM_PROVIDER, API keys) for any
+        # caller that invokes run_engine()/call_llm_for_fields directly
+        # without going through a CLI wrapper that pre-loads .env itself.
         _maybe_load_dotenv()
     except Exception:
         pass
@@ -1172,7 +1832,7 @@ def generate_top3_narrative(
     )
 
     messages = [
-        {"role": "system", "content": _TOP3_SUMMARY_SYSTEM_PROMPT},
+        {"role": "system", "content": _TOP3_SUMMARY_SYSTEM_PROMPT + _language_directive()},
         {"role": "user",   "content": user_prompt},
     ]
 
@@ -1201,5 +1861,311 @@ def generate_top3_narrative(
                 return summary
     except Exception as exc:
         logger.warning("generate_top3_narrative: LLM call failed -- %s", exc)
+
+    return _fallback()
+
+
+_STAGE1_NARRATIVE_SYSTEM_PROMPT = """\
+You are a Jyotish (Vedic astrology) analyst writing an internal audit note for
+Stage 1 of a scoring pipeline: astro.py::_compute_eff_strengths(), which turns
+each planet's raw Shadbala into a single classically-adjusted "effective
+strength" figure (dignity, combustion, Panchadha Maitri, Vargottama, Baladi
+Avastha, functional role, nakshatra-lord house placement, and Paksha Bala all
+folded in; Graha Yuddha and Yogakaraka deliberately excluded at this stage --
+they're applied later, at Stage 2).
+
+You are given the final eff_strength number for every planet plus the
+per-planet factors that produced it (dignity label, combustion multiplier,
+avastha multiplier, vargottama flag).
+
+Write ONE paragraph (60-90 words) that:
+  - States which planet(s) came out strongest and weakest after this stage's
+    adjustments, and the single biggest reason why (dignity, combustion, or
+    avastha -- whichever moved that planet's number the most).
+  - Notes anything analytically notable: a planet whose raw strength was
+    reshaped substantially by combustion/avastha, or a vargottama planet.
+  - Stays strictly descriptive of what Stage 1's numbers show -- do NOT
+    recommend a career field, do NOT rank fields, do NOT introduce any
+    number not present in the input data.
+
+Rules:
+  - Plain language a non-astrologer analyst could follow; planet names and
+    dignity/combustion/avastha terms are fine here (this is an internal
+    audit note, not end-user copy).
+  - Return ONLY JSON: {"narrative": "<one paragraph>"}
+"""
+
+
+def generate_stage1_narrative(
+    eff_strengths: Dict[str, float],
+    payload: Any,
+) -> str:
+    """Stage 1 audit-trace narrative: one paragraph summarizing what
+    astro.py::_compute_eff_strengths()'s output shows for this chart --
+    strongest/weakest planets and the dominant factor (dignity/combustion/
+    avastha) behind each, per the audit_trace_cli.py Stage 1 request.
+
+    Returns a plain-text string (no HTML/markdown). Falls back to a
+    deterministic template if the LLM is unavailable.
+
+    Args:
+        eff_strengths: Dict of effective planetary strengths (Stage 1 output).
+        payload:       NatalPayloadV2 instance (or duck-typed equivalent) --
+                       used to read the per-planet factors (dignity,
+                       combustion, avastha, vargottama) that produced
+                       eff_strengths, for context only.
+    """
+    if not eff_strengths:
+        return ""
+
+    # ── Deterministic fallback ────────────────────────────────────────────────
+    def _fallback() -> str:
+        strongest = max(eff_strengths, key=eff_strengths.get)
+        weakest = min(eff_strengths, key=eff_strengths.get)
+        return (
+            f"Stage 1 (effective strength) ranks {strongest} highest "
+            f"({eff_strengths[strongest]:.3f}) and {weakest} lowest "
+            f"({eff_strengths[weakest]:.3f}) after folding in dignity, "
+            f"combustion, Panchadha Maitri, Vargottama, and Baladi Avastha "
+            f"(Graha Yuddha and Yogakaraka are applied later, at Stage 2). "
+            f"This is a deterministic fallback summary -- no LLM provider "
+            f"was available."
+        )
+
+    # ── Init client ───────────────────────────────────────────────────────────
+    try:
+        # GAP-FIX (2026-08, "debug dump never created" investigation):
+        # this previously did `from .engine_io import _maybe_load_dotenv`,
+        # but engine_io.py has no such function -- only llm.py itself does
+        # (defined above, module-level). The import therefore always raised
+        # ImportError, which this bare `except Exception: pass` silently
+        # swallowed, so .env was NEVER actually loaded from inside this
+        # function -- it only worked at all when something upstream (e.g.
+        # the CLI wrapper script) happened to have already populated
+        # os.environ before this ran. Calling the local function directly
+        # (no import needed -- it's defined in this same module) fixes .env
+        # loading (including DEBUG=true, LLM_PROVIDER, API keys) for any
+        # caller that invokes run_engine()/call_llm_for_fields directly
+        # without going through a CLI wrapper that pre-loads .env itself.
+        _maybe_load_dotenv()
+    except Exception:
+        pass
+
+    _provider_name  = os.getenv("LLM_PROVIDER", "gemini").lower()
+    _prov           = _LLM_PROVIDERS.get(_provider_name, _LLM_PROVIDERS["gemini"])
+    _env_var, _default_model, _call_fn = _prov
+    _model_override = os.getenv("LLM_MODEL", _default_model)
+    api_key         = os.getenv(_env_var)
+    if not api_key:
+        logger.debug("generate_stage1_narrative: no API key -- using fallback template.")
+        return _fallback()
+
+    client = _ProviderClientWrapper(_call_fn, api_key, _model_override)
+
+    # ── Build prompt: eff_strengths + the per-planet factors behind them ──────
+    dignity_labels   = dict(getattr(payload, "planet_dignities", {}) or {})
+    combustion_mult  = dict(getattr(payload, "combustion_mult", {}) or {})
+    avastha_mult     = dict(getattr(payload, "avastha_mult", {}) or {})
+    vargottama_set   = set(getattr(payload, "vargottama_planets", []) or [])
+
+    planet_breakdown = [
+        {
+            "planet":            p,
+            "eff_strength":      round(float(v), 4),
+            "dignity":           dignity_labels.get(p, ""),
+            "combustion_mult":   combustion_mult.get(p, 1.0),
+            "avastha_mult":      avastha_mult.get(p, 1.0),
+            "vargottama":        p in vargottama_set,
+        }
+        for p, v in sorted(eff_strengths.items(), key=lambda x: -x[1])
+    ]
+
+    user_prompt = (
+        f"Stage 1 eff_strength results and contributing factors, strongest to weakest:\n"
+        f"{json.dumps(planet_breakdown, indent=2)}\n\n"
+        f"Write the one-paragraph Stage 1 analysis note. Return ONLY JSON: {{\"narrative\": \"...\"}}"
+    )
+
+    messages = [
+        {"role": "system", "content": _STAGE1_NARRATIVE_SYSTEM_PROMPT},
+        {"role": "user",   "content": user_prompt},
+    ]
+
+    _NARRATIVE_SCHEMA = {
+        "name": "stage1_narrative",
+        "schema": {
+            "type": "object",
+            "properties": {"narrative": {"type": "string"}},
+            "required": ["narrative"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    }
+
+    def _validate_narrative(data: Dict) -> None:
+        s = data.get("narrative", "")
+        if not s or len(s.split()) < 15:
+            raise ValueError("Narrative too short -- expected at least 15 words.")
+
+    try:
+        result = _run_llm_with_retry(client, messages, _NARRATIVE_SCHEMA, _validate_narrative, max_retries=2)
+        if result:
+            narrative = result.get("narrative", "").strip()
+            if narrative:
+                logger.info("generate_stage1_narrative: narrative generated (%d words).", len(narrative.split()))
+                return narrative
+    except Exception as exc:
+        logger.warning("generate_stage1_narrative: LLM call failed -- %s", exc)
+
+    return _fallback()
+
+
+def generate_stage_narrative(
+    stage_no: int,
+    stage_title: str,
+    stage_description: str,
+    planet_rows: List[Dict[str, Any]],
+    primary_metric: str,
+    extra_context: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generic Stage 2-8 audit-trace narrative (mirrors generate_stage1_narrative's
+    pattern, generalised so Stages 2-8 don't each need a bespoke function).
+
+    One paragraph (60-90 words) summarizing what this pipeline stage's own
+    math shows for this chart -- descriptive only, never a field
+    recommendation or ranking (that boundary matters here specifically
+    because these are internal audit notes, not the LLM narrative the live
+    engine already generates for end users elsewhere in this module).
+
+    Returns a plain-text string (no HTML/markdown). Falls back to a
+    deterministic template if the LLM is unavailable.
+
+    Args:
+        stage_no:           Stage number (2-8) for labeling only.
+        stage_title:        Short "what this stage computes" line, e.g.
+                             "adjusted_strength = eff_strength x yogakaraka_mult x graha_yuddha_mult".
+        stage_description:  1-3 sentence note on what's analytically interesting
+                             to look for at this stage (drives the system prompt).
+        planet_rows:        List of {"planet": p, <primary_metric>: v, ...context}
+                             dicts -- the per-planet table this stage printed.
+                             May be empty for a stage with no planet dimension
+                             (e.g. Stage 7's plain scalar overwrite); the
+                             narrative then falls back to extra_context only.
+        primary_metric:     Key inside each planet_rows dict to rank
+                             strongest/weakest by (for both the fallback
+                             template and to tell the LLM what to focus on).
+        extra_context:      Optional dict of stage-level scalar context (field
+                             id, composite/gate values, etc.) included as
+                             read-only background, never as something to
+                             recommend or rank on.
+    """
+    if not planet_rows and not extra_context:
+        return ""
+
+    # ── Deterministic fallback ────────────────────────────────────────────────
+    def _fallback() -> str:
+        if planet_rows:
+            ranked = sorted(planet_rows, key=lambda r: r.get(primary_metric, 0) or 0, reverse=True)
+            strongest, weakest = ranked[0], ranked[-1]
+            body = (
+                f"Stage {stage_no} ({stage_title}) ranks {strongest.get('planet', '?')} highest "
+                f"({strongest.get(primary_metric)}) and {weakest.get('planet', '?')} lowest "
+                f"({weakest.get(primary_metric)}) on {primary_metric}."
+            )
+        else:
+            ctx_bits = ", ".join(f"{k}={v}" for k, v in (extra_context or {}).items())
+            body = f"Stage {stage_no} ({stage_title}): {ctx_bits}."
+        return body + " This is a deterministic fallback summary -- no LLM provider was available."
+
+    # ── Init client ───────────────────────────────────────────────────────────
+    try:
+        # GAP-FIX (2026-08, "debug dump never created" investigation):
+        # this previously did `from .engine_io import _maybe_load_dotenv`,
+        # but engine_io.py has no such function -- only llm.py itself does
+        # (defined above, module-level). The import therefore always raised
+        # ImportError, which this bare `except Exception: pass` silently
+        # swallowed, so .env was NEVER actually loaded from inside this
+        # function -- it only worked at all when something upstream (e.g.
+        # the CLI wrapper script) happened to have already populated
+        # os.environ before this ran. Calling the local function directly
+        # (no import needed -- it's defined in this same module) fixes .env
+        # loading (including DEBUG=true, LLM_PROVIDER, API keys) for any
+        # caller that invokes run_engine()/call_llm_for_fields directly
+        # without going through a CLI wrapper that pre-loads .env itself.
+        _maybe_load_dotenv()
+    except Exception:
+        pass
+
+    _provider_name  = os.getenv("LLM_PROVIDER", "gemini").lower()
+    _prov           = _LLM_PROVIDERS.get(_provider_name, _LLM_PROVIDERS["gemini"])
+    _env_var, _default_model, _call_fn = _prov
+    _model_override = os.getenv("LLM_MODEL", _default_model)
+    api_key         = os.getenv(_env_var)
+    if not api_key:
+        logger.debug("generate_stage_narrative(stage=%s): no API key -- using fallback template.", stage_no)
+        return _fallback()
+
+    client = _ProviderClientWrapper(_call_fn, api_key, _model_override)
+
+    system_prompt = (
+        f"You are a Jyotish (Vedic astrology) analyst writing an internal audit note for "
+        f"Stage {stage_no} of a scoring pipeline.\n\n"
+        f"What Stage {stage_no} computes: {stage_title}\n"
+        f"{stage_description}\n\n"
+        f"Write ONE paragraph (60-90 words) that:\n"
+        f"  - States which planet(s) (or, if no planet table is given, which overall "
+        f"figures) stand out at this stage and the single biggest reason why.\n"
+        f"  - Notes anything analytically notable about this stage's own numbers.\n"
+        f"  - Stays strictly descriptive of what THIS stage's numbers show -- do NOT "
+        f"recommend a career field, do NOT rank fields, do NOT introduce any number "
+        f"not present in the input data, and do NOT restate other stages' results.\n\n"
+        f"Rules:\n"
+        f"  - Plain language a non-astrologer analyst could follow; planet names and "
+        f"astrological terms are fine here (this is an internal audit note).\n"
+        f"  - Return ONLY JSON: {{\"narrative\": \"<one paragraph>\"}}"
+    )
+
+    user_prompt_parts = []
+    if planet_rows:
+        ranked_rows = sorted(planet_rows, key=lambda r: r.get(primary_metric, 0) or 0, reverse=True)
+        user_prompt_parts.append(
+            f"Stage {stage_no} per-planet table, strongest to weakest on '{primary_metric}':\n"
+            f"{json.dumps(ranked_rows, indent=2)}"
+        )
+    if extra_context:
+        user_prompt_parts.append(f"Stage {stage_no} scalar context:\n{json.dumps(extra_context, indent=2)}")
+    user_prompt_parts.append(f'Write the one-paragraph Stage {stage_no} analysis note. Return ONLY JSON: {{"narrative": "..."}}')
+    user_prompt = "\n\n".join(user_prompt_parts)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_prompt},
+    ]
+
+    _NARRATIVE_SCHEMA = {
+        "name": f"stage{stage_no}_narrative",
+        "schema": {
+            "type": "object",
+            "properties": {"narrative": {"type": "string"}},
+            "required": ["narrative"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    }
+
+    def _validate_narrative(data: Dict) -> None:
+        s = data.get("narrative", "")
+        if not s or len(s.split()) < 15:
+            raise ValueError("Narrative too short -- expected at least 15 words.")
+
+    try:
+        result = _run_llm_with_retry(client, messages, _NARRATIVE_SCHEMA, _validate_narrative, max_retries=2)
+        if result:
+            narrative = result.get("narrative", "").strip()
+            if narrative:
+                logger.info("generate_stage_narrative(stage=%s): narrative generated (%d words).", stage_no, len(narrative.split()))
+                return narrative
+    except Exception as exc:
+        logger.warning("generate_stage_narrative(stage=%s): LLM call failed -- %s", stage_no, exc)
 
     return _fallback()

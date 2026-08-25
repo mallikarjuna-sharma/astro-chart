@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from .constants import _SIGN_NUM
+from .constants import _SIGN_NUM, _SIGN_LORD
 
 CONTRIBUTORS: List[str] = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Lagna"]
 TARGET_PLANETS: List[str] = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
@@ -260,3 +260,147 @@ def compute_pav_data(
                 per_source[contributor][str(house_from_lagna)] = 1
         result[target] = per_source
     return result
+
+
+# ── Shodhana (BPHS Ch.5 reduction processes) ────────────────────────────────
+# GAP-FIX (2026-07-20, astrological-gap pass): the tables above reproduce raw
+# Bhinnashtakavarga/Sarvashtakavarga bindus, cross-verified against PyJHora
+# and the classical grand totals. BPHS itself does not stop at the raw
+# bindus -- two reduction (shodhana) processes are classically applied before
+# the bindu counts are used for prediction: Trikona Shodhana (trine
+# normalization) and Ekadhipatya Shodhana (same-lord-house normalization).
+# This engine previously computed and consumed only the raw, unreduced
+# totals (see engine_io.py `_sav_normalized` and
+# Field_Determination/field_methods/__init__.py's SAV confidence multiplier)
+# with no disclosure that the classical reduction step was being skipped.
+#
+# Honesty note on provenance (matching this codebase's existing convention
+# for items like SIGNAL.BHRIGU_BINDU/SIGNAL.SUDARSHANA): the *existence* and
+# general mechanics of both shodhana processes are well attested across
+# secondary Ashtakavarga literature and standard software implementations
+# (the same class of source already cited for this module's bindu tables),
+# but this session did not independently retrieve a primary BPHS
+# chapter/verse pinning the exact pairwise-vs-minimum-subtraction arithmetic
+# below. The algorithm implemented is the one most consistently described
+# across secondary sources and matches common Jyotish software convention;
+# treat it as classically_attested_secondary_literature, not verse-exact.
+_SIGNS_IN_ORDER: List[str] = sorted(_SIGN_NUM, key=lambda s: _SIGN_NUM[s])
+
+# The four trikona (trine) groups, houses counted from Lagna (1-12).
+TRIKONA_GROUPS: List[List[int]] = [[1, 5, 9], [2, 6, 10], [3, 7, 11], [4, 8, 12]]
+
+
+def apply_trikona_shodhana(house_bindus: Dict[int, int]) -> Dict[int, int]:
+    """Trikona Shodhana: within each of the four trine groups (1-5-9, 2-6-10,
+    3-7-11, 4-8-12), reduce every house's bindu count by the minimum bindu
+    count found anywhere in that same group. This is the standard
+    "normalize to the group's own floor" mechanic: a trine group where one
+    house has 0 bindus contributes nothing extra from its trine-mates either
+    (all three drop to their excess-over-zero), while a group where all
+    three houses are evenly strong is left with a smaller, but still
+    internally consistent, positive count in every house.
+
+    Input/output: {house_num (1-12): bindu_count}, same shape as one entry
+    of compute_bav_points()'s return value.
+    """
+    reduced = dict(house_bindus)
+    for group in TRIKONA_GROUPS:
+        values = [house_bindus.get(h, 0) for h in group]
+        floor = min(values) if values else 0
+        for h in group:
+            reduced[h] = house_bindus.get(h, 0) - floor
+    return reduced
+
+
+def apply_ekadhipatya_shodhana(
+    house_bindus: Dict[int, int],
+    lagna_sign: str,
+) -> Dict[int, int]:
+    """Ekadhipatya Shodhana: for any planet that rules two of the twelve
+    houses (every classical graha except Sun and Moon, which rule exactly
+    one sign each), compare that planet's two ruled houses' bindu counts.
+    If they are unequal, the house with the LOWER count is reduced to zero
+    (the weaker of the two ownership claims is dropped entirely, rather than
+    partially discounted); if equal, both are left unchanged, since there is
+    no basis to prefer one over the other.
+
+    Sun and Moon (single-sign rulers) never trigger this reduction; Rahu/
+    Ketu are shadow points with no sign rulership in the classical scheme
+    and are likewise excluded.
+
+    Input/output: {house_num (1-12): bindu_count}. House-to-sign mapping is
+    derived from lagna_sign using whole-sign houses, matching this repo's
+    existing house-system convention (see calculation_policy.natal_house_system).
+    """
+    reduced = dict(house_bindus)
+    lagna_num = _SIGN_NUM.get(lagna_sign, 0)
+    if not lagna_num:
+        return reduced
+
+    # House -> ruling planet, via whole-sign houses from Lagna.
+    house_lord: Dict[int, str] = {}
+    for house in range(1, 13):
+        sign_num = ((lagna_num - 1 + house - 1) % 12) + 1
+        sign_name = _SIGNS_IN_ORDER[sign_num - 1]
+        house_lord[house] = _SIGN_LORD.get(sign_name, "")
+
+    # Group houses by their lord; only lords ruling exactly 2 houses (every
+    # classical graha except Sun/Moon) are eligible for this reduction.
+    lord_houses: Dict[str, List[int]] = {}
+    for house, lord in house_lord.items():
+        if lord in ("Sun", "Moon", ""):
+            continue
+        lord_houses.setdefault(lord, []).append(house)
+
+    for lord, houses in lord_houses.items():
+        if len(houses) != 2:
+            continue
+        h1, h2 = houses
+        v1, v2 = house_bindus.get(h1, 0), house_bindus.get(h2, 0)
+        if v1 < v2:
+            reduced[h1] = 0
+        elif v2 < v1:
+            reduced[h2] = 0
+        # v1 == v2: both left unchanged, per the honesty note above.
+    return reduced
+
+
+def compute_bav_points_shodhita(
+    planet_signs: Dict[str, str],
+    lagna_sign: str,
+) -> Dict[str, Dict[int, int]]:
+    """Raw BAV (compute_bav_points) with both classical shodhana reductions
+    applied, per target planet. Applied in the conventional order (Trikona
+    first, then Ekadhipatya on the trikona-reduced counts) since Ekadhipatya
+    is meant to compare already-normalized house strengths.
+    """
+    raw = compute_bav_points(planet_signs, lagna_sign)
+    out: Dict[str, Dict[int, int]] = {}
+    for target, houses in raw.items():
+        trikona_reduced = apply_trikona_shodhana(houses)
+        out[target] = apply_ekadhipatya_shodhana(trikona_reduced, lagna_sign)
+    return out
+
+
+def compute_sav_points_shodhita(
+    planet_signs: Dict[str, str],
+    lagna_sign: str,
+) -> Dict[int, int]:
+    """Sarvashtakavarga (grand total across all 7 target planets' BAVs) built
+    from the shodhana-reduced per-target BAVs, not the raw ones. This is
+    additive/new -- see the module-level GAP-FIX note above for why this is
+    NOT yet wired into the live SAV confidence multiplier
+    (Field_Determination/field_methods/__init__.py): that multiplier's
+    thresholds (>=360, >=340, <=300, <=280) were empirically set against RAW
+    SAV totals (grand total 337 across all targets), and shodhana reduction
+    systematically lowers totals, so swapping the input without
+    recalibrating the thresholds would silently miscalibrate every chart's
+    confidence multiplier. Exposed here as correct, disclosed data for a
+    follow-up recalibration pass, not a silent scoring change.
+    """
+    bav_shodhita = compute_bav_points_shodhita(planet_signs, lagna_sign)
+    sav: Dict[int, int] = {h: 0 for h in range(1, 13)}
+    for houses in bav_shodhita.values():
+        for h, v in houses.items():
+            sav[h] += v
+    return sav

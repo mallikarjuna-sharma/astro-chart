@@ -1,4 +1,12 @@
-"""Population-aware exact-field and sibling distinction contract."""
+"""Population-aware exact-field and sibling distinction contract.
+
+Gap-audit fix (2026-08, documentation-only cross-reference): see
+field_suitability.py's module docstring for how this module relates to the
+other two similarly-named modules in this package (field_suitability.py,
+structural_vocational_fit.py). This module (EXACT_FIELD_CONTRACT_VERSION
+below) is non-authoritative -- it does not feed the user-facing
+route-suitability label, which lives in field_suitability.py.
+"""
 from __future__ import annotations
 
 import hashlib

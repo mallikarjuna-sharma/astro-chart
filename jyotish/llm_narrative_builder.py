@@ -41,6 +41,66 @@ from Job_Career.timeline_inputs import parse_iso_date
 logger = logging.getLogger("jyotish_engine_v11_0")
 
 # ---------------------------------------------------------------------------
+# GAP-FIX (2026-08, .env config audit): report-language selection.
+#
+# .env carries Report_Language_Enabled_Tamil / Report_Language_Enabled_Telugu
+# switches that were defined and documented but never actually read anywhere
+# in the codebase -- every LLM narrative call unconditionally wrote English,
+# regardless of these flags. Default stays English; if exactly one of the
+# two is true, the narrative is generated in that language instead. If both
+# are set true simultaneously (a misconfiguration -- the two are meant to be
+# mutually exclusive), Tamil takes priority (first-declared-wins) and a
+# warning is logged so the misconfiguration is visible rather than silently
+# picking one.
+# ---------------------------------------------------------------------------
+_LANGUAGE_ENV_MAP = (
+    ("Report_Language_Enabled_Tamil", "Tamil"),
+    ("Report_Language_Enabled_Telugu", "Telugu"),
+)
+
+
+def _resolve_narrative_language() -> str:
+    """Read Report_Language_Enabled_Tamil / _Telugu from the environment and
+    return the target narrative language name. Defaults to "English" when
+    neither flag is set true. Case-insensitive on the flag value.
+    """
+    enabled = [
+        name for env_key, name in _LANGUAGE_ENV_MAP
+        if str(os.getenv(env_key, "false")).strip().lower() in ("1", "true", "yes", "on")
+    ]
+    if not enabled:
+        return "English"
+    if len(enabled) > 1:
+        logger.warning(
+            "Both Report_Language_Enabled_Tamil and Report_Language_Enabled_Telugu "
+            "are set true in .env -- these are meant to be mutually exclusive. "
+            "Defaulting to %s.", enabled[0],
+        )
+    return enabled[0]
+
+
+def _language_directive(language: Optional[str] = None) -> str:
+    """Build the system-prompt appendix enforcing the target narrative language.
+
+    Pass an explicit `language` to avoid re-reading the environment inside a
+    tight loop; omit it to resolve from .env / process environment directly.
+    """
+    lang = language or _resolve_narrative_language()
+    if lang == "English":
+        return ""
+    return (
+        f"\n\nLANGUAGE REQUIREMENT: Write the ENTIRE narrative output — every "
+        f"field, every paragraph, every HTML text node — in {lang}. Do not mix "
+        f"in English except for proper nouns/planet names that have no natural "
+        f"{lang} equivalent (e.g. keep classical Sanskrit/Jyotish terms such as "
+        f"Dasha, Bhukti, or planet names in their commonly-used {lang} script "
+        f"form if one exists, otherwise transliterate). All HTML tags/structure "
+        f"stay exactly as specified above — only the language of the text "
+        f"content itself changes."
+    )
+
+
+# ---------------------------------------------------------------------------
 # FIX 7: HTML whitelist sanitizer
 # ---------------------------------------------------------------------------
 
@@ -280,7 +340,7 @@ async def generate_ad_narrative(
             response = await client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "system", "content": _SYSTEM_PROMPT + _language_directive()},
                     {"role": "user",   "content": user_prompt},
                 ],
                 response_format={"type": "json_object"},
@@ -582,7 +642,7 @@ Return JSON: {{"md_html": "<h4>MD Arc: {md_lord}</h4><p>...</p>"}}"""
                 resp = await client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {"role": "system", "content": _SYSTEM_PROMPT + _language_directive()},
                         {"role": "user",   "content": prompt},
                     ],
                     response_format={"type": "json_object"},
@@ -767,7 +827,7 @@ async def generate_annual_roadmap_narratives(
                     response = await client.messages.create(
                         model=model,
                         max_completion_tokens=4000,
-                        system=_ROADMAP_SYSTEM_PROMPT,
+                        system=_ROADMAP_SYSTEM_PROMPT + _language_directive(),
                         messages=[{"role": "user", "content": user_prompt}],
                     )
                     raw = response.content[0].text if response.content else "{}"
@@ -775,7 +835,7 @@ async def generate_annual_roadmap_narratives(
                     response = await client.chat.completions.create(
                         model=model,
                         messages=[
-                            {"role": "system", "content": _ROADMAP_SYSTEM_PROMPT},
+                            {"role": "system", "content": _ROADMAP_SYSTEM_PROMPT + _language_directive()},
                             {"role": "user",   "content": user_prompt},
                         ],
                         response_format={"type": "json_object"},
@@ -914,7 +974,7 @@ async def generate_ad_narrative_cached(
                 response = await client.messages.create(
                     model=model,
                     max_completion_tokens=2000,
-                    system=_SYSTEM_PROMPT,
+                    system=_SYSTEM_PROMPT + _language_directive(),
                     messages=[{"role": "user", "content": user_prompt}],
                 )
                 raw = response.content[0].text if response.content else "{}"
@@ -922,7 +982,7 @@ async def generate_ad_narrative_cached(
                 response = await client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {"role": "system", "content": _SYSTEM_PROMPT + _language_directive()},
                         {"role": "user",   "content": user_prompt},
                     ],
                     response_format={"type": "json_object"},
@@ -1032,7 +1092,7 @@ async def resolve_uncertain_events(
                 response = await client.messages.create(
                     model=model,
                     max_completion_tokens=2000,
-                    system=_RESOLUTION_SYSTEM_PROMPT,
+                    system=_RESOLUTION_SYSTEM_PROMPT + _language_directive(),
                     messages=[{"role": "user", "content": user_prompt}],
                 )
                 raw = response.content[0].text if response.content else "{}"
@@ -1040,7 +1100,7 @@ async def resolve_uncertain_events(
                 response = await client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role": "system", "content": _RESOLUTION_SYSTEM_PROMPT},
+                        {"role": "system", "content": _RESOLUTION_SYSTEM_PROMPT + _language_directive()},
                         {"role": "user",   "content": user_prompt},
                     ],
                     response_format={"type": "json_object"},

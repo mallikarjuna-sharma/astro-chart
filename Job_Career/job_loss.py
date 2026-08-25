@@ -28,6 +28,14 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple, Set
 
 # ── House vocabulary ────────────────────────────────────────────────────────
+# CLARIFICATION (2026-08-22, audit item #20): this set is intentionally NOT
+# "5th and 9th as trikona houses of fortune" — it is bhavat-bhavam loss
+# derivation. 5 = 12th-from-6th (loss of service/health axis), 8 = dusthana
+# (sudden disruption), 12 = dusthana (loss/expenditure), 9 = 12th-from-10th
+# (loss FROM the 10th/career house, via (2*(10-1))%12+1 = 9). The numeral 9
+# here plays the role of "12th from career," not the 9th-house trikona of
+# fortune — those are two different classical meanings that happen to share
+# the same house number. Verified correct as-is; no code change needed.
 LOSS_HOUSES: Set[int] = {5, 8, 12, 9}       # 5=12th-from-6th, 9=12th-from-10th
 PROTECT_HOUSES: Set[int] = {2, 6, 10, 11}   # salary / service / position / gain
 
@@ -148,7 +156,15 @@ def kp_job_promise(payload: Any) -> Dict[str, Any]:
     # sub-lords are most sensitive to. Default and empty-string now both
     # correctly count as low confidence.
     precision = str(getattr(payload, "birth_time_precision", "unknown") or "unknown").lower()
-    low_conf = precision != "exact"     # cusp sub-lords are birth-time sensitive
+    # GAP-FIX (P0-2, CalculationPolicy threading): defer to the single declared
+    # policy's precise_cusps_allowed (which also enforces uncertainty_minutes
+    # <= 2) instead of a local == "exact" string check, for the same KP
+    # cusp-sensitivity reason documented in field_methods/kp.py's T3-C gate.
+    _policy = getattr(payload, "calculation_policy", None)
+    if _policy is not None and hasattr(_policy, "precise_cusps_allowed"):
+        low_conf = not bool(_policy.precise_cusps_allowed)
+    else:
+        low_conf = precision != "exact"     # cusp sub-lords are birth-time sensitive
 
     per_cusp: Dict[str, Dict[str, Any]] = {}
     protect_score = 0.0
@@ -208,12 +224,19 @@ def d10_career_affliction(period_lords: Dict[str, str], payload: Any) -> Dict[st
     tenth_afflicted = bool(d10_10_lord) and _afflicted(d10_10_lord)
     lagna_afflicted = bool(d10_1_lord) and _afflicted(d10_1_lord)
 
-    # Protection: benefic occupancy of D10 6/11 with a non-afflicted lord
+    # Protection: benefic occupancy of D10 6/11 with a non-afflicted lord.
+    # GAP-FIX (2026-08-22): previously any occupant of D10 6/11 counted as
+    # "protective" as long as the house LORD wasn't afflicted, without
+    # checking whether the occupant itself was a malefic. A malefic sitting
+    # in the 6th/11th is not classically protective merely because the house
+    # lord is undamaged. Now requires at least one non-malefic occupant.
     d10_6_lord = d10_lords.get("6", d10_lords.get("H6", ""))
     d10_11_lord = d10_lords.get("11", d10_lords.get("H11", ""))
+    occ_6_benefic = [p for p in _house_occupants(6) if p not in _MALEFICS]
+    occ_11_benefic = [p for p in _house_occupants(11) if p not in _MALEFICS]
     protects = (
-        (bool(_house_occupants(6)) and bool(d10_6_lord) and not _afflicted(d10_6_lord))
-        or (bool(_house_occupants(11)) and bool(d10_11_lord) and not _afflicted(d10_11_lord))
+        (bool(occ_6_benefic) and bool(d10_6_lord) and not _afflicted(d10_6_lord))
+        or (bool(occ_11_benefic) and bool(d10_11_lord) and not _afflicted(d10_11_lord))
     )
 
     afflicted = activates_8_12 or tenth_afflicted or lagna_afflicted

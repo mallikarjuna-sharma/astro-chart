@@ -1,15 +1,34 @@
 """Jaimini field-determination module."""
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List
+
+_logger = logging.getLogger("jyotish_engine_v11_0")
+
+# 2026-08-18 fix (audit item #9, Jaimini karaka-scheme visibility): the audit
+# raised the classical dispute between the traditional 7-karaka (Parashari)
+# scheme -- where Rahu is excluded and the 7th-lowest-degree planet simply has
+# no karaka role assigned -- and the 8-karaka scheme some modern authors use,
+# where Rahu is added as Darakaraka (spouse/7th-house signifier) instead of
+# leaving that role to the lowest-degree of the 7 classical grahas. Decision
+# (Dr. Sooriyan, 2026-08-18): KEEP the existing 7-karaka scheme as-is --
+# jyotish/astro.py's _compute_bvb_7_karakas() and jyotish/boosts.py's
+# karaka-domain bonuses already implement it correctly and no code change is
+# needed. What was missing was *visibility*: this choice previously lived
+# only in source comments, not in anything an astrologer/consumer of the
+# bundle output could see without reading code. KARAKA_SCHEME below is now
+# surfaced directly in this method's output via method_result(metadata=...).
+KARAKA_SCHEME = "7-karaka (Parashari); Rahu not treated as Darakaraka"
 
 from jyotish.astro import (
     _compute_jaimini_argala,
     _compute_jaimini_virodhargala,
     _detect_jaimini_raj_yogas,
     _compute_bvb_7_karakas,
+    _compute_arudha_pada,
 )
-from jyotish.astro import _get_active_chara_dasha_sign
+from jyotish.astro import _get_active_chara_dasha_sign, compute_chara_dasha_calendar
 from jyotish.constants import _SIGN_NUM, _SIGN_LORD
 from jyotish.boosts import (
     _karakamsha_bonus,
@@ -138,6 +157,109 @@ def _jaimini_kendradhipati_cancellation(house_lords: Dict[str, str], lagna_sign:
     return planet, 0.0, "dual"
 
 
+_TIMING_AFFINITY_THRESHOLD = 0.15
+_TIMING_HIGH_AFFINITY = 0.50
+
+
+def compute_jaimini_field_timing(
+    payload_data: Any,
+    field_affinity: Dict[str, float],
+    field_id: str = "",
+    domain: str = "",
+) -> Dict[str, Any]:
+    """Phase-4c remediation (2026-08 gap-audit): "which field" was already
+    answered by score_jaimini/the method bundle; this answers the other half
+    of the plan's Phase-3 item -- "when this field becomes favorable" --
+    using Jaimini Chara Dasha, previously unwired for timing despite
+    jyotish/astro.py::compute_chara_dasha_calendar() already existing and
+    already converting the Chara Dasha mahadasha sequence into absolute
+    start/end dates (with antardasha subdivision). This is a NEW auxiliary
+    output, not a score component: it does not feed final_score, because
+    timing and suitability are different questions and conflating them
+    would double-count the same Chara Dasha signal score_jaimini's T1-C
+    block already uses for current-period suitability.
+
+    A mahadasha window is flagged "favorable" for this field when the
+    window's sign-lord has field_affinity >= _TIMING_AFFINITY_THRESHOLD
+    (mirrors the >=0.10-0.15 gating convention already used throughout this
+    file for whether a placement is "meaningful enough to matter").
+
+    Returns:
+        {"status": "OBSERVED"|"MISSING", "all_favorable_windows": [...],
+         "upcoming_favorable_windows": [...], "note": str}
+    Each window: {"sign", "lord", "start", "end", "years", "affinity",
+                  "favorability": "HIGH"|"MODERATE"}.
+    """
+    from datetime import date as _date
+
+    lagna_sign = getattr(payload_data, "lagna_sign", "") or ""
+    planets_d1 = getattr(payload_data, "planets_d1", {}) or {}
+    dob_raw = getattr(payload_data, "dob", "") or ""
+
+    if not lagna_sign or not planets_d1 or not dob_raw:
+        return {
+            "status": "MISSING",
+            "all_favorable_windows": [],
+            "upcoming_favorable_windows": [],
+            "note": "lagna_sign, planets_d1, or dob unavailable — Chara Dasha timing skipped.",
+        }
+    try:
+        dob = _date.fromisoformat(str(dob_raw)[:10])
+    except (ValueError, TypeError):
+        return {
+            "status": "MISSING",
+            "all_favorable_windows": [],
+            "upcoming_favorable_windows": [],
+            "note": f"Unparseable dob ({dob_raw!r}) — Chara Dasha timing skipped.",
+        }
+
+    calendar = compute_chara_dasha_calendar(lagna_sign, planets_d1, dob)
+    if not calendar:
+        return {
+            "status": "MISSING",
+            "all_favorable_windows": [],
+            "upcoming_favorable_windows": [],
+            "note": "Chara Dasha sequence unresolvable for this chart (see "
+                    "compute_chara_dasha_sequence's own MISSING-data contract).",
+        }
+
+    windows: List[Dict[str, Any]] = []
+    for entry in calendar:
+        sign = entry.get("sign", "")
+        lord = _SIGN_LORD.get(sign, "")
+        if not lord:
+            continue
+        aff = float((field_affinity or {}).get(lord, 0.0) or 0.0)
+        if aff < _TIMING_AFFINITY_THRESHOLD:
+            continue
+        windows.append({
+            "sign": sign,
+            "lord": lord,
+            "start": entry.get("start", ""),
+            "end": entry.get("end", ""),
+            "years": entry.get("years", 0),
+            "affinity": round(aff, 3),
+            "favorability": "HIGH" if aff >= _TIMING_HIGH_AFFINITY else "MODERATE",
+            "antardashas": entry.get("antardashas", []),
+        })
+
+    today_iso = _date.today().isoformat()
+    upcoming = [w for w in windows if w["end"] >= today_iso]
+
+    return {
+        "status": "OBSERVED",
+        "all_favorable_windows": windows,
+        "upcoming_favorable_windows": upcoming,
+        "note": (
+            f"{len(windows)} of {len(calendar)} Chara Dasha mahadasha window(s) "
+            f"over this chart's full 12-sign cycle show meaningful ({_TIMING_AFFINITY_THRESHOLD}+) "
+            f"affinity for {field_id or domain}; {len(upcoming)} still upcoming or current "
+            "from today. Mahadasha-level only (antardasha detail is in each window's "
+            "'antardashas' field via the underlying calendar, not filtered here)."
+        ),
+    }
+
+
 def score_jaimini(
     payload_data: Any,
     domain: str,
@@ -152,9 +274,22 @@ def score_jaimini(
     jdata = getattr(payload_data, "kn_rao_jaimini", None) or getattr(payload_data, "kn_rao_jaimini_data", None) or {}
     if not isinstance(jdata, dict):
         jdata = {}
+    _karakas_call_ok = False
     try:
         ak, amk = _compute_bvb_7_karakas(planets_d1)
-    except Exception:
+        _karakas_call_ok = True
+    except Exception as exc:
+        # Gap-audit fix (2026-08, visibility-only): this was a fully silent
+        # except before -- a genuine bug in _compute_bvb_7_karakas (e.g. a
+        # malformed planets_d1 shape) looked identical to "no chara-karaka
+        # data available yet" to any caller. The fallback behavior below
+        # (ak/amk falling back to payload_data.atmakaraka/amatyakaraka) is
+        # unchanged; this only makes a real failure loggable instead of
+        # invisible.
+        _logger.warning(
+            "jaimini.score_jaimini: _compute_bvb_7_karakas failed (%s); "
+            "falling back to payload_data.atmakaraka/amatyakaraka.", exc,
+        )
         ak, amk = "", ""
     if not ak:
         ak = getattr(payload_data, "atmakaraka", "") or ""
@@ -165,6 +300,30 @@ def score_jaimini(
         chara_karakas["AK"] = ak
     if amk and "AmK" not in chara_karakas:
         chara_karakas["AmK"] = amk
+    # GAP-FIX (2026-08, dead-code audit follow-up): karaka_weights below has
+    # always defined a "DK" (Darakaraka) weight of 0.7, but chara_karakas was
+    # sourced only from PyHora's jdata["chara_karakas"] plus an AK/AmK-only
+    # backfill from _compute_bvb_7_karakas -- BK/MK/PK/GK/DK were never
+    # backfilled from anywhere, so whenever PyHora's own dict omitted one of
+    # those five (e.g. an older/partial PyHora export), that karaka's weight
+    # sat unused. _compute_bvb_7_karakas already computes and caches the full
+    # 7-karaka assignment (including the Darakaraka fix applied 2026-08) on
+    # its own _last_all_karakas attribute after the call above; use it as the
+    # same kind of fallback already applied to AK/AmK, for every karaka name
+    # PyHora's own data didn't already supply -- never overriding a
+    # PyHora-supplied value, only filling genuine gaps.
+    # Only trust the cached _last_all_karakas when THIS call actually
+    # succeeded -- otherwise the attribute could still be holding a stale
+    # result cached from a previous chart's call to this same module-level
+    # function, and backfilling from it here would silently mix one chart's
+    # karaka assignment into another's score.
+    _all_karakas_fallback = (
+        getattr(_compute_bvb_7_karakas, "_last_all_karakas", {}) or {}
+        if _karakas_call_ok else {}
+    )
+    for _k_name, _k_planet in _all_karakas_fallback.items():
+        if _k_planet and _k_name not in chara_karakas:
+            chara_karakas[_k_name] = _k_planet
     karakamsha = getattr(payload_data, "karakamsha", "") or jdata.get("karakamsha_sign", "") or ""
     karakamsha_occupants = set(getattr(payload_data, "karakamsha_occupants", []) or [])
     brahma_lord = getattr(payload_data, "brahma_lord", "") or jdata.get("jaimini_special_lords", {}).get("brahma", "") or ""
@@ -175,6 +334,35 @@ def score_jaimini(
 
     def _vit(planet: str) -> float:
         return _d1_vitality_coefficient(planet, payload_data) if planet else 1.0
+
+    # Jaimini gap-audit fix (2026-08): Karakamsha boundary risk. Karakamsha is
+    # derived from the Atmakaraka's D9 (Navamsha) sign, and D9 divides each
+    # sign into 9 segments of 3.3333 degrees each. Nearly every block in this
+    # method (the chara-karaka matrix's house-from-karakamsha modifier,
+    # karakamsha_bonus, N7 H10-from-karakamsha, and the karakamsha-rasi-
+    # drishti-onto-lagna yoga) is anchored on Karakamsha being the CORRECT
+    # sign -- if AK sits near a 3.3333-degree D9 boundary and birth time is
+    # imprecise, Karakamsha itself can flip sign, cascading through most of
+    # this method's score at once. This is the same boundary-risk pattern
+    # already built for KP cusps / D10 (3-degree) / D24 (1.25-degree) / D60
+    # (0.5-degree) this session, applied here to the single most load-bearing
+    # anchor point in the Jaimini method specifically.
+    _birth_prec_j = (
+        getattr(getattr(payload_data, "calculation_policy", None), "birth_time_precision", None)
+        or getattr(payload_data, "birth_time_precision", "exact") or "exact"
+    )
+    _karakamsha_margin_deg = {"approximate": 0.40, "unknown": 1.0}.get(_birth_prec_j, 0.0)
+    _karakamsha_risk_mult = 1.0
+    if ak and _karakamsha_margin_deg > 0.0:
+        _ak_pdata = planets_d1.get(ak, {}) or {}
+        try:
+            _ak_deg = float(_ak_pdata.get("degree"))
+            _d9_seg = 30.0 / 9.0
+            _deg_in_seg = _ak_deg % _d9_seg
+            if _deg_in_seg <= _karakamsha_margin_deg or _deg_in_seg >= (_d9_seg - _karakamsha_margin_deg):
+                _karakamsha_risk_mult = 0.85
+        except (TypeError, ValueError):
+            pass
 
     score = 0.0
     trace: List[str] = []
@@ -230,7 +418,7 @@ def score_jaimini(
 
             # Gap-5 fix: formula is affinity_weight × (karaka_weight × house_modifier + drishti) × 10
             # The ×10 scalar keeps matrix totals comparable with other positive sections.
-            contribution = planet_affinity * jaimini_strength * 10.0
+            contribution = planet_affinity * jaimini_strength * 10.0 * _karakamsha_risk_mult
             jaimini_matrix_score += contribution
             score += contribution
             rubric_core += contribution
@@ -308,6 +496,7 @@ def score_jaimini(
 
     karaka_bonus = _karakamsha_bonus(field_affinity, karakamsha) * 100.0
     karaka_bonus *= sum(_vit(p) for p in karakamsha_occupants) / len(karakamsha_occupants) if karakamsha_occupants else 1.0
+    karaka_bonus *= _karakamsha_risk_mult
     score += karaka_bonus
     rubric_core += karaka_bonus
     components["karakamsha"] = round(karaka_bonus, 2)
@@ -358,15 +547,24 @@ def score_jaimini(
             trace.append(f"Upapada lord {_upa_lord} aligns with field "
                          f"(affinity {_upa_aff:.2f}, dignity {_upa_dig}).")
 
+    # Audit fix (2026-08-17): this occupant-of-Karakamsha check reads the same
+    # karakamsha_occupants set that the matrix/karakamsha/N7-H10/lagna-drishti
+    # blocks already discount via _karakamsha_risk_mult when AK sits near a
+    # D9-segment boundary under imprecise birth time (see the boundary-risk
+    # comment above) -- it was left out of that discount even though it is
+    # exactly as exposed to the same Karakamsha-sign uncertainty (a planet's
+    # membership in karakamsha_occupants flips together with Karakamsha itself).
+    # No new information here beyond what karakamsha_risk_mult already reasons
+    # about, so it now carries the identical multiplier for consistency.
     for planet in top_weighted_planets(field_affinity, 2):
         if planet in karakamsha_occupants:
-            _bonus = (100.0 - score) * 0.025 * _vit(planet)
+            _bonus = (100.0 - score) * 0.025 * _vit(planet) * _karakamsha_risk_mult
             score += _bonus
             rubric_validation += _bonus
             components[f"karakamsha_{planet.lower()}"] = round(_bonus, 2)
 
-    life_bonus = _life_science_cluster_bonus(field_id, field_id.replace("_", " "), field_affinity, getattr(payload_data, "eff_strengths", {}) or {}) * 20.0
-    space_bonus = _space_aerospace_cluster_bonus(field_id, field_id.replace("_", " "), field_affinity, getattr(payload_data, "eff_strengths", {}) or {}) * 20.0
+    life_bonus = _life_science_cluster_bonus(field_id, field_id.replace("_", " "), field_affinity, (getattr(payload_data, "eff_strengths_tier1", None) or getattr(payload_data, "eff_strengths", {}) or {})) * 20.0
+    space_bonus = _space_aerospace_cluster_bonus(field_id, field_id.replace("_", " "), field_affinity, (getattr(payload_data, "eff_strengths_tier1", None) or getattr(payload_data, "eff_strengths", {}) or {})) * 20.0
     if life_bonus > 0:
         _bonus = (100.0 - score) * (life_bonus / 100.0)
         score += _bonus
@@ -401,7 +599,7 @@ def score_jaimini(
         house_lords,
         getattr(payload_data, "lagna_lord", "") or "",
         field_id or "",
-        getattr(payload_data, "eff_strengths", {}) or {},
+        (getattr(payload_data, "eff_strengths_tier1", None) or getattr(payload_data, "eff_strengths", {}) or {}),
     ) * 100.0 * _JAI_PENALTY_SCALE
     if dusthana_penalty > 0:
         score -= dusthana_penalty
@@ -483,13 +681,54 @@ def score_jaimini(
         if _kar_h10_lord:
             _kar_aff = field_affinity.get(_kar_h10_lord, 0.0)
             if _kar_aff >= 0.08:
-                _kar_pts = _kar_aff * 12.0 * _vit(_kar_h10_lord)
+                _kar_pts = _kar_aff * 12.0 * _vit(_kar_h10_lord) * _karakamsha_risk_mult
                 _kar_pts = min(_kar_pts, 14.0)
                 score += _kar_pts; rubric_core += _kar_pts
                 components["karakamsha_h10"] = round(_kar_pts, 2)
                 trace.append(
                     f"N7 H10 from Karakamsha ({_karak_sign}): lord {_kar_h10_lord} "
                     f"aligns with {domain} — soul career mandate confirmed."
+                )
+
+    # ── Phase-3 remediation (2026-08 gap-audit): H4 lord + Arudha of 4th (A4) ──
+    # Jaimini's education testimony previously relied only on H9/karakamsha-H10.
+    # A4 (Arudha Pada of the 4th house) is Jaimini's own technique for how
+    # foundational education/schooling "shows up" materially -- computed the
+    # same way A10 (rajya pada) is computed elsewhere in this file, just
+    # counted from the 4th house instead of the 10th.
+    h4_lord = house_lords.get("4", "")
+    if h4_lord:
+        _h4_aff = field_affinity.get(h4_lord, 0.0)
+        if _h4_aff >= 0.10:
+            _h4_house = ph.get(h4_lord, 0) if isinstance(ph, dict) else 0
+            _h4_kendra_trikona = 1.15 if _h4_house in {1, 4, 5, 7, 9, 10} else 1.0
+            _h4_b = _h4_aff * 8.0 * _h4_kendra_trikona * _vit(h4_lord)
+            score += _h4_b; rubric_support += _h4_b
+            components["h4_vidya_lord"] = round(_h4_b, 2)
+            trace.append(f"H4 (vidya/foundation) lord {h4_lord} supports {domain} — Jaimini vidya testimony.")
+
+    # Phase-4b remediation (2026-08 gap-audit): the A4 block above used a
+    # hand-rolled, simplified counting rule that only handled the 1st/7th
+    # exception and skipped the classical +10-sign shift and its iterative
+    # second-order correction (arudha landing on 1st/7th again after the
+    # first shift). jyotish/astro.py::_compute_arudha_pada() already
+    # implements the full BV Raman/Parashara-school algorithm correctly
+    # (it's the same function knrao.py uses for Arudha Lagna/A10) -- reused
+    # here instead of re-deriving Arudha math a second time.
+    _lagna_sign_a4 = getattr(payload_data, "lagna_sign", "") or _lagna_sign_j
+    if _lagna_sign_a4 and _planets_d1_j:
+        _a4_sign = _compute_arudha_pada(4, _lagna_sign_a4, _planets_d1_j)
+        _a4_lord = _SIGN_LORD.get(_a4_sign, "") if _a4_sign else ""
+        if _a4_lord:
+            _a4_aff = field_affinity.get(_a4_lord, 0.0)
+            if _a4_aff >= 0.10:
+                _a4_b = _a4_aff * 6.0 * _vit(_a4_lord)
+                _a4_b = min(_a4_b, 8.0)
+                score += _a4_b; rubric_support += _a4_b
+                components["a4_arudha_of_education"] = round(_a4_b, 2)
+                trace.append(
+                    f"A4 (Arudha of 4th, education's public manifestation) in {_a4_sign}: "
+                    f"lord {_a4_lord} aligns with {domain}."
                 )
 
     # ── Jaimini Kendradhipati dosha cancellation (lagna-type dependent) ──────
@@ -519,13 +758,53 @@ def score_jaimini(
     # drishti onto the D1 (physical/embodied) lagna, the soul's purpose actively
     # directs the native's worldly life -- a Karakamsha-Rasi drishti union yoga.
     if karakamsha and _lagna_sign_kd and _check_chara_drishti(karakamsha, _lagna_sign_kd):
-        _kd_lagna_b = 6.0 * _vit(ak) if ak else 5.0
+        _kd_lagna_b = (6.0 * _vit(ak) if ak else 5.0) * _karakamsha_risk_mult
         _kd_lagna_b = min(_kd_lagna_b, 6.0)
         score += _kd_lagna_b; rubric_validation += _kd_lagna_b
         components["karakamsha_lagna_drishti"] = round(_kd_lagna_b, 2)
         trace.append(
             f"Karakamsha ({karakamsha}) casts rasi drishti onto the D1 lagna ({_lagna_sign_kd}) -- "
             f"soul purpose directly aspects and shapes embodied career life (Jaimini union yoga)."
+        )
+
+    # 2026-08-22 reconciliation (JyotishAI reference-audit, jaimini.py):
+    # "karakamsha", "karakamsha_h10", "karakamsha_lagna_drishti", and any
+    # "karakamsha_<planet>" occupant-bonus keys all credit the SAME
+    # underlying Karakamsha fact from different angles. All four already
+    # share the _karakamsha_risk_mult discount for D9-boundary uncertainty,
+    # but nothing bounds their combined MAGNITUDE -- confirmed up to 5
+    # independent additive paths in this audit pass. Bound the family at a
+    # ceiling consistent with the equivalent fix already applied to
+    # boosts.py::_karakamsha_bonus's own family (reference-audit method #3,
+    # ceiling 0.30 on a 0-1-ish additive scale there; this file's `score`
+    # runs on a ~0-100 scale, so the equivalent ceiling here is 30.0),
+    # clawing back from the weakest/most-derivative signals first (lagna
+    # drishti, then occupant bonuses, then H10-from-Karakamsha) before ever
+    # touching the primary Karakamsha matrix bonus.
+    _kar_family_ceiling = 30.0
+    _kar_family_keys_claw_order = ["karakamsha_lagna_drishti", "karakamsha_h10"]
+    _kar_occupant_keys = [k for k in components if k.startswith("karakamsha_") and
+                           k not in ("karakamsha_h10", "karakamsha_lagna_drishti", "karakamsha_boundary_risk")]
+    _kar_family_keys_claw_order = _kar_family_keys_claw_order[:1] + _kar_occupant_keys + _kar_family_keys_claw_order[1:]
+    _kar_family_total = components.get("karakamsha", 0.0) + sum(
+        components.get(k, 0.0) for k in _kar_family_keys_claw_order if isinstance(components.get(k), (int, float))
+    )
+    if _kar_family_total > _kar_family_ceiling:
+        _kar_excess = _kar_family_total - _kar_family_ceiling
+        for _k in _kar_family_keys_claw_order:
+            if _kar_excess <= 0:
+                break
+            _v = components.get(_k, 0.0)
+            if not isinstance(_v, (int, float)) or _v <= 0:
+                continue
+            _take = min(_v, _kar_excess)
+            score -= _take
+            components[_k] = round(_v - _take, 2)
+            _kar_excess -= _take
+        trace.append(
+            f"Jaimini Karakamsha family (matrix + H10 + lagna-drishti + occupant bonuses) "
+            f"exceeded {_kar_family_ceiling}pt combined ceiling -- clawed back from the "
+            "weakest/most-derivative signals first."
         )
 
     # ── Systematic karaka-domain bonus (cross-cutting gap fix) ────────────────
@@ -582,6 +861,37 @@ def score_jaimini(
                 f"{'supports' if _vim_adj_j > 0 else 'weakens'} this field."
             )
 
+    # ── gap fix 2026-08-18 (G): minimal retrograde (vakri) Atmakaraka note ──────
+    # Classical basis (Jaimini Sutras tradition, as commented by Sanjay Rath and
+    # other modern Jaimini teachers): a retrograde Atmakaraka is read as unusual
+    # intensity of unresolved past karma requiring active, effortful pursuit in
+    # this life -- distinct from KP's house-extension convention and KNRao's
+    # Cheshta-Bala-strength convention used above/elsewhere in this remediation.
+    # Kept as a single small, bounded (+1.5 flat) corroboration on Jaimini's own
+    # primary karaka (AK), not a house or dignity reinterpretation.
+    _j_retro_set = getattr(payload_data, "retrograde_planets", set()) or set()
+    if ak and ak in _j_retro_set:
+        _j_retro_b = 1.5
+        score += _j_retro_b
+        rubric_validation += _j_retro_b
+        components["retrograde_ak_karma_intensity"] = round(_j_retro_b, 2)
+        trace.append(
+            f"Retrograde (vakri) Atmakaraka {ak}: classical Jaimini reading of intensified "
+            "karmic drive toward effortful pursuit of the soul's purpose -- small corroboration."
+        )
+
+    components["birth_time_precision"] = _birth_prec_j
+    components["karakamsha_boundary_risk"] = _karakamsha_risk_mult < 1.0
+    if _karakamsha_risk_mult < 1.0:
+        trace.append(
+            f"Karakamsha boundary risk: AK ({ak}) sits within {_karakamsha_margin_deg} deg of a "
+            "3.3333-degree D9 segment boundary under imprecise birth time -- Karakamsha could "
+            "plausibly fall in a different sign under realistic birth-time error; every "
+            "Karakamsha-anchored signal in this method (matrix, karakamsha bonus, N7 H10-from-"
+            "Karakamsha, Karakamsha-lagna drishti, karakamsha-occupant bonus) is discounted "
+            "accordingly."
+        )
+
     rubric = build_score_rubric(
         "jaimini",
         [
@@ -609,8 +919,11 @@ def score_jaimini(
                 rubric_validation,
                 20.0,
                 note="D24 and divisional cross-checks, Vimshopaka Bala.",
-                items=["ak_d24", "d24_bonus", "life_science_cluster", "space_aerospace_cluster",
-                       "vimsopaka_bala"],
+                # 2026-08-22 cleanup (JyotishAI reference-audit): "d24_bonus" was
+                # a stray duplicate list entry -- the actual component key set at
+                # this function's D24 block is "ak_d24" (already listed here).
+                items=["ak_d24", "life_science_cluster", "space_aerospace_cluster",
+                       "vimsopaka_bala", "retrograde_ak_karma_intensity"],
             ),
             rubric_section(
                 "penalty",
@@ -628,4 +941,5 @@ def score_jaimini(
     # charts (net penalties > positives) are distinguishable from neutral ones;
     # method_result() still clamps internally for the "score" field.
     return method_result("jaimini", score, trace, components, rubric=rubric,
-                         normalization_cap=METHOD_SCORE_CAPS["jaimini"])
+                         normalization_cap=METHOD_SCORE_CAPS["jaimini"],
+                         metadata={"karaka_scheme": KARAKA_SCHEME})

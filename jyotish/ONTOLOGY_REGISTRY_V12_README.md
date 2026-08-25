@@ -37,9 +37,25 @@ Expected result:
 ```json
 {
   "ok": true,
-  "counts": {"registry": 199, "affinity": 199, "ontology": 199}
+  "counts": {"registry": 205, "affinity": 205, "ontology": 205}
 }
 ```
+
+(Gap-audit fix, 2026-08: this previously read 199/199/199, stale documentation
+from an earlier registry revision. Actually running `validate_all_coverage()`
+against the current `india_course_registry_v12.json` confirms 205/205/205 --
+the base registry file has 198 branches; `registry_coverage_validator.py`'s
+`GENERATED_REGISTRY_IDS` adds the 7 synthetic alias fields
+`registry_loader_v12.py` generates at load time [operations_research,
+information_systems, enterprise_architecture, platform_engineering,
+engineering_management, technology_consulting, it_governance], giving
+198 + 7 = 205, which is also the exact key count of both
+`jyotish/affinity.py::BRANCH_PLANET_AFFINITY` and the runtime
+`Field_Determination/competency_ontology.py::FIELD_TO_FAMILY` -- all three
+genuinely agree at 205. `Field_Determination/education_engine.py`'s
+"199-branch" comment and `career_archetype.py`'s "205 fields" comment
+previously disagreed with each other and with this README for the same
+reason; career_archetype.py's 205 was the correct figure all along.)
 
 ## Patch `engine_io.py`
 

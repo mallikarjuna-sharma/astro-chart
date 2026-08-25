@@ -12,6 +12,12 @@ from collections import Counter
 import math
 from typing import Any, Dict, Iterable, List
 
+# NOTE (engineered, not classically derived): these minimums are round-
+# number tuning choices, not derived from a formal power analysis or any
+# classical source -- same disclosure discipline as the engineered scale
+# constants noted in stream_scoring.py (~L2226-2239) and
+# field_derived_stream.py's reliability-shrinkage constants. Treat as
+# reasonable-sounding defaults, not statistically validated thresholds.
 STREAMS = ("science", "commerce", "humanities")
 MIN_CASES_PER_STREAM = 30
 MIN_TOTAL_CASES = 120
@@ -72,17 +78,49 @@ def validate_outcomes(rows: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def calibration_state(config: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    # 2026-08-22 audit fix (round 3): calibration is a statement about the
+    # scoring rubric that PRODUCED the calibrated weights, not just about the
+    # weights in isolation. stream_scoring.SCORING_CONTRACT_VERSION is bumped
+    # on any rubric-shape change (see that module's header/versioning
+    # policy) precisely because such a change can move scores/precedence
+    # outcomes on real charts -- a calibration run against an older contract
+    # version (e.g. pre-round-3, before the naisargika bonus/exclusivity
+    # split and the mandatory-ceiling Neecha-Bhanga fix) is NOT valid for the
+    # current contract and MUST be re-run before being trusted again, even
+    # though nothing about the *stored* weights/status changed on disk.
+    #
+    # Best-effort runtime guard: if the config records which contract
+    # version it was validated against (key "scoring_contract_version",
+    # optional, backward compatible with configs that omit it), and that no
+    # longer matches the scorer's current SCORING_CONTRACT_VERSION, the
+    # status is downgraded back to ENGINEERED_PROVISIONAL rather than
+    # trusting a stale calibration. Import is local/lazy and best-effort so
+    # this module never hard-fails or import-cycles against stream_scoring.
     config = config or {}
     status = config.get("status", "ENGINEERED_PROVISIONAL")
     if status == "VALIDATED_CALIBRATED" and not config.get("validation_report"):
         status = "ENGINEERED_PROVISIONAL"
+    contract_version_mismatch = False
+    calibrated_against = config.get("scoring_contract_version")
+    if status == "VALIDATED_CALIBRATED" and calibrated_against:
+        try:
+            from stream_scoring import SCORING_CONTRACT_VERSION as _CURRENT_CONTRACT_VERSION
+            if calibrated_against != _CURRENT_CONTRACT_VERSION:
+                status = "ENGINEERED_PROVISIONAL"
+                contract_version_mismatch = True
+        except Exception:
+            pass
     return {
         "status": status,
         "version": config.get("version", "unvalidated"),
         "dataset_id": config.get("dataset_id"),
         "validation_report": config.get("validation_report"),
+        "contract_version_mismatch": contract_version_mismatch,
         "note": (
             "Weights are outcome-calibrated only when status is "
-            "VALIDATED_CALIBRATED and a passing validation report is attached."
+            "VALIDATED_CALIBRATED and a passing validation report is attached. "
+            "A calibration validated against an older SCORING_CONTRACT_VERSION "
+            "is not valid for the current scoring contract and must be re-run "
+            "(see stream_scoring.py's versioning policy)."
         ),
     }

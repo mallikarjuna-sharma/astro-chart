@@ -1,19 +1,19 @@
 {
   "_registry_meta": {
-    "total_branches": 199,
+    "total_branches": 213,
     "branch_count_by_domain": {
-      "engineering": 54,
+      "engineering": 56,
       "science": 25,
       "technology": 11,
-      "medicine": 20,
+      "medicine": 21,
       "law": 6,
       "commerce": 15,
-      "humanities": 22,
-      "arts": 14,
+      "humanities": 23,
+      "arts": 16,
       "education": 6,
       "public": 5,
       "media": 2,
-      "agriculture": 8,
+      "agriculture": 9,
       "interdisciplinary": 11
     },
     "domain_list": [
@@ -34,7 +34,7 @@
     "version": "v12.0_enriched_ontology_registry",
     "schema_version": "v12.0",
     "last_validated": "2026-07-02",
-    "notes": "planet_affinity removed from all branch entries (R1 fix) — authoritative vectors live in jyotish/affinity.py::BRANCH_PLANET_AFFINITY. 8 new branches added (R4): space cluster × 7 + psychiatry. skeleton entries medical_research + public_health completed (R2).",
+    "notes": "planet_affinity removed from all branch entries (R1 fix) — authoritative vectors live in jyotish/affinity.py::BRANCH_PLANET_AFFINITY. 8 new branches added (R4): space cluster × 7 + psychiatry. skeleton entries medical_research + public_health completed (R2). Gap-audit fix (2026-08-17): 5 new branches added (confirmed AICTE/UGC/NMC/ICAR-recognized UG programs with no prior registry field) -- jyotish_vedic_astrology (humanities), aviation_pilot_training + nautical_science (engineering), dairy_technology (agriculture), siddha_medicine (medicine, completing the AYUSH quartet alongside ayurveda/homeopathy/unani_medicine). Corresponding BRANCH_PLANET_AFFINITY vectors added in jyotish/affinity.py. Design-field gap fix (2026-08-17): 2 new branches added -- transportation_automotive_design (arts; distinct multi-institution UG discipline -- MIT Institute of Design Pune B.Des Transportation Design, IIT Bombay IDC 'Mobility and Vehicle Design' track, DSK ISD Pune -- separate from design_ux_product's digital/UX-skewed content) and industrial_product_design (arts; NID/IIT Bombay IDC/Pearl Academy standalone Industrial Design stream covering physical/hardware product design -- furniture, consumer electronics, appliances, medical devices, toys -- content that design_ux_product's Figma/UX-skewed career_signature and keywords did not cover). IPM (Integrated Programme in Management) reviewed and found already adequately covered by the existing business_management field (IPM_Entrance admission exam, 'BBA / IPM IIM' in tier_map/ambitious_route) -- no new field added for IPM. Corresponding BRANCH_PLANET_AFFINITY vectors added in jyotish/affinity.py for the 2 new branches. Gap-audit fix (2026-08-18): 7 new branches added to back pre-existing BRANCH_PLANET_AFFINITY/CORE_APTITUDE/competency_ontology entries that had no registry branch -- engineering_management, enterprise_architecture, information_systems, it_governance, operations_research, platform_engineering, technology_consulting. Re-add fix (2026-08-18, explicit user request): civil_services restored as a career_route branch (field_role=career_route per ranking_policy.py, already-existing behavior) -- added back to registry + affinity.py together, matching the defence_military/research_academia career_route pattern.",
     "source_registry_version": "v11.0_registry_audit_fixed",
     "upgrade_notes": [
       "Added classic_core and modern_extensions split.",
@@ -29898,281 +29898,6 @@
       },
       "schema_version": "v12.0_enriched_registry"
     },
-    "civil_services": {
-      "label": "Civil Services (UPSC / State PSC)",
-      "domain": "public",
-      "field": "Public Administration & Governance",
-      "track": "Civil Services",
-      "specialization": "IAS / IPS / IFS / State Services",
-      "niche": "General Administration / Police / Foreign Service / Revenue / District Mgmt",
-      "description": "Indian Administrative / Police / Foreign Services through UPSC CSE and State PSC exams",
-      "degree_types": [
-        "Any_Graduate"
-      ],
-      "duration_years": [
-        0
-      ],
-      "admission_exams": [
-        "UPSC_CSE",
-        "State_PSC"
-      ],
-      "available_at": {
-        "IIT": [],
-        "NIT": [],
-        "IISER": [],
-        "NISER": false,
-        "IISE_CEBS": false,
-        "ISI": [],
-        "BITS": [],
-        "IIIT": false,
-        "liberal_arts_private": [],
-        "central_universities": [],
-        "state_universities": false,
-        "deemed_private": false
-      },
-      "tier_map": {
-        "UG": {
-          "spec": "Any Graduation (Competitive Exam Route)",
-          "niche": "Prelims CSAT + GS / Mains GS I-IV / Essay / Optional"
-        },
-        "PG": {
-          "spec": "Post-grad for State PSC or IFoS",
-          "niche": "IFoS / IRS / State PCS Mains"
-        },
-        "PhD": {
-          "spec": "N/A — exam route",
-          "niche": "N/A"
-        }
-      },
-      "career_signature": [
-        "IAS",
-        "IPS",
-        "IFS",
-        "IRS",
-        "State Civil Services",
-        "SDM",
-        "DM",
-        "SP",
-        "Collector"
-      ],
-      "classic_core": {
-        "field": "Public Administration & Governance",
-        "track": "Civil Services",
-        "specialization": "IAS / IPS / IFS / State Services",
-        "description": "Indian Administrative / Police / Foreign Services through UPSC CSE and State PSC exams",
-        "niche": "General Administration / Police / Foreign Service / Revenue / District Mgmt"
-      },
-      "modern_extensions": {
-        "extensions": [
-          "EV"
-        ],
-        "description": "Modern extensions of Civil Services (UPSC / State PSC) may include ev depending on institute, projects and PG specialization.",
-        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
-      },
-      "admission_exams_canonical": [
-        "UPSC_CSE",
-        "STATE_PSC"
-      ],
-      "available_at_normalized": {
-        "IIT": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "",
-          "raw_v11_value": []
-        },
-        "NIT": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "",
-          "raw_v11_value": []
-        },
-        "IISER": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "",
-          "raw_v11_value": []
-        },
-        "NISER": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
-          "raw_v11_value": false
-        },
-        "IISE_CEBS": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
-          "raw_v11_value": false
-        },
-        "ISI": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "",
-          "raw_v11_value": []
-        },
-        "BITS": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "",
-          "raw_v11_value": []
-        },
-        "IIIT": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
-          "raw_v11_value": false
-        },
-        "liberal_arts_private": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "",
-          "raw_v11_value": []
-        },
-        "central_universities": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "",
-          "raw_v11_value": []
-        },
-        "state_universities": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
-          "raw_v11_value": false
-        },
-        "deemed_private": {
-          "available": false,
-          "campuses": [],
-          "availability_score": 0.0,
-          "confidence": "none",
-          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
-          "raw_v11_value": false
-        }
-      },
-      "ontology": {
-        "primary_competency": "governance_institutions",
-        "primary_family": "civil_admin_services",
-        "primary_family_label": "Civil & Administrative Services",
-        "secondary_families": {},
-        "specificity_score": 0.74,
-        "broadness_score": 0.0,
-        "ontology_policy": {
-          "primary_family": "display_and_grouping",
-          "secondary_families": "graph_diagnostics_and_explanation",
-          "specificity_score": "confidence_and_practicality",
-          "broadness_score": "bounded_score_modifier_only_if_enabled"
-        }
-      },
-      "education_realism": {
-        "ug_availability_score": 0.25,
-        "top_institute_availability_score": 0.0,
-        "overall_availability_score": 0.0,
-        "direct_job_after_ug_score": 0.71,
-        "pg_required_for_good_outcome": false,
-        "professional_license_required": false,
-        "credential_barrier": "medium",
-        "parent_safe_route": false,
-        "risk_level": "Medium"
-      },
-      "curriculum": {
-        "math_intensity": 2,
-        "coding_intensity": 1,
-        "physics_intensity": 1,
-        "chemistry_intensity": 1,
-        "biology_intensity": 1,
-        "writing_intensity": 5,
-        "fieldwork_intensity": 4,
-        "people_interaction": 4,
-        "core_subjects_ug": [
-          "Reading, writing and argumentation"
-        ]
-      },
-      "market": {
-        "india_2026_demand": "stable",
-        "india_2035_demand": "stable",
-        "global_2035_demand": "medium",
-        "market_depth": "medium",
-        "freshers_market": "medium",
-        "automation_risk": "low-medium",
-        "credential_barrier": "medium"
-      },
-      "risk": {
-        "risk_level": "Medium",
-        "parent_safe_route": false,
-        "avoid_primary_when": {
-          "low_math": false,
-          "low_biology": false,
-          "low_writing_or_reading": true,
-          "low_risk_appetite": false,
-          "requires_high_rank": false,
-          "poor_direct_ug_outcome": false,
-          "needs_pg_for_good_outcome": false
-        }
-      },
-      "routes": {
-        "ambitious_route": {
-          "label": "High-end specialized route",
-          "ug": "Any Graduation (Competitive Exam Route)",
-          "pg": "Post-grad for State PSC or IFoS",
-          "phd_or_research": "N/A — exam route",
-          "entrance_exams": [
-            "UPSC_CSE",
-            "STATE_PSC"
-          ]
-        },
-        "safe_route": {
-          "label": "Parent-safe practical route",
-          "path": "Any Graduation (Competitive Exam Route)",
-          "why": "Keeps options broad while preserving alignment with this field."
-        },
-        "backup_route": {
-          "label": "Backup / adjacent route",
-          "path": "BA Economics / Political Science / Sociology / English → policy/law/UPSC route",
-          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
-        }
-      },
-      "career_outcomes": {
-        "core": [
-          "IAS",
-          "IPS",
-          "IFS",
-          "IRS",
-          "SDM",
-          "DM",
-          "SP",
-          "Collector"
-        ],
-        "aspirational": [],
-        "research": [],
-        "government_psu": [
-          "State Civil Services"
-        ],
-        "startup": []
-      },
-      "schema_version": "v12.0_enriched_registry"
-    },
     "defence_military": {
       "label": "Defence & Military Services",
       "domain": "public",
@@ -44484,9 +44209,9 @@
         }
       },
       "ontology": {
-        "primary_competency": "behavioural_social",
-        "primary_family": "cognitive_neuro_sci",
-        "primary_family_label": "Cognitive & Neuro Sciences",
+        "primary_competency": "computational_intelligence",
+        "primary_family": "data_quant_analytics",
+        "primary_family_label": "Data, Statistics & Quant Analytics",
         "secondary_families": {
           "psychology_behavioural": 0.3
         },
@@ -53412,8 +53137,8 @@
       },
       "ontology": {
         "primary_competency": "governance_institutions",
-        "primary_family": "criminal_public_law",
-        "primary_family_label": "Criminal & Public Law",
+        "primary_family": "intl_constitutional_law",
+        "primary_family_label": "International & Constitutional Law",
         "secondary_families": {
           "environmental_ecological": 0.35
         },
@@ -58834,10 +58559,4205 @@
         "startup": []
       },
       "schema_version": "v12.0_enriched_registry"
+    },
+    "jyotish_vedic_astrology": {
+      "label": "Jyotish / Vedic Astrology (Jyotirvigyan)",
+      "domain": "humanities",
+      "field": "Jyotish / Vedic Astrology",
+      "track": "Jyotirvigyan",
+      "specialization": "BA/MA Jyotirvigyan — Vedic Astrology & Predictive Sciences",
+      "niche": "Ganita Jyotish / Phalit Jyotish / Muhurta / Panchang Astronomy",
+      "description": "Classical Vedic astrology and predictive-astronomy discipline taught as a Sanskrit-university degree program — Dept. of Jyotisha at Shri Lal Bahadur Shastri National Sanskrit University; MA Jyotirvigyan at Kavikulguru Kalidas Sanskrit University.",
+      "degree_types": [
+        "BA",
+        "MA",
+        "Acharya"
+      ],
+      "duration_years": [
+        3,
+        4
+      ],
+      "admission_exams": [
+        "CUET",
+        "State_Entrance"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Jyotish / Vedic Astrology",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Jyotish / Vedic Astrology",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Jyotish / Vedic Astrology",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "Sanskrit Universities",
+        "Jyotish Research Institutes",
+        "AYUSH-adjacent Consultancy",
+        "Private Practice",
+        "Panchang Publishing Houses"
+      ],
+      "classic_core": {
+        "field": "Jyotish / Vedic Astrology",
+        "track": "Jyotirvigyan",
+        "specialization": "BA/MA Jyotirvigyan — Vedic Astrology & Predictive Sciences",
+        "description": "Classical Vedic astrology and predictive-astronomy discipline taught as a Sanskrit-university degree program — Dept. of Jyotisha at Shri Lal Bahadur Shastri National Sanskrit University; MA Jyotirvigyan at Kavikulguru Kalidas Sanskrit University.",
+        "niche": "Ganita Jyotish / Phalit Jyotish / Muhurta / Panchang Astronomy"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Jyotish / Vedic Astrology (Jyotirvigyan) may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "CUET_UG",
+        "STATE_ENTRANCE"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "knowledge_scholarship",
+        "primary_family": "humanities_scholarship",
+        "primary_family_label": "Humanities & Classical Scholarship",
+        "secondary_families": {},
+        "specificity_score": 0.85,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.35,
+        "top_institute_availability_score": 0.0,
+        "overall_availability_score": 0.35,
+        "direct_job_after_ug_score": 0.25,
+        "pg_required_for_good_outcome": true,
+        "professional_license_required": false,
+        "credential_barrier": "medium",
+        "parent_safe_route": false,
+        "risk_level": "High"
+      },
+      "curriculum": {
+        "math_intensity": 3,
+        "coding_intensity": 1,
+        "physics_intensity": 1,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 4,
+        "fieldwork_intensity": 1,
+        "people_interaction": 4,
+        "core_subjects_ug": [
+          "Sanskrit",
+          "Ganita Jyotish (astronomical computation)",
+          "Phalit Jyotish"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "niche",
+        "india_2035_demand": "stable",
+        "global_2035_demand": "low-medium",
+        "market_depth": "narrow",
+        "freshers_market": "low",
+        "automation_risk": "low",
+        "credential_barrier": "medium"
+      },
+      "risk": {
+        "risk_level": "High",
+        "parent_safe_route": false,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": true,
+          "low_risk_appetite": true,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": true,
+          "needs_pg_for_good_outcome": true
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "BA Jyotirvigyan",
+          "pg": "MA Jyotirvigyan",
+          "phd_or_research": "PhD Jyotisha",
+          "entrance_exams": [
+            "CUET_UG",
+            "STATE_ENTRANCE"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "Broad UG foundation (Sanskrit/Humanities) → PG Jyotirvigyan",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "BA Sanskrit & Classical Language Studies / Philosophy → policy/teaching/research route",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "Sanskrit Universities",
+          "Jyotish Research Institutes",
+          "Private Practice",
+          "Panchang Publishing Houses"
+        ],
+        "aspirational": [],
+        "research": [
+          "Rashtriya Sanskrit Sansthan"
+        ],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry",
+      "institutions": [
+        "Shri Lal Bahadur Shastri National Sanskrit University",
+        "Kavikulguru Kalidas Sanskrit University",
+        "Rashtriya Sanskrit Sansthan",
+        "Banaras Hindu University"
+      ]
+    },
+    "aviation_pilot_training": {
+      "label": "Aviation (B.Sc Aviation / Commercial Pilot Training)",
+      "domain": "engineering",
+      "field": "Aviation & Flight Operations",
+      "track": "Commercial Pilot Training",
+      "specialization": "B.Sc Aviation — Flight Operations & Commercial Pilot License Integration",
+      "niche": "Flight Training / Air Navigation / Aviation Meteorology / Air Regulations",
+      "description": "Undergraduate aviation program integrating academic study with Commercial Pilot License (CPL) training, offered at private universities such as Amity and Chandigarh University in partnership with DGCA-approved flying schools.",
+      "degree_types": [
+        "BSc",
+        "BBA(Aviation)"
+      ],
+      "duration_years": [
+        3
+      ],
+      "admission_exams": [
+        "CUET",
+        "University_Entrance"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Aviation & Flight Operations",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Aviation & Flight Operations",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Aviation & Flight Operations",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "Commercial Airlines",
+        "IndiGo",
+        "Air India",
+        "DGCA",
+        "Charter/Cargo Operators"
+      ],
+      "classic_core": {
+        "field": "Aviation & Flight Operations",
+        "track": "Commercial Pilot Training",
+        "specialization": "B.Sc Aviation — Flight Operations & Commercial Pilot License Integration",
+        "description": "Undergraduate aviation program integrating academic study with Commercial Pilot License (CPL) training, offered at private universities such as Amity and Chandigarh University in partnership with DGCA-approved flying schools.",
+        "niche": "Flight Training / Air Navigation / Aviation Meteorology / Air Regulations"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Aviation (B.Sc Aviation / Commercial Pilot Training) may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "CUET_UG",
+        "STATE_ENTRANCE"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "frontier_space",
+        "primary_family": "aerospace_aeronautics",
+        "primary_family_label": "Marine & Ocean Engineering",
+        "secondary_families": {},
+        "specificity_score": 0.8,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.45,
+        "top_institute_availability_score": 0.0,
+        "overall_availability_score": 0.45,
+        "direct_job_after_ug_score": 0.55,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": true,
+        "credential_barrier": "very_high",
+        "parent_safe_route": false,
+        "risk_level": "High"
+      },
+      "curriculum": {
+        "math_intensity": 3,
+        "coding_intensity": 1,
+        "physics_intensity": 4,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 4,
+        "people_interaction": 3,
+        "core_subjects_ug": [
+          "Physics",
+          "Air Navigation",
+          "Aviation Meteorology"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "high",
+        "india_2035_demand": "high",
+        "global_2035_demand": "high",
+        "market_depth": "medium",
+        "freshers_market": "medium",
+        "automation_risk": "low-medium",
+        "credential_barrier": "very_high"
+      },
+      "risk": {
+        "risk_level": "High",
+        "parent_safe_route": false,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": true,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "B.Sc Aviation + CPL",
+          "pg": "ATPL / Type Rating",
+          "phd_or_research": "N/A",
+          "entrance_exams": [
+            "CUET_UG",
+            "STATE_ENTRANCE"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "B.Sc Aviation (ground subjects) with deferred CPL commitment",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "Aeronautical/Aerospace Engineering UG → aviation-industry ground roles",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "Commercial Airlines",
+          "IndiGo",
+          "Air India",
+          "Charter/Cargo Operators"
+        ],
+        "aspirational": [
+          "International Airlines"
+        ],
+        "research": [],
+        "government_psu": [
+          "DGCA"
+        ],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry",
+      "institutions": [
+        "Amity University",
+        "Chandigarh University",
+        "Indira Gandhi Rashtriya Uran Akademi (IGRUA)"
+      ]
+    },
+    "nautical_science": {
+      "label": "Nautical Science (B.Sc Nautical Science)",
+      "domain": "engineering",
+      "field": "Marine & Ocean",
+      "track": "Nautical Science / Deck Officer Training",
+      "specialization": "B.Sc Nautical Science — Merchant Navy Deck Officer Track",
+      "niche": "Ship Navigation / Cargo Handling / Maritime Law / Bridge Watchkeeping",
+      "description": "Deck-officer/merchant-navy track distinct from marine engineering — covers ship navigation, cargo operations, and bridge watchkeeping leading to Merchant Navy deck officer careers.",
+      "degree_types": [
+        "BSc(Nautical Science)"
+      ],
+      "duration_years": [
+        3
+      ],
+      "admission_exams": [
+        "IMU_CET",
+        "State_Entrance"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Marine & Ocean",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Marine & Ocean",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Marine & Ocean",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "Merchant Navy",
+        "SCI",
+        "Anglo-Eastern",
+        "V.Ships",
+        "Maersk"
+      ],
+      "classic_core": {
+        "field": "Marine & Ocean",
+        "track": "Nautical Science / Deck Officer Training",
+        "specialization": "B.Sc Nautical Science — Merchant Navy Deck Officer Track",
+        "description": "Deck-officer/merchant-navy track distinct from marine engineering — covers ship navigation, cargo operations, and bridge watchkeeping leading to Merchant Navy deck officer careers.",
+        "niche": "Ship Navigation / Cargo Handling / Maritime Law / Bridge Watchkeeping"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Nautical Science (B.Sc Nautical Science) may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "IMU_CET",
+        "STATE_ENTRANCE"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "physical_mechanical",
+        "primary_family": "marine_ocean",
+        "primary_family_label": "Marine & Ocean Engineering",
+        "secondary_families": {},
+        "specificity_score": 0.8,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.55,
+        "top_institute_availability_score": 0.0,
+        "overall_availability_score": 0.5,
+        "direct_job_after_ug_score": 0.68,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": true,
+        "credential_barrier": "high",
+        "parent_safe_route": true,
+        "risk_level": "Medium"
+      },
+      "curriculum": {
+        "math_intensity": 3,
+        "coding_intensity": 1,
+        "physics_intensity": 3,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 4,
+        "people_interaction": 2,
+        "core_subjects_ug": [
+          "Mathematics",
+          "Physics",
+          "Ship Navigation"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "medium",
+        "freshers_market": "medium",
+        "automation_risk": "low-medium",
+        "credential_barrier": "high"
+      },
+      "risk": {
+        "risk_level": "Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": true,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "B.Sc Nautical Science",
+          "pg": "Master Mariner / Command Track",
+          "phd_or_research": "N/A",
+          "entrance_exams": [
+            "IMU_CET"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "B.Sc Nautical Science",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "Marine Engineering UG → shore-based maritime operations/logistics",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "Merchant Navy",
+          "SCI",
+          "Anglo-Eastern",
+          "Maersk"
+        ],
+        "aspirational": [
+          "International Shipping Lines"
+        ],
+        "research": [],
+        "government_psu": [
+          "SCI"
+        ],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry",
+      "institutions": [
+        "Indian Maritime University",
+        "T.S. Chanakya",
+        "Marine Engineering and Research Institute (MERI)"
+      ]
+    },
+    "dairy_technology": {
+      "label": "Dairy Technology (B.Tech Dairy Technology)",
+      "domain": "agriculture",
+      "field": "Dairy Technology",
+      "track": "Dairy Technology",
+      "specialization": "B.Tech Dairy Technology — ICAR/NDRI",
+      "niche": "Milk Processing / Dairy Plant Engineering / Dairy Products / Quality Control",
+      "description": "ICAR/NDRI-recognized engineering-cum-agriculture discipline covering milk processing, dairy plant design, and dairy product technology, distinct from the broader food_science_technology field.",
+      "degree_types": [
+        "BTech(Dairy Technology)"
+      ],
+      "duration_years": [
+        4
+      ],
+      "admission_exams": [
+        "ICAR_AIEEA"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Dairy Technology",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Dairy Technology",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Dairy Technology",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "Amul",
+        "Mother Dairy",
+        "NDRI",
+        "Nestle India",
+        "State Dairy Federations"
+      ],
+      "classic_core": {
+        "field": "Dairy Technology",
+        "track": "Dairy Technology",
+        "specialization": "B.Tech Dairy Technology — ICAR/NDRI",
+        "description": "ICAR/NDRI-recognized engineering-cum-agriculture discipline covering milk processing, dairy plant design, and dairy product technology, distinct from the broader food_science_technology field.",
+        "niche": "Milk Processing / Dairy Plant Engineering / Dairy Products / Quality Control"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Dairy Technology (B.Tech Dairy Technology) may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "ICAR_AIEEA"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "agri_environment",
+        "primary_family": "environmental_ecological",
+        "primary_family_label": "Environmental & Ecological Systems",
+        "secondary_families": {},
+        "specificity_score": 0.82,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.4,
+        "top_institute_availability_score": 0.0,
+        "overall_availability_score": 0.4,
+        "direct_job_after_ug_score": 0.62,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": false,
+        "credential_barrier": "medium",
+        "parent_safe_route": true,
+        "risk_level": "Medium"
+      },
+      "curriculum": {
+        "math_intensity": 2,
+        "coding_intensity": 1,
+        "physics_intensity": 2,
+        "chemistry_intensity": 3,
+        "biology_intensity": 3,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 3,
+        "people_interaction": 2,
+        "core_subjects_ug": [
+          "Chemistry",
+          "Biology",
+          "Dairy Engineering"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "medium",
+        "freshers_market": "medium",
+        "automation_risk": "low-medium",
+        "credential_barrier": "medium"
+      },
+      "risk": {
+        "risk_level": "Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": false,
+          "low_biology": true,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "B.Tech Dairy Technology",
+          "pg": "M.Tech Dairy Technology",
+          "phd_or_research": "PhD Dairy Technology",
+          "entrance_exams": [
+            "ICAR_AIEEA"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "B.Tech Dairy Technology",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "Food Science & Technology / Agricultural Engineering UG → dairy-industry specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "Amul",
+          "Mother Dairy",
+          "NDRI",
+          "State Dairy Federations"
+        ],
+        "aspirational": [
+          "Nestle India",
+          "Danone"
+        ],
+        "research": [
+          "NDRI"
+        ],
+        "government_psu": [
+          "State Dairy Federations"
+        ],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry",
+      "institutions": [
+        "National Dairy Research Institute (NDRI) Karnal",
+        "GBPUAT Pantnagar",
+        "Anand Agricultural University"
+      ]
+    },
+    "siddha_medicine": {
+      "label": "Siddha Medicine (BSMS)",
+      "domain": "medicine",
+      "field": "Traditional Medicine — Siddha",
+      "track": "Siddha Medicine",
+      "specialization": "BSMS — Bachelor of Siddha Medicine & Surgery",
+      "niche": "Thokkanam / Varmam / Siddha Pharmacology / Kayakalpa",
+      "description": "The sixth AYUSH system, an institutionalized degree-granting Tamil traditional medicine system — herbal-mineral formulations, Varmam therapy, and Siddha pharmacology; sibling to Ayurveda, Homeopathy and Unani in the registry.",
+      "degree_types": [
+        "BSMS"
+      ],
+      "duration_years": [
+        5.5
+      ],
+      "admission_exams": [
+        "NEET_UG"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Traditional Medicine — Siddha",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Traditional Medicine — Siddha",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Traditional Medicine — Siddha",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "National Institute of Siddha",
+        "CCRS",
+        "Govt Siddha Hospitals",
+        "AYUSH Dept",
+        "Private Practice"
+      ],
+      "classic_core": {
+        "field": "Traditional Medicine — Siddha",
+        "track": "Siddha Medicine",
+        "specialization": "BSMS — Bachelor of Siddha Medicine & Surgery",
+        "description": "The sixth AYUSH system, an institutionalized degree-granting Tamil traditional medicine system — herbal-mineral formulations, Varmam therapy, and Siddha pharmacology; sibling to Ayurveda, Homeopathy and Unani in the registry.",
+        "niche": "Thokkanam / Varmam / Siddha Pharmacology / Kayakalpa"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Siddha Medicine (BSMS) may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "NEET_UG"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "medical_health",
+        "primary_family": "alternative_holistic_med",
+        "primary_family_label": "Alternative & Holistic Medicine",
+        "secondary_families": {},
+        "specificity_score": 0.91,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.55,
+        "top_institute_availability_score": 0.0,
+        "overall_availability_score": 0.5,
+        "direct_job_after_ug_score": 0.75,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": true,
+        "credential_barrier": "high",
+        "parent_safe_route": true,
+        "risk_level": "Medium"
+      },
+      "curriculum": {
+        "math_intensity": 2,
+        "coding_intensity": 1,
+        "physics_intensity": 1,
+        "chemistry_intensity": 1,
+        "biology_intensity": 5,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 1,
+        "people_interaction": 4,
+        "core_subjects_ug": [
+          "Biology"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "low-medium",
+        "credential_barrier": "high"
+      },
+      "risk": {
+        "risk_level": "Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": false,
+          "low_biology": true,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": false,
+          "requires_high_rank": true,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "BSMS",
+          "pg": "MD Siddha — various specialisations",
+          "phd_or_research": "PhD Siddha Medicine",
+          "entrance_exams": [
+            "NEET_UG"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "BSMS",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "Allied health / life-science UG backup → clinical/public-health PG route",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "National Institute of Siddha",
+          "Govt Siddha Hospitals",
+          "AYUSH Dept",
+          "Private Practice"
+        ],
+        "aspirational": [],
+        "research": [
+          "CCRS"
+        ],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry",
+      "institutions": [
+        "National Institute of Siddha, Chennai",
+        "Government Siddha Medical College, Palayamkottai"
+      ]
+    },
+    "transportation_automotive_design": {
+      "label": "Transportation & Automotive Design",
+      "domain": "arts",
+      "field": "Design Studies",
+      "track": "Transportation / Mobility Design",
+      "specialization": "Transportation Design / Automotive Design",
+      "niche": "Vehicle Styling / Mobility & Vehicle Design / Concept Sketching / Clay Modelling",
+      "description": "Design of automobiles, two-wheelers and future mobility vehicles -- vehicle form, styling, concept development and design engineering, distinct from generic UX/product design",
+      "degree_types": [
+        "BDes",
+        "MDes"
+      ],
+      "duration_years": [
+        4
+      ],
+      "admission_exams": [
+        "UCEED",
+        "MIT_Pune_Entrance",
+        "NID_Entrance"
+      ],
+      "available_at": {
+        "IIT": [
+          "Bombay"
+        ],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [
+          "MIT_Institute_of_Design_Pune",
+          "DSK_ISD_Pune",
+          "Pearl_Academy"
+        ],
+        "central_universities": [],
+        "state_universities": false,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "B.Des Transportation / Automotive Design",
+          "niche": "Vehicle Styling / Sketching / Clay & Digital Modelling"
+        },
+        "PG": {
+          "spec": "M.Des Mobility and Vehicle Design",
+          "niche": "Advanced Vehicle Styling / EV & Future Mobility Design"
+        },
+        "PhD": {
+          "spec": "PhD Design (Transportation/Mobility focus)",
+          "niche": "Future Mobility Research / Autonomous Vehicle UX-Form Studies"
+        }
+      },
+      "career_signature": [
+        "Tata Motors Design",
+        "Mahindra Design Studio",
+        "Maruti Design",
+        "Royal Enfield Design",
+        "Global Automotive OEM Design Centers"
+      ],
+      "classic_core": {
+        "field": "Design Studies",
+        "track": "Transportation / Mobility Design",
+        "specialization": "Transportation Design / Automotive Design",
+        "description": "Design of automobiles, two-wheelers and future mobility vehicles -- vehicle form, styling, concept development and design engineering, distinct from generic UX/product design",
+        "niche": "Vehicle Styling / Mobility & Vehicle Design / Concept Sketching / Clay Modelling"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "EV design",
+          "Autonomous vehicle interiors",
+          "Sustainable mobility"
+        ],
+        "description": "Modern extensions of Transportation & Automotive Design may include EV design, autonomous vehicle interiors, sustainable mobility depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "UCEED",
+        "MIT_PUNE_ENTRANCE",
+        "NID_ENTRANCE"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [
+            "Bombay"
+          ],
+          "availability_score": 0.6,
+          "confidence": "representative",
+          "notes": "",
+          "raw_v11_value": [
+            "Bombay"
+          ]
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": true,
+          "campuses": [
+            "MIT_Institute_of_Design_Pune",
+            "DSK_ISD_Pune",
+            "Pearl_Academy"
+          ],
+          "availability_score": 0.6,
+          "confidence": "representative",
+          "notes": "",
+          "raw_v11_value": [
+            "MIT_Institute_of_Design_Pune",
+            "DSK_ISD_Pune",
+            "Pearl_Academy"
+          ]
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "state_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "design_creative",
+        "primary_family": "design_thinking",
+        "primary_family_label": "Design Thinking — Transportation/Mobility",
+        "secondary_families": {},
+        "specificity_score": 0.82,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.55,
+        "top_institute_availability_score": 0.7,
+        "overall_availability_score": 0.85,
+        "direct_job_after_ug_score": 0.6,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": false,
+        "credential_barrier": "high",
+        "parent_safe_route": false,
+        "risk_level": "Medium-High"
+      },
+      "curriculum": {
+        "math_intensity": 2,
+        "coding_intensity": 1,
+        "physics_intensity": 2,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 3,
+        "people_interaction": 3,
+        "core_subjects_ug": [
+          "Sketching, form studies and vehicle design studio"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "growing",
+        "global_2035_demand": "medium",
+        "market_depth": "narrow",
+        "freshers_market": "narrow",
+        "automation_risk": "medium",
+        "credential_barrier": "high"
+      },
+      "risk": {
+        "risk_level": "Medium-High",
+        "parent_safe_route": false,
+        "avoid_primary_when": {
+          "low_math": false,
+          "low_biology": false,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": true,
+          "requires_high_rank": true,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "B.Des Transportation / Automotive Design",
+          "pg": "M.Des Mobility and Vehicle Design",
+          "phd_or_research": "PhD Design (Transportation/Mobility focus)",
+          "entrance_exams": [
+            "UCEED",
+            "MIT_PUNE_ENTRANCE",
+            "NID_ENTRANCE"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "B.Des Transportation / Automotive Design",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "Broad B.Des Industrial/Product Design → transportation specialization at PG",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "Tata Motors Design",
+          "Mahindra Design Studio",
+          "Maruti Design",
+          "Royal Enfield Design"
+        ],
+        "aspirational": [
+          "Global Automotive OEM Design Centers"
+        ],
+        "research": [],
+        "government_psu": [],
+        "startup": [
+          "EV Mobility Startups"
+        ]
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "industrial_product_design": {
+      "label": "Industrial / Product Design",
+      "domain": "arts",
+      "field": "Design Studies",
+      "track": "Industrial Design",
+      "specialization": "Industrial Design / Physical Product Design",
+      "niche": "Furniture / Consumer Electronics / Appliances / Medical Devices / Toys Design",
+      "description": "Design of physical, manufactured products -- furniture, consumer electronics housings, appliances, medical devices and toys -- form, ergonomics and manufacturability, distinct from digital UX/product design",
+      "degree_types": [
+        "BDes",
+        "MDes"
+      ],
+      "duration_years": [
+        4
+      ],
+      "admission_exams": [
+        "UCEED",
+        "NID_Entrance",
+        "CEED"
+      ],
+      "available_at": {
+        "IIT": [
+          "Bombay"
+        ],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [
+          "NID",
+          "Pearl_Academy",
+          "MIT_Pune"
+        ],
+        "central_universities": [],
+        "state_universities": false,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "B.Des Industrial Design",
+          "niche": "Product Form / Ergonomics / Manufacturing Processes"
+        },
+        "PG": {
+          "spec": "M.Des Industrial Design / CEED-route",
+          "niche": "Advanced Product Design / Design for Manufacture"
+        },
+        "PhD": {
+          "spec": "PhD Design (Industrial Design focus)",
+          "niche": "Design for Sustainability / Ergonomics Research"
+        }
+      },
+      "career_signature": [
+        "Godrej Design",
+        "Titan Design Studio",
+        "Voltas Design",
+        "TTK Prestige",
+        "Consumer Durables Firms"
+      ],
+      "classic_core": {
+        "field": "Design Studies",
+        "track": "Industrial Design",
+        "specialization": "Industrial Design / Physical Product Design",
+        "description": "Design of physical, manufactured products -- furniture, consumer electronics housings, appliances, medical devices and toys -- form, ergonomics and manufacturability, distinct from digital UX/product design",
+        "niche": "Furniture / Consumer Electronics / Appliances / Medical Devices / Toys Design"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Sustainable/eco design",
+          "Design for manufacture and assembly",
+          "Medical device design"
+        ],
+        "description": "Modern extensions of Industrial / Product Design may include sustainable/eco design, design for manufacture and assembly, medical device design depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "UCEED",
+        "NID_ENTRANCE",
+        "CEED"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [
+            "Bombay"
+          ],
+          "availability_score": 0.6,
+          "confidence": "representative",
+          "notes": "",
+          "raw_v11_value": [
+            "Bombay"
+          ]
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": true,
+          "campuses": [
+            "NID",
+            "Pearl_Academy",
+            "MIT_Pune"
+          ],
+          "availability_score": 0.6,
+          "confidence": "representative",
+          "notes": "",
+          "raw_v11_value": [
+            "NID",
+            "Pearl_Academy",
+            "MIT_Pune"
+          ]
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": []
+        },
+        "state_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": false
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "Registry v11 supplied boolean availability; campus list not curated.",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "design_creative",
+        "primary_family": "design_thinking",
+        "primary_family_label": "Design Thinking — Industrial/Product",
+        "secondary_families": {},
+        "specificity_score": 0.78,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.55,
+        "top_institute_availability_score": 0.75,
+        "overall_availability_score": 0.9,
+        "direct_job_after_ug_score": 0.6,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": false,
+        "credential_barrier": "high",
+        "parent_safe_route": false,
+        "risk_level": "Medium"
+      },
+      "curriculum": {
+        "math_intensity": 2,
+        "coding_intensity": 1,
+        "physics_intensity": 2,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 3,
+        "people_interaction": 3,
+        "core_subjects_ug": [
+          "Form studies, ergonomics, materials & manufacturing processes studio"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "stable",
+        "global_2035_demand": "medium",
+        "market_depth": "medium",
+        "freshers_market": "medium",
+        "automation_risk": "medium",
+        "credential_barrier": "high"
+      },
+      "risk": {
+        "risk_level": "Medium",
+        "parent_safe_route": false,
+        "avoid_primary_when": {
+          "low_math": false,
+          "low_biology": false,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": false,
+          "requires_high_rank": true,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "B.Des Industrial Design",
+          "pg": "M.Des Industrial Design / CEED-route",
+          "phd_or_research": "PhD Design (Industrial Design focus)",
+          "entrance_exams": [
+            "UCEED",
+            "NID_ENTRANCE",
+            "CEED"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "B.Des Industrial Design",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "Broad UG in arts/design → industrial design specialization after performance clarity",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "Godrej Design",
+          "Titan Design Studio",
+          "Voltas Design",
+          "TTK Prestige"
+        ],
+        "aspirational": [
+          "Global Consumer Product Design Firms"
+        ],
+        "research": [],
+        "government_psu": [],
+        "startup": [
+          "Consumer Product Startups"
+        ]
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "engineering_management": {
+      "label": "Engineering Management",
+      "domain": "engineering",
+      "description": "Techno-managerial route blending core engineering fundamentals with project, product and operations management -- leading engineering teams, budgets and delivery.",
+      "institutions": [
+        "IIT Delhi",
+        "IIT Bombay",
+        "BITS Pilani",
+        "NITIE Mumbai"
+      ],
+      "field": "Engineering Management",
+      "track": "Engineering Management",
+      "specialization": "General Engineering Management",
+      "niche": "Specialized Industry Practice",
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "MBA_Tech"
+      ],
+      "duration_years": [
+        4,
+        2
+      ],
+      "admission_exams": [
+        "JEE_Main",
+        "GATE",
+        "CAT"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Engineering Management",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Engineering Management",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Engineering Management",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "IIT Delhi",
+        "IIT Bombay",
+        "BITS Pilani",
+        "NITIE Mumbai"
+      ],
+      "classic_core": {
+        "field": "Engineering Management",
+        "track": "Engineering Management",
+        "specialization": "General Engineering Management",
+        "description": "Techno-managerial route blending core engineering fundamentals with project, product and operations management -- leading engineering teams, budgets and delivery.",
+        "niche": "Specialized Industry Practice"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Engineering Management may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "JEE_MAIN",
+        "GATE",
+        "CAT"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "commerce_enterprise",
+        "primary_family": "management_enterprise",
+        "primary_family_label": "Management & Enterprise",
+        "secondary_families": {},
+        "specificity_score": 0.68,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.6,
+        "top_institute_availability_score": 0.3,
+        "overall_availability_score": 0.6,
+        "direct_job_after_ug_score": 0.6,
+        "pg_required_for_good_outcome": true,
+        "professional_license_required": false,
+        "credential_barrier": "medium",
+        "parent_safe_route": true,
+        "risk_level": "Low-Medium"
+      },
+      "curriculum": {
+        "math_intensity": 4,
+        "coding_intensity": 3,
+        "physics_intensity": 3,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 3,
+        "fieldwork_intensity": 1,
+        "people_interaction": 4,
+        "core_subjects_ug": [
+          "Mathematics",
+          "Engineering Core",
+          "Management/Operations"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "low",
+        "credential_barrier": "medium"
+      },
+      "risk": {
+        "risk_level": "Low-Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": true,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": true
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "UG Engineering Management",
+          "pg": "PG Engineering Management",
+          "phd_or_research": "PhD Engineering Management",
+          "entrance_exams": [
+            "JEE_MAIN",
+            "GATE",
+            "CAT"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "UG Engineering Management",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "General Engineering / Computer Science / Management UG -> later specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "IIT Delhi",
+          "BITS Pilani"
+        ],
+        "aspirational": [
+          "NITIE Mumbai"
+        ],
+        "research": [
+          "IIT Bombay"
+        ],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "it_systems_planning": {
+      "label": "IT Systems Planning",
+      "domain": "technology",
+      "description": "Plans how a large organization's different technology systems fit together -- what to build vs. buy, how data flows between departments -- so the company's technology stays coherent as it grows.",
+      "institutions": [
+        "IIT Madras",
+        "IIIT Hyderabad",
+        "BITS Pilani"
+      ],
+      "field": "IT Systems Planning",
+      "track": "IT Systems Planning",
+      "specialization": "General IT Systems Planning",
+      "niche": "Specialized Industry Practice",
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PG_Diploma"
+      ],
+      "duration_years": [
+        4,
+        2
+      ],
+      "admission_exams": [
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG IT Systems Planning",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG IT Systems Planning",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD IT Systems Planning",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "IIT Madras",
+        "IIIT Hyderabad",
+        "BITS Pilani"
+      ],
+      "classic_core": {
+        "field": "IT Systems Planning",
+        "track": "IT Systems Planning",
+        "specialization": "General IT Systems Planning",
+        "description": "Plans how a large organization's different technology systems fit together -- what to build vs. buy, how data flows between departments -- so the company's technology stays coherent as it grows.",
+        "niche": "Specialized Industry Practice"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of IT Systems Planning & IT Strategy may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "JEE_MAIN",
+        "GATE"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.6,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "computational_intelligence",
+        "primary_family": "software_cs",
+        "primary_family_label": "Software & Computer Science",
+        "secondary_families": {},
+        "specificity_score": 0.68,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.55,
+        "top_institute_availability_score": 0.3,
+        "overall_availability_score": 0.55,
+        "direct_job_after_ug_score": 0.55,
+        "pg_required_for_good_outcome": true,
+        "professional_license_required": false,
+        "credential_barrier": "medium",
+        "parent_safe_route": true,
+        "risk_level": "Low-Medium"
+      },
+      "curriculum": {
+        "math_intensity": 4,
+        "coding_intensity": 4,
+        "physics_intensity": 2,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 3,
+        "fieldwork_intensity": 1,
+        "people_interaction": 3,
+        "core_subjects_ug": [
+          "Mathematics",
+          "Computer Science",
+          "Systems Design"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "low",
+        "credential_barrier": "medium"
+      },
+      "risk": {
+        "risk_level": "Low-Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": true,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": true
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "UG IT Systems Planning",
+          "pg": "PG IT Systems Planning",
+          "phd_or_research": "PhD IT Systems Planning",
+          "entrance_exams": [
+            "JEE_MAIN",
+            "GATE"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "UG IT Systems Planning",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "General Engineering / Computer Science / Management UG -> later specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "IIIT Hyderabad",
+          "BITS Pilani"
+        ],
+        "aspirational": [
+          "IIT Madras"
+        ],
+        "research": [],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "information_systems": {
+      "label": "Information Systems",
+      "domain": "technology",
+      "description": "Bridges computer science and business -- designing, building and managing information systems that support organizational decision-making and operations.",
+      "institutions": [
+        "IIM Indore (MSIS)",
+        "IIT Roorkee",
+        "NIT Trichy"
+      ],
+      "field": "Information Systems",
+      "track": "Information Systems",
+      "specialization": "General Information Systems",
+      "niche": "Specialized Industry Practice",
+      "degree_types": [
+        "BTech",
+        "BSc",
+        "MBA_Tech",
+        "MTech"
+      ],
+      "duration_years": [
+        4,
+        3,
+        2
+      ],
+      "admission_exams": [
+        "JEE_Main",
+        "CUET",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Information Systems",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Information Systems",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Information Systems",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "IIM Indore (MSIS)",
+        "IIT Roorkee",
+        "NIT Trichy"
+      ],
+      "classic_core": {
+        "field": "Information Systems",
+        "track": "Information Systems",
+        "specialization": "General Information Systems",
+        "description": "Bridges computer science and business -- designing, building and managing information systems that support organizational decision-making and operations.",
+        "niche": "Specialized Industry Practice"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Information Systems may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "JEE_MAIN",
+        "CUET",
+        "GATE"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "computational_intelligence",
+        "primary_family": "software_cs",
+        "primary_family_label": "Software & Computer Science",
+        "secondary_families": {},
+        "specificity_score": 0.68,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.6,
+        "top_institute_availability_score": 0.25,
+        "overall_availability_score": 0.6,
+        "direct_job_after_ug_score": 0.65,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": false,
+        "credential_barrier": "low-medium",
+        "parent_safe_route": true,
+        "risk_level": "Low-Medium"
+      },
+      "curriculum": {
+        "math_intensity": 3,
+        "coding_intensity": 4,
+        "physics_intensity": 1,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 3,
+        "fieldwork_intensity": 1,
+        "people_interaction": 3,
+        "core_subjects_ug": [
+          "Mathematics",
+          "Computer Science",
+          "Business Processes"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "medium",
+        "credential_barrier": "low-medium"
+      },
+      "risk": {
+        "risk_level": "Low-Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": true,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "UG Information Systems",
+          "pg": "PG Information Systems",
+          "phd_or_research": "PhD Information Systems",
+          "entrance_exams": [
+            "JEE_MAIN",
+            "CUET",
+            "GATE"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "UG Information Systems",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "General Engineering / Computer Science / Management UG -> later specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "NIT Trichy",
+          "IIT Roorkee"
+        ],
+        "aspirational": [
+          "IIM Indore"
+        ],
+        "research": [],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "it_governance": {
+      "label": "IT Governance, Risk & Compliance",
+      "domain": "technology",
+      "description": "Frameworks and policy for managing IT risk, regulatory compliance, data governance and audit within technology-driven organizations.",
+      "institutions": [
+        "IIIT Bangalore",
+        "NALSAR (tech law)",
+        "BITS Pilani"
+      ],
+      "field": "IT Governance, Risk & Compliance",
+      "track": "IT Governance, Risk & Compliance",
+      "specialization": "General IT Governance, Risk & Compliance",
+      "niche": "Specialized Industry Practice",
+      "degree_types": [
+        "BTech",
+        "PG_Diploma",
+        "MBA_Tech"
+      ],
+      "duration_years": [
+        4,
+        1,
+        2
+      ],
+      "admission_exams": [
+        "JEE_Main",
+        "CUET"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG IT Governance, Risk & Compliance",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG IT Governance, Risk & Compliance",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD IT Governance, Risk & Compliance",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "IIIT Bangalore",
+        "NALSAR (tech law)",
+        "BITS Pilani"
+      ],
+      "classic_core": {
+        "field": "IT Governance, Risk & Compliance",
+        "track": "IT Governance, Risk & Compliance",
+        "specialization": "General IT Governance, Risk & Compliance",
+        "description": "Frameworks and policy for managing IT risk, regulatory compliance, data governance and audit within technology-driven organizations.",
+        "niche": "Specialized Industry Practice"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of IT Governance, Risk & Compliance may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "JEE_MAIN",
+        "CUET"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.6,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "computational_intelligence",
+        "primary_family": "cyber_distributed",
+        "primary_family_label": "Cybersecurity & Distributed Systems",
+        "secondary_families": {},
+        "specificity_score": 0.68,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.45,
+        "top_institute_availability_score": 0.15,
+        "overall_availability_score": 0.45,
+        "direct_job_after_ug_score": 0.5,
+        "pg_required_for_good_outcome": true,
+        "professional_license_required": false,
+        "credential_barrier": "medium",
+        "parent_safe_route": true,
+        "risk_level": "Medium"
+      },
+      "curriculum": {
+        "math_intensity": 2,
+        "coding_intensity": 2,
+        "physics_intensity": 1,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 4,
+        "fieldwork_intensity": 1,
+        "people_interaction": 4,
+        "core_subjects_ug": [
+          "Writing/Policy",
+          "IT Fundamentals",
+          "Risk & Compliance"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "emerging",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "low",
+        "credential_barrier": "medium"
+      },
+      "risk": {
+        "risk_level": "Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": false,
+          "low_biology": false,
+          "low_writing_or_reading": true,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": true
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "UG IT Governance, Risk & Compliance",
+          "pg": "PG IT Governance, Risk & Compliance",
+          "phd_or_research": "PhD IT Governance, Risk & Compliance",
+          "entrance_exams": [
+            "JEE_MAIN",
+            "CUET"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "UG IT Governance, Risk & Compliance",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "General Engineering / Computer Science / Management UG -> later specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "IIIT Bangalore"
+        ],
+        "aspirational": [],
+        "research": [],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "operations_research": {
+      "label": "Operations Research",
+      "domain": "interdisciplinary",
+      "description": "Mathematical optimization, decision science and quantitative modeling applied to logistics, supply chain, scheduling and resource allocation.",
+      "institutions": [
+        "IIT Bombay",
+        "IIT Madras",
+        "ISI Kolkata"
+      ],
+      "field": "Operations Research",
+      "track": "Operations Research",
+      "specialization": "General Operations Research",
+      "niche": "Specialized Industry Practice",
+      "degree_types": [
+        "BTech",
+        "MSc",
+        "MTech",
+        "PhD"
+      ],
+      "duration_years": [
+        4,
+        2,
+        2
+      ],
+      "admission_exams": [
+        "JEE_Main",
+        "GATE",
+        "ISI_Admission_Test",
+        "IIT_JAM"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Operations Research",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Operations Research",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Operations Research",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "IIT Bombay",
+        "IIT Madras",
+        "ISI Kolkata"
+      ],
+      "classic_core": {
+        "field": "Operations Research",
+        "track": "Operations Research",
+        "specialization": "General Operations Research",
+        "description": "Mathematical optimization, decision science and quantitative modeling applied to logistics, supply chain, scheduling and resource allocation.",
+        "niche": "Specialized Industry Practice"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Operations Research may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "JEE_MAIN",
+        "GATE",
+        "IIT_JAM"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "computational_intelligence",
+        "primary_family": "data_quant_analytics",
+        "primary_family_label": "Data, Statistics & Quant Analytics",
+        "secondary_families": {},
+        "specificity_score": 0.68,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.5,
+        "top_institute_availability_score": 0.4,
+        "overall_availability_score": 0.5,
+        "direct_job_after_ug_score": 0.55,
+        "pg_required_for_good_outcome": true,
+        "professional_license_required": false,
+        "credential_barrier": "medium",
+        "parent_safe_route": true,
+        "risk_level": "Low-Medium"
+      },
+      "curriculum": {
+        "math_intensity": 5,
+        "coding_intensity": 4,
+        "physics_intensity": 2,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 1,
+        "people_interaction": 2,
+        "core_subjects_ug": [
+          "Mathematics",
+          "Statistics",
+          "Optimization"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "high",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "medium",
+        "credential_barrier": "medium"
+      },
+      "risk": {
+        "risk_level": "Low-Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": true
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "UG Operations Research",
+          "pg": "PG Operations Research",
+          "phd_or_research": "PhD Operations Research",
+          "entrance_exams": [
+            "JEE_MAIN",
+            "GATE",
+            "IIT_JAM"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "UG Operations Research",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "General Engineering / Computer Science / Management UG -> later specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "IIT Bombay",
+          "IIT Madras"
+        ],
+        "aspirational": [
+          "ISI Kolkata"
+        ],
+        "research": [
+          "ISI Kolkata"
+        ],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "software_infrastructure_engineering": {
+      "label": "Software Infrastructure Engineering",
+      "domain": "technology",
+      "description": "Builds and operates the internal cloud infrastructure, developer tools, and automated deployment pipelines that other software engineering teams rely on to build and ship products faster.",
+      "institutions": [
+        "IIIT Hyderabad",
+        "IIT Kanpur",
+        "BITS Pilani"
+      ],
+      "field": "Software Infrastructure Engineering",
+      "track": "Software Infrastructure Engineering",
+      "specialization": "General Software Infrastructure Engineering",
+      "niche": "Specialized Industry Practice",
+      "degree_types": [
+        "BTech",
+        "MTech",
+        "PG_Diploma"
+      ],
+      "duration_years": [
+        4,
+        2,
+        1
+      ],
+      "admission_exams": [
+        "JEE_Main",
+        "GATE"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG Software Infrastructure Engineering",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG Software Infrastructure Engineering",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD Software Infrastructure Engineering",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "IIIT Hyderabad",
+        "IIT Kanpur",
+        "BITS Pilani"
+      ],
+      "classic_core": {
+        "field": "Software Infrastructure Engineering",
+        "track": "Software Infrastructure Engineering",
+        "specialization": "General Software Infrastructure Engineering",
+        "description": "Builds and operates the internal cloud infrastructure, developer tools, and automated deployment pipelines that other software engineering teams rely on to build and ship products faster.",
+        "niche": "Specialized Industry Practice"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of Software Infrastructure Engineering may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "JEE_MAIN",
+        "GATE"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.6,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "computational_intelligence",
+        "primary_family": "software_cs",
+        "primary_family_label": "Software & Computer Science",
+        "secondary_families": {},
+        "specificity_score": 0.68,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.55,
+        "top_institute_availability_score": 0.3,
+        "overall_availability_score": 0.55,
+        "direct_job_after_ug_score": 0.65,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": false,
+        "credential_barrier": "low-medium",
+        "parent_safe_route": true,
+        "risk_level": "Low-Medium"
+      },
+      "curriculum": {
+        "math_intensity": 3,
+        "coding_intensity": 5,
+        "physics_intensity": 1,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 2,
+        "fieldwork_intensity": 1,
+        "people_interaction": 2,
+        "core_subjects_ug": [
+          "Computer Science",
+          "Cloud/Infrastructure",
+          "Systems Programming"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "high",
+        "global_2035_demand": "high",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "medium",
+        "credential_barrier": "low-medium"
+      },
+      "risk": {
+        "risk_level": "Low-Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": true,
+          "low_biology": false,
+          "low_writing_or_reading": false,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "UG Software Infrastructure Engineering",
+          "pg": "PG Software Infrastructure Engineering",
+          "phd_or_research": "PhD Software Infrastructure Engineering",
+          "entrance_exams": [
+            "JEE_MAIN",
+            "GATE"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "UG Software Infrastructure Engineering",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "General Engineering / Computer Science / Management UG -> later specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "IIIT Hyderabad",
+          "BITS Pilani"
+        ],
+        "aspirational": [
+          "IIT Kanpur"
+        ],
+        "research": [],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "it_business_advisory": {
+      "label": "IT Business Advisory",
+      "domain": "management",
+      "description": "Advisory-track role helping organizations plan and execute technology-driven business change -- combines broad technology literacy with client-facing business consulting.",
+      "institutions": [
+        "IIM (various, PGP)",
+        "IIT Delhi",
+        "XLRI"
+      ],
+      "field": "IT Business Advisory",
+      "track": "IT Business Advisory",
+      "specialization": "General IT Business Advisory",
+      "niche": "Specialized Industry Practice",
+      "degree_types": [
+        "BTech",
+        "MBA",
+        "PG_Diploma"
+      ],
+      "duration_years": [
+        4,
+        2,
+        1
+      ],
+      "admission_exams": [
+        "JEE_Main",
+        "CAT",
+        "CUET"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": true,
+        "deemed_private": true
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "UG IT Business Advisory",
+          "niche": "Core Fundamentals"
+        },
+        "PG": {
+          "spec": "PG IT Business Advisory",
+          "niche": "Advanced Application"
+        },
+        "PhD": {
+          "spec": "PhD IT Business Advisory",
+          "niche": "Academic Research"
+        }
+      },
+      "career_signature": [
+        "IIM (various, PGP)",
+        "IIT Delhi",
+        "XLRI"
+      ],
+      "classic_core": {
+        "field": "IT Business Advisory",
+        "track": "IT Business Advisory",
+        "specialization": "General IT Business Advisory",
+        "description": "Advisory-track role helping organizations plan and execute technology-driven business change -- combines broad technology literacy with client-facing business consulting.",
+        "niche": "Specialized Industry Practice"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "Digital tools",
+          "Applied analytics",
+          "Interdisciplinary specialization"
+        ],
+        "description": "Modern extensions of IT Business Advisory may include digital tools, applied analytics, interdisciplinary specialization depending on institute, projects and PG specialization.",
+        "caution": "Do not treat modern extensions as guaranteed UG outcomes; they usually require electives, projects, internships or PG/upskilling."
+      },
+      "admission_exams_canonical": [
+        "JEE_MAIN",
+        "CAT",
+        "CUET"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        },
+        "deemed_private": {
+          "available": true,
+          "campuses": [],
+          "availability_score": 0.65,
+          "confidence": "generic",
+          "notes": "",
+          "raw_v11_value": true
+        }
+      },
+      "ontology": {
+        "primary_competency": "commerce_enterprise",
+        "primary_family": "management_enterprise",
+        "primary_family_label": "Management & Enterprise",
+        "secondary_families": {},
+        "specificity_score": 0.68,
+        "broadness_score": 0.0,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.4,
+        "top_institute_availability_score": 0.2,
+        "overall_availability_score": 0.4,
+        "direct_job_after_ug_score": 0.45,
+        "pg_required_for_good_outcome": true,
+        "professional_license_required": false,
+        "credential_barrier": "medium",
+        "parent_safe_route": true,
+        "risk_level": "Medium"
+      },
+      "curriculum": {
+        "math_intensity": 2,
+        "coding_intensity": 2,
+        "physics_intensity": 1,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 4,
+        "fieldwork_intensity": 2,
+        "people_interaction": 5,
+        "core_subjects_ug": [
+          "Writing/Communication",
+          "Business Fundamentals",
+          "Technology Literacy"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "emerging",
+        "india_2035_demand": "high",
+        "global_2035_demand": "medium",
+        "market_depth": "deep",
+        "freshers_market": "medium",
+        "automation_risk": "low",
+        "credential_barrier": "medium"
+      },
+      "risk": {
+        "risk_level": "Medium",
+        "parent_safe_route": true,
+        "avoid_primary_when": {
+          "low_math": false,
+          "low_biology": false,
+          "low_writing_or_reading": true,
+          "low_risk_appetite": false,
+          "requires_high_rank": false,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": true
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "UG IT Business Advisory",
+          "pg": "PG IT Business Advisory",
+          "phd_or_research": "PhD IT Business Advisory",
+          "entrance_exams": [
+            "JEE_MAIN",
+            "CAT",
+            "CUET"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "UG IT Business Advisory",
+          "why": "Keeps options broad while preserving alignment with this field."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "General Engineering / Computer Science / Management UG -> later specialization",
+          "why": "Useful if entrance rank, interest, or market conditions make the direct route less practical."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "XLRI"
+        ],
+        "aspirational": [
+          "IIM (various)",
+          "IIT Delhi"
+        ],
+        "research": [],
+        "government_psu": [],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
+    },
+    "civil_services": {
+      "label": "Civil Services (UPSC/State PSC)",
+      "domain": "public",
+      "description": "Administrative/governance career via UPSC Civil Services Exam (IAS/IPS/IFS/allied services) or State PSC -- entered after any UG degree, not a taught discipline.",
+      "institutions": [
+        "LBSNAA Mussoorie",
+        "SVPNPA Hyderabad",
+        "State ATIs"
+      ],
+      "field": null,
+      "track": "Civil Services",
+      "specialization": "IAS / IPS / IFS / Allied Central Services / State Services",
+      "niche": "General Administration / Policy Implementation / Law & Order / Revenue / Foreign Service",
+      "degree_types": [
+        "Any_UG_Degree"
+      ],
+      "duration_years": [
+        3,
+        4
+      ],
+      "admission_exams": [
+        "UPSC_CSE",
+        "State_PSC"
+      ],
+      "available_at": {
+        "IIT": [],
+        "NIT": [],
+        "IISER": [],
+        "NISER": false,
+        "IISE_CEBS": false,
+        "ISI": [],
+        "BITS": [],
+        "IIIT": false,
+        "liberal_arts_private": [],
+        "central_universities": [],
+        "state_universities": false,
+        "deemed_private": false
+      },
+      "tier_map": {
+        "UG": {
+          "spec": "N/A -- any UG degree, entry is via competitive exam post-graduation",
+          "niche": "N/A"
+        },
+        "PG": {
+          "spec": "N/A -- not required, though common among aspirants",
+          "niche": "N/A"
+        },
+        "PhD": {
+          "spec": "N/A",
+          "niche": "N/A"
+        }
+      },
+      "career_signature": [
+        "IAS",
+        "IPS",
+        "IFS",
+        "Central Secretariat Service",
+        "State Civil Service"
+      ],
+      "classic_core": {
+        "field": "Public Administration / Governance",
+        "track": "Civil Services",
+        "specialization": "IAS / IPS / IFS / Allied Central Services / State Services",
+        "description": "Administrative/governance career via UPSC Civil Services Exam (IAS/IPS/IFS/allied services) or State PSC -- entered after any UG degree, not a taught discipline.",
+        "niche": "General Administration / Policy Implementation / Law & Order / Revenue / Foreign Service"
+      },
+      "modern_extensions": {
+        "extensions": [
+          "E-governance",
+          "Digital public infrastructure",
+          "Policy analytics"
+        ],
+        "description": "Modern extensions of Civil Services may include e-governance, digital public infrastructure and policy analytics depending on cadre, posting and specialization.",
+        "caution": "Entry is exam-gated (UPSC CSE/State PSC) after any UG degree, not a fixed academic pipeline; success is not guaranteed by any particular UG choice."
+      },
+      "admission_exams_canonical": [
+        "UPSC_CSE",
+        "STATE_PSC"
+      ],
+      "available_at_normalized": {
+        "IIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "NIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "IISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "NISER": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "IISE_CEBS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "ISI": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "BITS": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "IIIT": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "liberal_arts_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "central_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "state_universities": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        },
+        "deemed_private": {
+          "available": false,
+          "campuses": [],
+          "availability_score": 0.0,
+          "confidence": "none",
+          "notes": "Entry via competitive exam post-UG, not institution-based.",
+          "raw_v11_value": false
+        }
+      },
+      "ontology": {
+        "primary_competency": "governance_institutions",
+        "primary_family": "civil_admin_services",
+        "primary_family_label": "Civil & Administrative Services",
+        "secondary_families": {},
+        "specificity_score": 0.5,
+        "broadness_score": 0.2,
+        "ontology_policy": {
+          "primary_family": "display_and_grouping",
+          "secondary_families": "graph_diagnostics_and_explanation",
+          "specificity_score": "confidence_and_practicality",
+          "broadness_score": "bounded_score_modifier_only_if_enabled"
+        }
+      },
+      "education_realism": {
+        "ug_availability_score": 0.0,
+        "top_institute_availability_score": 0.0,
+        "overall_availability_score": 0.2,
+        "direct_job_after_ug_score": 0.15,
+        "pg_required_for_good_outcome": false,
+        "professional_license_required": false,
+        "credential_barrier": "very_high",
+        "parent_safe_route": false,
+        "risk_level": "High"
+      },
+      "curriculum": {
+        "math_intensity": 1,
+        "coding_intensity": 1,
+        "physics_intensity": 1,
+        "chemistry_intensity": 1,
+        "biology_intensity": 1,
+        "writing_intensity": 5,
+        "fieldwork_intensity": 2,
+        "people_interaction": 5,
+        "core_subjects_ug": [
+          "Any UG discipline -- exam-driven, not curriculum-driven"
+        ]
+      },
+      "market": {
+        "india_2026_demand": "stable",
+        "india_2035_demand": "stable",
+        "global_2035_demand": "not_applicable",
+        "market_depth": "narrow",
+        "freshers_market": "very_low",
+        "automation_risk": "low",
+        "credential_barrier": "very_high"
+      },
+      "risk": {
+        "risk_level": "High",
+        "parent_safe_route": false,
+        "avoid_primary_when": {
+          "low_math": false,
+          "low_biology": false,
+          "low_writing_or_reading": true,
+          "low_risk_appetite": true,
+          "requires_high_rank": true,
+          "poor_direct_ug_outcome": false,
+          "needs_pg_for_good_outcome": false
+        }
+      },
+      "routes": {
+        "ambitious_route": {
+          "label": "High-end specialized route",
+          "ug": "Any UG degree",
+          "pg": "N/A (optional)",
+          "phd_or_research": "N/A",
+          "entrance_exams": [
+            "UPSC_CSE",
+            "STATE_PSC"
+          ]
+        },
+        "safe_route": {
+          "label": "Parent-safe practical route",
+          "path": "Any UG degree -> UPSC CSE / State PSC preparation as a parallel track",
+          "why": "Keeps a real academic/career fallback alive alongside exam preparation, since selection is highly competitive."
+        },
+        "backup_route": {
+          "label": "Backup / adjacent route",
+          "path": "Core UG discipline with direct career value -> retain civil services as an optional later attempt",
+          "why": "Civil services entry is exam-gated and highly competitive; a strong core UG/PG path protects against non-selection."
+        }
+      },
+      "career_outcomes": {
+        "core": [
+          "IAS",
+          "IPS",
+          "Central Secretariat Service"
+        ],
+        "aspirational": [
+          "IFS (Foreign Service)"
+        ],
+        "research": [],
+        "government_psu": [
+          "State Civil Service",
+          "Allied Central Services"
+        ],
+        "startup": []
+      },
+      "schema_version": "v12.0_enriched_registry"
     }
   },
   "version": "v12.0_enriched_ontology_registry",
-  "total_branches": 199,
+  "total_branches": 213,
   "admission_exam_legend": {
     "JEE_Main": "Joint Entrance Exam (Main) — NITs, IIITs, GFTIs; UG engineering/architecture",
     "JEE_Advanced": "Joint Entrance Exam (Advanced) — IITs only; UG engineering/sciences",

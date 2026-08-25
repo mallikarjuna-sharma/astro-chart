@@ -1,11 +1,18 @@
 """K.N. Rao field-determination module."""
 from __future__ import annotations
 
+import os as _os
 from typing import Any, Dict, List
+
+# Print-output optimization (2026-08-20): gate the per-field debug prints
+# (K.N. Rao confirmation bonus / `[CROSS-VERIFICATION NARRATIVE]`) behind
+# the same opt-in verbosity flag engine.py uses, so a normal run only
+# prints the final summary report. Set JYOTISH_VERBOSE_FIELD_LOG=1 to
+# restore them.
+_VERBOSE_FIELD_LOG = _os.environ.get("JYOTISH_VERBOSE_FIELD_LOG", "0") == "1"
 
 from jyotish.astro import (
     _compute_arudha_pada,
-    _compute_bvb_7_karakas,
     _compute_whole_sign_houses,
     _get_active_dasha_lord,
     _is_vargottama,
@@ -26,12 +33,13 @@ from jyotish.boosts import (
     _ODD_SIGNS,
     _wm,
 )
-from jyotish.constants import _SIGN_LORD, _SIGN_NUM
+from jyotish.constants import _SIGN_LORD, _SIGN_NUM, _KENDRA_HOUSES, _TRIKONA_HOUSES, _DUSTHANA_HOUSES
 from .common import (
     METHOD_SCORE_CAPS,
     build_gate_text,
     build_score_rubric,
     chandra_lagna_h10_lord,
+    surya_lagna_h10_lord,
     clamp_score,
     method_result,
     rubric_section,
@@ -49,8 +57,24 @@ _OWN_SIGNS = {
     "Saturn": {"Capricorn", "Aquarius"},
 }
 _ROLE_WEIGHTS = {
-    "Dasha_Lord": 1.5,
-    "Antardasha_Lord": 0.90,  # G5
+    # Stage 5 (Astro-OS v3 gap-audit implementation plan, 2026-08): timing
+    # separated from structure. Dasha_Lord/Antardasha_Lord previously carried
+    # 1.5x/0.90x multipliers directly into this method's STRUCTURAL
+    # role_weight (the same value that scales every planet's core
+    # contribution below) -- meaning "which field a person is astrologically
+    # suited to" and "what their chart currently activates" were fused into
+    # one number, with no way for a caller to see the structural fit on its
+    # own. That fusion is exactly the class of problem
+    # confidence_dimensions.py's dedicated timing_fit dimension (Stage 4) was
+    # built to hold instead. Neutralized to 1.0 (the same non-elevating
+    # baseline already used by AK/Lagna_lord/Own_Sign below) so the current
+    # dasha/antardasha lord no longer inflates or discounts a planet's
+    # structural contribution here. Role detection itself is UNCHANGED --
+    # "Dasha_Lord"/"Antardasha_Lord" still appear in `roles`/trace/components
+    # for audit visibility, they simply no longer participate in the
+    # role_weight = max(...) that feeds `contribution` (search: total_factor).
+    "Dasha_Lord": 1.0,
+    "Antardasha_Lord": 1.0,  # G5
     "AmK": 1.4,
     "BK": 1.2,
     "5th_lord": 1.1,
@@ -138,6 +162,11 @@ def _shadbala_mult(shadbala_virupas: float, planet: str = "") -> float:
 
 # G12: H10 from Chandra Lagna — Gap-14 fix: delegate to common.chandra_lagna_h10_lord
 _chandra_lagna_h10_lord = chandra_lagna_h10_lord
+# §9 remediation (2026-08-19): the Sun-anchored half of the spec's named
+# "10th house from Lagna, Moon, AND Sun" triple-confirmation technique --
+# previously this existed only inside sudarshana.py, so knrao.py itself
+# never performed the actual named check. See common.py::surya_lagna_h10_lord.
+_surya_lagna_h10_lord = surya_lagna_h10_lord
 
 
 def _sign_house_from_lagna(sign: str, lagna_sign: str) -> int:
@@ -297,7 +326,7 @@ def score_knrao(
     d10_chart = divisional_charts.get("D10_dashamsha", {}) or {}
     d10_occ = getattr(payload_data, "d10_house_occupancy", {}) or {}
     lagna_sign = getattr(payload_data, "lagna_sign", "")
-    eff = getattr(payload_data, "eff_strengths", {}) or {}
+    eff = (getattr(payload_data, "eff_strengths_tier1", None) or getattr(payload_data, "eff_strengths", {}) or {})
     combust_planets = set(getattr(payload_data, "combust_planets", []) or [])
     neecha_bhanga = set(getattr(payload_data, "neecha_bhanga_planets", []) or [])
     current_age = float(getattr(payload_data, "current_age", 0.0) or 0.0)
@@ -386,7 +415,9 @@ def score_knrao(
             score += contribution
             rubric_core += contribution
             dignity_label = compute_dignity(planet, sign) or "neutral"
-            trace.append(f"{planet} aligns with {dignity_label} dignity.")
+            _timing_roles = [r for r in ("Dasha_Lord", "Antardasha_Lord") if r in roles]
+            _timing_note = f" (currently {'/'.join(_timing_roles)}, informational only)" if _timing_roles else ""
+            trace.append(f"{planet} aligns with {dignity_label} dignity.{_timing_note}")
             components[f"{planet.lower()}_contribution"] = round(contribution, 2)
 
         # Vitality drag — always apply for impaired planets with meaningful affinity
@@ -415,13 +446,46 @@ def score_knrao(
             rk_roles.append("Dasha_Lord")
         if antardasha_lord and planet == antardasha_lord:
             rk_roles.append("Antardasha_Lord")
-        rk_role_weight = max((_ROLE_WEIGHTS.get(r, 1.0) for r in rk_roles), default=0.70)
+        # Stage 5 fix: rk_roles above can ONLY ever contain Dasha_Lord/
+        # Antardasha_Lord (Rahu/Ketu have no other role class in this
+        # method), so the old `max(_ROLE_WEIGHTS.get(r,1.0) for r in
+        # rk_roles, default=0.70)` was a pure timing-gated elevation --
+        # Rahu/Ketu got the full 0.70 shadow-planet structural discount
+        # UNLESS they happened to be the current dasha/antardasha lord, in
+        # which case the discount vanished (1.0) or nearly doubled to 1.5x.
+        # Same fusion problem as the main loop above: kept as a fixed
+        # structural discount now, independent of current timing (which
+        # confidence_dimensions.py's timing_fit already covers separately).
+        # rk_roles is still populated and available in trace below for
+        # audit visibility.
+        # 2026-08-20 gap-audit fix (hands-on chart-audit finding): this was
+        # a FLAT 0.70 discount applied to every Rahu/Ketu contribution
+        # regardless of house quality -- a node sitting in a kendra (e.g.
+        # Ketu in the 10th/Karma Bhava, one of the most classically
+        # decisive placements a chart can have) got the exact same
+        # discount as one sitting in a dusthana. Made house-placement-aware
+        # instead: kendra placement keeps the least discount (nodes are
+        # still treated more cautiously than a dignified graha, per
+        # classical convention), dusthana placement keeps the heaviest.
+        _rk_house = whole_houses.get(planet, 0)
+        if _rk_house in _KENDRA_HOUSES:
+            rk_role_weight = 0.85
+        elif _rk_house in _TRIKONA_HOUSES:
+            rk_role_weight = 0.80
+        elif _rk_house in _DUSTHANA_HOUSES:
+            rk_role_weight = 0.55
+        else:
+            rk_role_weight = 0.70
         vm_rk, _, _ = _varga_multiplier(planet, sign, d24_chart, d24_lagna)
         field_weight = float(field_affinity.get(planet, 0.0) or 0.0)
         contribution = field_weight * rk_role_weight * vm_rk * _STREAM_SCALE
         if contribution > 0:
             score += contribution; rubric_core += contribution
-            trace.append(f"{planet} shadow-planet contribution to field ({planet} weight={field_weight:.2f}).")
+            _rk_timing_note = f" (currently {'/'.join(rk_roles)})" if rk_roles else ""
+            trace.append(
+                f"{planet} shadow-planet contribution to field ({planet} weight={field_weight:.2f})."
+                f"{_rk_timing_note}"
+            )
             components[f"{planet.lower()}_contribution"] = round(contribution, 2)
 
     # ── Life-science / space-aerospace cluster bonuses ────────────────────────
@@ -474,42 +538,18 @@ def score_knrao(
         components["combustion_penalty"] = round(-combustion_pen, 2)
         trace.append("Combust field-driving planet weakens KNRao's career signature.")
 
-    # ── N1: D9 Navamsha as first-class career signal ──────────────────────────
-    # KNRao explicitly: D9 lagna lord's house placement confirms D1 promise.
-    # H10 from D9 lagna (navamsha career house) is a strong independent indicator.
-    # Treated as scored sub-signal (not just validation) capped at 15 pts.
-    _d9_ll = _SIGN_LORD.get(d9_lagna, "") if d9_lagna else ""
-    _d9_ll_sign = (d9_chart.get(_d9_ll) or {}) if isinstance(d9_chart.get(_d9_ll), dict) else {}
-    # H10 from D9 lagna: sign 9 positions after d9_lagna
-    from jyotish.constants import _SIGN_NUM as _SN9
-    _D9_SIGNS = [s for s, _ in sorted(_SN9.items(), key=lambda x: x[1])]
-    _d9_h10_sign = ""
-    if d9_lagna and d9_lagna in _SN9:
-        _d9_h10_sign = _D9_SIGNS[(_SN9[d9_lagna] - 1 + 9) % 12]
-    _d9_h10_lord = _SIGN_LORD.get(_d9_h10_sign, "")
-    # Score 1: D9 lagna lord in kendra/trikona of D9
-    _d9_ll_pts = 0.0
-    if _d9_ll:
-        _d9_ll_d1_sign = (planets_d1.get(_d9_ll) or {}).get("sign", "")
-        _d9_ll_d9_dig = compute_dignity(_d9_ll, _d9_ll_d1_sign) if _d9_ll_d1_sign else ""
-        _d9_ll_aff = field_affinity.get(_d9_ll, 0.0)
-        if _d9_ll_aff >= 0.08:
-            # Gap 0.2 fix: compute_dignity returns UPPERCASE — lowercase check was dead.
-            _dig_mult = 1.3 if _d9_ll_d9_dig in ("EXALTED", "OWN", "MOOLATRIKONA") else 1.0
-            _d9_ll_pts = _d9_ll_aff * 8.0 * _dig_mult * _d1_vitality_coefficient(_d9_ll, payload_data)
-            _d9_ll_pts = min(_d9_ll_pts, 8.0)
-    # Score 2: H10 lord from D9 lagna has field affinity
-    _d9_h10_pts = 0.0
-    if _d9_h10_lord:
-        _d9_h10_aff = field_affinity.get(_d9_h10_lord, 0.0)
-        if _d9_h10_aff >= 0.08:
-            _d9_h10_pts = _d9_h10_aff * 7.0 * _d1_vitality_coefficient(_d9_h10_lord, payload_data)
-            _d9_h10_pts = min(_d9_h10_pts, 7.0)
-    _d9_first_class_pts = _d9_ll_pts + _d9_h10_pts
-    if _d9_first_class_pts > 0.5:
-        score += _d9_first_class_pts; rubric_core += _d9_first_class_pts
-        components["d9_first_class"] = round(_d9_first_class_pts, 2)
-        trace.append(f"D9 first-class signal: lagna lord {_d9_ll} + H10 lord {_d9_h10_lord} from navamsha lagna.")
+    # D9 gap-audit fix (2026-08): the "D9 first-class career signal" block
+    # formerly here (D9 lagna lord + D9-H10 lord, capped ~15 pts) has been
+    # removed -- it computed the D9 lagna lord's DIGNITY using its D1 sign
+    # (`compute_dignity(_d9_ll, _d9_ll_d1_sign)`), which evaluates the planet
+    # as if placed in D1, not D9. That mislabeled a D1-thread signal as a D9
+    # test and duplicated (inconsistently) the properly D9-internal version
+    # of this exact technique now built into navamsha.py's
+    # score_navamsha_adjustment() -- see that module's `_d9_h10_score` (uses
+    # real D9 sign dignity via d9_planet_dignities, plus D9-internal house
+    # placement and Vargottama, none of which this block had). Removing here
+    # avoids double-counting the same classical technique once correctly and
+    # once with a sign-source bug.
     # Legacy validation bonus (kept for backward compat)
     d9_bonus = _d9_h10_bonus(field_affinity, d9_chart, d9_lagna) * 20.0
     if d9_bonus > 0:
@@ -575,6 +615,7 @@ def score_knrao(
     _sav_mult_kn = 1.20 if _sav_h10_kn >= 35 else 1.10 if _sav_h10_kn >= 30 else 0.85 if _sav_h10_kn <= 20 else 1.0
 
     # ── H10 lord kendra/trikona or dusthana placement ────────────────────────
+    _kn_h10_kt_bonus = 0.0
     if h10_lord and h10_lord_house > 0:
         if h10_lord_house in {1, 4, 7, 10, 5, 9}:
             _b = 26.0 * field_affinity.get(h10_lord, 0.0) * _sav_mult_kn
@@ -582,6 +623,7 @@ def score_knrao(
                 score += _b; rubric_core += _b
                 components["h10_lord_kendra_trikona"] = round(_b, 2)
                 trace.append(f"H10 lord ({h10_lord}) in house {h10_lord_house} -- kendra/trikona.")
+                _kn_h10_kt_bonus = _b
         elif h10_lord_house in {6, 8, 12}:
             _pen = 18.0 * field_affinity.get(h10_lord, 0.0)
             if _pen > 0:
@@ -589,29 +631,75 @@ def score_knrao(
                 components["h10_lord_dusthana"] = round(-_pen, 2)
                 trace.append(f"H10 lord ({h10_lord}) in dusthana house {h10_lord_house} -- weakens career.")
 
-    # ── N1: H2 (Dhana) and H11 (Labha) lord scoring ──────────────────────────
-    # H2 = income/speech/accumulated wealth; H11 = gains/fulfillment/desires.
-    # Together with H10 they form the "Artha Triad" — the three career-income houses.
-    # Scoring weight: H2 = 12 pts × affinity, H11 = 10 pts × affinity (< H10's 26 pts).
-    h2_lord  = house_lords.get("2", "")
+    # ── N1: H6 (Seva), H11 (Labha) and H2 (Dhana) lord scoring ──────────────
+    # H10 (scored above, up to 26 pts) is the sole PRIMARY career house. These
+    # three are classically CONFIRMATORY, not primary, and are weighted in
+    # descending classical relevance: H6 = service/employment/daily labor
+    # (K.N. Rao treats a strong, well-placed 6th lord as a genuine
+    # service-career signal in its own right, not limited to any particular
+    # profession); H11 = labha, the realized fruit/gains of professional
+    # effort -- a more direct career-confirmatory house than H2; H2 =
+    # accumulated wealth/speech, the weakest and most indirect of the three,
+    # mainly relevant to speech-driven professions.
+    #
+    # Astrological-calibration fix (2026-08-20, Claude session, real-chart
+    # audit): this block previously also scored H4 (Vidya/foundational-
+    # education lord) here, inside the SAME career-RANKING blend that
+    # jyotish/tiered_ranking.py deliberately excludes Siddhamsha (the
+    # dedicated D24 education varga) from -- see that module's own docstring:
+    # "Siddhamsha... is the classical education/learning varga, not a
+    # career-field varga... folding it into the field-ranking blend was part
+    # of what let the old flat blend's field-choice and education-route
+    # signals bleed into each other." KNRao (a Tier-1 method) carrying its
+    # own H4-Vidya-lord bonus reopened exactly that leak from inside the
+    # blend the exclusion was meant to protect. Removed here -- H4/education
+    # is Siddhamsha's job, not KNRao's.
+    #
+    # It also previously multiplied every one of these contributions by an
+    # undocumented, unexplained `* 2.0` -- directly contradicting this same
+    # block's own prior comment ("H2 = 12 pts x affinity... < H10's 26 pts").
+    # With dignity (up to 1.40x) and position (up to 1.30x) also stacked in,
+    # a single one of these SECONDARY houses could reach ~44 points under the
+    # old code -- exceeding H10's own ~31-point ceiling (26 x up to 1.2 SAV
+    # multiplier), i.e. a confirmatory house could outscore the one primary
+    # career house it exists to confirm. Confirmed live on a real chart
+    # (Ramsunder): H2's inflated contribution alone (12.26 pts) was the
+    # single largest KNRao component separating international_law from
+    # materials_science_engineering, more than the fields' entire final
+    # KNRao gap. The `* 2.0` is removed; base weights below are recalibrated
+    # to stay clearly subordinate to H10 and reflect the corrected
+    # H6 > H11 > H2 classical ordering.
+    #
+    # H6 was previously scored ONLY as a separate, narrower special case
+    # (see the removed "H6 lord as positive service-field signal" block
+    # below this function) gated on the FIELD'S ENGLISH LABEL matching one
+    # of nine hardcoded keywords (medicine/defence/military/law/police/
+    # nursing/surgery/forensics/social work) -- meaning "law" had structural
+    # access to a service-house bonus that e.g. "materials_science_
+    # engineering" could never reach, regardless of what the chart itself
+    # showed. Folded into this general loop instead, gated the same way
+    # H2/H10/H11 already are (the chart's own placement and dignity), not by
+    # the field's name.
+    h6_lord  = house_lords.get("6", "")
     h11_lord = house_lords.get("11", "")
-    for _hl, _pts, _label in ((h2_lord, 12.0, "H2-Dhana"), (h11_lord, 10.0, "H11-Labha")):
+    h2_lord  = house_lords.get("2", "")
+    for _hl, _pts, _label in ((h6_lord, 12.0, "H6-Seva"), (h11_lord, 10.0, "H11-Labha"), (h2_lord, 7.0, "H2-Dhana")):
         if not _hl:
             continue
         _hw = field_affinity.get(_hl, 0.0)
         if _hw >= 0.10:
             _hh = whole_houses.get(_hl, 0)
-            # Dignity-based multiplier for the artha lord
+            # Dignity-based multiplier for the confirmatory house lord
             _hdig = compute_dignity(_hl, (planets_d1.get(_hl) or {}).get("sign", ""))
             _hdig_m = {"EXALTED": 1.40, "OWN": 1.20, "NEECHA_BHANGA": 1.05,
                        "NEUTRAL": 1.00, "DEBILITATED": 0.60}.get(_hdig or "NEUTRAL", 1.00)
             # Position modifier: kendra/trikona = 1.3×, neutral = 1.0×, dusthana = 0.7×
             _hpos_m = (1.30 if _hh in {1,4,7,10,5,9} else
                        0.70 if _hh in {6,8,12} else 1.00)
-            _hb = _hw * _pts * _hdig_m * _hpos_m * eff.get(_hl, 0.5) * 2.0
+            _hb = _hw * _pts * _hdig_m * _hpos_m * eff.get(_hl, 0.5)
             score += _hb; rubric_support += _hb
             components[f"{_label.lower().replace('-','_')}_lord"] = round(_hb, 2)
-            trace.append(f"{_label} lord {_hl} (H{_hh}) aligns with field — artha house support.")
+            trace.append(f"{_label} lord {_hl} (H{_hh}) aligns with field — confirmatory house support.")
 
     # ── Fix 7: H3 (Parakrama) lord — hands-on skill and effort house ───────────
     # H3 governs courage, personal skill, technical effort, and direct action.
@@ -631,7 +719,16 @@ def score_knrao(
                         "NEUTRAL": 1.00, "DEBILITATED": 0.60}.get(_h3dig or "NEUTRAL", 1.00)
             _h3pos_m = (1.20 if _h3h in {1,3,9,10,5} else
                         0.75 if _h3h in {6,8,12} else 1.00)
-            _h3b = _h3w * 7.0 * _h3dig_m * _h3pos_m * eff.get(h3_lord, 0.5) * 2.0
+            # 2026-08-22 reconciliation (JyotishAI reference-audit method #7,
+            # owner-approved fix): removed an undocumented trailing "* 2.0"
+            # that pushed this stated-7.0-weight confirmatory (H3 Parakrama)
+            # bonus's ceiling above the H10 lord's own primary 26pt kendra/
+            # trikona bonus -- the exact anti-pattern this file's own N1
+            # comment block (H6/H11/H2 section, ~line 656) documents fixing
+            # for the H2/H6/H11 confirmatory houses ("a confirmatory house
+            # could outscore the one primary career house it exists to
+            # confirm"), reintroduced here for H3 without comment.
+            _h3b = _h3w * 7.0 * _h3dig_m * _h3pos_m * eff.get(h3_lord, 0.5)
             score += _h3b; rubric_support += _h3b
             components["h3_parakrama_lord"] = round(_h3b, 2)
             trace.append(f"H3 (Parakrama) lord {h3_lord} (H{_h3h}) supports skill-driven field.")
@@ -645,6 +742,95 @@ def score_knrao(
             score += _cl_b; rubric_support += _cl_b
             components["chandra_lagna_h10"] = round(_cl_b, 2)
             trace.append(f"H10 from Chandra Lagna lord {_cl_h10_lord} aligns with field.")
+
+    # ── §9 remediation: H10 from Surya Lagna (Sun-based ascendant) ────────────
+    # Completes the spec's named triple-confirmation technique (Lagna + Moon +
+    # Sun) directly in the K.N. Rao module, at the same modest magnitude as
+    # the Chandra Lagna layer just above -- this is a confirmation check, not
+    # an independent scoring channel, so it stays capped small like its
+    # Chandra sibling rather than opening a new full sub-scorer.
+    _sl_h10_lord = _surya_lagna_h10_lord(planets_d1)
+    if _sl_h10_lord:
+        _sl_w = field_affinity.get(_sl_h10_lord, 0.0)
+        if _sl_w >= 0.10:
+            _sl_b = _sl_w * 8.0 * eff.get(_sl_h10_lord, 0.5)
+            score += _sl_b; rubric_support += _sl_b
+            components["surya_lagna_h10"] = round(_sl_b, 2)
+            trace.append(f"H10 from Surya Lagna lord {_sl_h10_lord} aligns with field.")
+
+    # ── §9 remediation: explicit triple-ascendant confirmation ────────────────
+    # The named technique's actual point is agreement across the three bases
+    # (Lagna, Chandra, Surya). Per §9, "a planet occupying or ruling 2 or more
+    # of these three derived 10th houses gets a confirmation bonus (+5%)" --
+    # a 2-of-3 threshold, not strict 3-of-3 agreement. We find whichever
+    # candidate lord (from h10_lord / _cl_h10_lord / _sl_h10_lord) has the
+    # highest agreement count and, if it reaches 2+, apply one small, bounded
+    # confirmation bonus (capped at 5 points -- roughly a 5% nudge on this
+    # method's own ~100-pt scale, in line with §9's "modest confirmation
+    # bonus (5-10%)" ceiling). Full 3-of-3 agreement gets the full bonus;
+    # partial 2-of-3 agreement gets a slightly reduced bonus, since full
+    # agreement is the strongest form of this confirmation.
+    from collections import Counter as _KNTripleCounter
+    _kn_lord_counts = _KNTripleCounter(
+        l for l in (h10_lord, _cl_h10_lord, _sl_h10_lord) if l
+    )
+    _triple_lord, _triple_count = (
+        max(_kn_lord_counts.items(), key=lambda kv: kv[1])
+        if _kn_lord_counts else ("", 0)
+    )
+    _triple_b = 0.0
+    if _triple_count >= 2 and field_affinity.get(_triple_lord, 0.0) > 0:
+        _agreement_mult = 1.0 if _triple_count == 3 else 0.7
+        _triple_b = min(5.0, 5.0 * field_affinity.get(_triple_lord, 0.0)) * _agreement_mult
+        score += _triple_b; rubric_support += _triple_b
+        components["triple_ascendant_h10_confirmation"] = round(_triple_b, 2)
+        if _triple_count == 3:
+            trace.append(
+                f"K.N. Rao triple-ascendant confirmation: H10 lord {_triple_lord} agrees across "
+                "Lagna, Chandra Lagna, AND Surya Lagna simultaneously — the named §9 technique."
+            )
+        else:
+            trace.append(
+                f"K.N. Rao confirmation: H10 lord {_triple_lord} occupies/rules 2 of the 3 "
+                "derived 10th houses (Lagna, Chandra Lagna, Surya Lagna) — the named §9 "
+                "technique's 2-of-3 confirmation threshold."
+            )
+
+    # ── §9 remediation: family/environmental/interest-context flag ────────────
+    # Full Methodology Spec §9 also requires checking a strongly-supported
+    # field against the native's STATED family/environmental/interest
+    # context, to flag fields that are astrologically strong but outside
+    # what the person has been exposed to ("high-potential, needs deliberate
+    # exposure") -- previously no such data ingestion or flag existed
+    # anywhere in the codebase. This reads an OPTIONAL payload field
+    # (`stated_interests` / `family_environment_context`, either a list of
+    # strings or a single string) that a caller may not populate; when
+    # absent, the flag is simply never raised (never a penalty for missing
+    # context data, matching this engine's consistent pattern elsewhere).
+    _stated_ctx = (
+        getattr(payload_data, "stated_interests", None)
+        or getattr(payload_data, "family_environment_context", None)
+    )
+    high_potential_needs_exposure = False
+    if _stated_ctx:
+        if isinstance(_stated_ctx, str):
+            _stated_ctx = [_stated_ctx]
+        _ctx_text = " ".join(str(c) for c in _stated_ctx).lower()
+        _field_text = (label or "").lower()
+        _mentioned = bool(_field_text) and any(
+            tok in _ctx_text for tok in _field_text.split() if len(tok) > 3
+        )
+        _strongly_supported = (
+            _triple_count >= 2
+            and field_affinity.get(_triple_lord, 0.0) >= 0.3
+        )
+        if _strongly_supported and not _mentioned:
+            high_potential_needs_exposure = True
+            trace.append(
+                "FLAG: this field has strong triple-ascendant astrological support but does not "
+                "appear among the native's stated family/environmental/interest context — "
+                "high-potential, may need deliberate exposure rather than being astrologically weak."
+            )
 
     # ── G19: Nakshatra lord house chain ────────────────────────────────────────
     from jyotish.constants import _NAKSHATRA_LORD
@@ -749,23 +935,17 @@ def score_knrao(
             components["lagna_tatva_cluster"] = round(_tatva_b_kn, 2)
             trace.append(f"Lagna tatva ({_lagna_tatva_kn}): {_kn_lagna_sign} lagna resonates with {domain}.")
 
-    # ── T2-C: H6 lord as positive service-field signal ──────────────────────
-    _SERVICE_FIELDS_KN = ["medicine","defence","military","law","police","nursing","surgery","forensics","social work","pharmacy"]
+    # T2-C (H6 lord as service-field signal) removed 2026-08-20, Claude
+    # session, real-chart audit: folded into the general N1 loop earlier in
+    # this function (h6_lord, now weighted highest of the three confirmatory
+    # houses: H6 > H11 > H2), gated on the chart's own placement/dignity like
+    # H2/H10/H11 already are, rather than on the field's English label
+    # matching one of a fixed keyword list (which structurally favored
+    # "law"/"medicine"/etc. over every other field regardless of the actual
+    # chart). See the N1 block's own comment for the full rationale.
     _kn_house_lords = getattr(payload_data, "house_lords", {}) or {}
     _kn_ph = getattr(payload_data, "planet_house", {}) or {}
     _kn_planet_digs = getattr(payload_data, "planet_dignities", {}) or {}
-    _kn_h6_lord = _kn_house_lords.get("6", "") or _kn_house_lords.get(6, "")
-    if _kn_h6_lord and any(_wm(kw, label) for kw in _SERVICE_FIELDS_KN):
-        _kn_h6_house = _kn_ph.get(_kn_h6_lord, 0)
-        _kn_h6_dig = _kn_planet_digs.get(_kn_h6_lord, "")
-        # Gap 0.2 fix: planet_dignities values are UPPERCASE — lowercase check was dead.
-        if _kn_h6_house in (1, 4, 7, 10) or _kn_h6_dig in ("EXALTED", "OWN", "MOOLATRIKONA"):
-            _kn_h6_b = field_affinity.get(_kn_h6_lord, 0.1) * 7.0 * _d1_vitality_coefficient(_kn_h6_lord, payload_data)
-            _kn_h6_b = min(_kn_h6_b, 8.0)
-            if _kn_h6_b > 0:
-                score += _kn_h6_b; rubric_support += _kn_h6_b
-                components["h6_service_lord"] = round(_kn_h6_b, 2)
-                trace.append(f"H6 lord {_kn_h6_lord} dignified/kendra: service-field excellence (KNRao).")
 
     # ── T2-E: Rahu in H10 career yoga ───────────────────────────────────────
     _RAHU_FRIENDLY_KN = {"Gemini","Virgo","Libra","Sagittarius","Aquarius","Taurus"}
@@ -833,6 +1013,67 @@ def score_knrao(
             rubric_validation += _thread_b
             components["dasha_thread"] = round(_thread_b, 2)
 
+    # ── gap fix 2026-08-18 (G): minimal retrograde (vakri) strength note ───────
+    # Classical basis: BPHS's own Cheshta Bala (part of Shadbala, jyotish/
+    # shadbala.py::compute_cheshta_bala) already treats retrograde motion as a
+    # STRENGTH-ADDING state for the visible planets (a planet appearing to move
+    # backward is judged to be exerting unusually intense effort/cheshta), not
+    # a weakness -- distinct from the KP convention (kp.py, above) that a
+    # retrograde planet's SIGNIFICATION extends to its previous house. KNRao's
+    # method already emphasizes planet-role and dasha-thread strength (see
+    # above), so the appropriate minimal retrograde signal here is strength,
+    # not house-extension: if the H10 lord itself is retrograde, add a small
+    # bounded (+1.5 flat) corroboration, since a strengthened H10 lord is
+    # itself already the method's central technique.
+    _kn_retro_set = getattr(payload_data, "retrograde_planets", set()) or set()
+    if _kn_h10_lord and _kn_h10_lord in _kn_retro_set:
+        _kn_retro_b = 1.5
+        score += _kn_retro_b
+        rubric_validation += _kn_retro_b
+        components["retrograde_h10_lord_cheshta"] = round(_kn_retro_b, 2)
+        trace.append(
+            f"Retrograde (vakri) H10 lord {_kn_h10_lord}: classical Cheshta Bala treats "
+            "retrograde motion as strength-adding, not weakening -- small corroboration (KNRao)."
+        )
+    else:
+        _kn_retro_b = 0.0
+
+    # 2026-08-22 reconciliation (JyotishAI reference-audit method #7,
+    # owner-approved fix): h10_lord_kendra_trikona (up to 26pt),
+    # d1_d10_double_dignity (up to 12pt), and retrograde_h10_lord_cheshta
+    # (flat 1.5pt) are three independently-designed positive bonuses that
+    # all credit the SAME planet's SAME underlying strength/placement fact
+    # -- the H10 lord's dignity and position -- with no group ceiling
+    # (only role_weight in the earlier core-planet loop and 3 more indirect
+    # H10-lord-adjacent components -- d9_validation, d10_h10, Vimshopaka --
+    # also touch this planet, but those aren't gated strictly to "the H10
+    # lord" the way these three are, so this cap covers the unambiguous
+    # subset first). Bound this specific three-component family at 32pt --
+    # modest headroom above the kendra/trikona bonus's own 26pt ceiling for
+    # a genuine multi-technique convergence -- clawing back from the
+    # smallest/most-derivative signals first (retrograde corroboration,
+    # then double-dignity) before touching the primary placement bonus.
+    _kn_h10_family_ceiling = 32.0
+    _kn_h10_family_total = _kn_h10_kt_bonus + components.get("d1_d10_double_dignity", 0.0) + _kn_retro_b
+    if _kn_h10_family_total > _kn_h10_family_ceiling:
+        _kn_h10_excess = _kn_h10_family_total - _kn_h10_family_ceiling
+        _kn_dd_current = components.get("d1_d10_double_dignity", 0.0)
+        _take_retro = min(_kn_retro_b, _kn_h10_excess)
+        if _take_retro > 0:
+            score -= _take_retro; rubric_validation -= _take_retro
+            components["retrograde_h10_lord_cheshta"] = round(_kn_retro_b - _take_retro, 2)
+            _kn_h10_excess -= _take_retro
+        if _kn_h10_excess > 0 and _kn_dd_current > 0:
+            _take_dd = min(_kn_dd_current, _kn_h10_excess)
+            score -= _take_dd; rubric_validation -= _take_dd
+            components["d1_d10_double_dignity"] = round(_kn_dd_current - _take_dd, 2)
+            _kn_h10_excess -= _take_dd
+        trace.append(
+            f"KNRao H10-lord family (kendra/trikona + double-dignity + retrograde) "
+            f"exceeded {_kn_h10_family_ceiling}pt combined ceiling -- clawed back from "
+            "the smallest/most-derivative signals first, primary placement bonus left intact."
+        )
+
     # ── Vimshopaka Bala: unified divisional-strength coefficient ─────────────
     # Fix (cross-cutting gap): divisional strength was previously approximated
     # ad hoc per method (D9/D10 dignity multipliers scattered through the score
@@ -869,11 +1110,62 @@ def score_knrao(
                        "house_signification_bonus", "whole_sign_career"]),
             rubric_section("validation", rubric_validation, 20.0,
                 note="D9/D10 divisional confirmation, dasha-sequential thread timing, Vimshopaka Bala.",
-                items=["d9_validation", "d10_h10", "d10_lagna_lord_bonus", "dasha_thread", "vimsopaka_bala"]),
+                items=["d9_validation", "d10_h10", "d10_lagna_lord_bonus", "dasha_thread", "vimsopaka_bala",
+                       "retrograde_h10_lord_cheshta"]),
             rubric_section("penalty", rubric_penalty, 20.0, kind="penalty",
                 note="Dusthana lordship, H10 lord in dusthana, and vitality drag.",
                 items=["dusthana_penalty", "h10_lord_dusthana", "vitality_penalty"]),
         ],
+    )
+
+    # Phase B (shadow-score migration, audit item A): surface the specific
+    # planet(s) that actually drove this field's score -- purely additive,
+    # sourced from the per-planet `{planet.lower()}_contribution` components
+    # this function already populates in the core scoring loops above (never
+    # a re-derivation of scoring logic). Does not change score/components/
+    # trace or any existing return key.
+    _knrao_confirming_planets = [
+        p for p in ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu")
+        if components.get(f"{p.lower()}_contribution", 0.0) > 0.0
+    ]
+
+    # [CROSS-VERIFICATION NARRATIVE] (§9 audit, real-technique instrumentation):
+    # K.N. Rao's "triple confirmation" — 10th-from-Lagna, 10th-from-Moon
+    # (Chandra Lagna), 10th-from-Sun (Surya Lagna) — with each derived 10th
+    # house's lord already computed above as h10_lord / _cl_h10_lord /
+    # _sl_h10_lord. Report which planet(s) actually qualify (occupy/rule 2+
+    # of the three derived 10ths) and that planet's own final confirmation
+    # bonus for THIS method, built from local variables only.
+    _kn_lord_agreement = _kn_lord_counts
+    for _kp_lord, _kp_count in _kn_lord_agreement.items():
+        if _kp_count >= 2:
+            _kp_lord_bonus = _triple_b if _kp_lord == _triple_lord else 0.0
+            if _VERBOSE_FIELD_LOG:
+                print(
+                    f"K.N. Rao confirmation bonus — {_kp_lord}: {(_kp_lord_bonus / 100.0):.3f} "
+                    f"(rules {_kp_count} of 3 derived 10th houses)"
+                )
+    _kn_qualifying = [p for p, c in _kn_lord_agreement.items() if c >= 2]
+    if _VERBOSE_FIELD_LOG:
+        print(
+        f"[CROSS-VERIFICATION NARRATIVE] K.N. Rao triple confirmation checked the "
+        f"10th house derived from Lagna ({h10_lord or '—'}), from Chandra Lagna "
+        f"({_cl_h10_lord or '—'}), and from Surya Lagna ({_sl_h10_lord or '—'}); "
+        + (
+            f"planet(s) {', '.join(_kn_qualifying)} rule 2 or more of these three derived "
+            "10th houses -- the +5% confirmation bonus (scaled to 70% for a 2-of-3 "
+            "match, full for 3-of-3) was applied per the spec's '2 of 3' threshold. "
+            if _kn_qualifying else
+            "no planet ruled 2 or more of the three derived 10th houses this pass. "
+        )
+        + (
+            "The stated family/environmental/interest-context cross-check flagged this "
+            "field as high-potential-but-needs-deliberate-exposure (strong triple-"
+            "ascendant support not mentioned in the native's stated context)."
+            if high_potential_needs_exposure else
+            "The stated family/environmental/interest-context cross-check did not raise "
+            "the 'needs deliberate exposure' flag for this field this pass."
+        )
     )
 
     # Gap-1 (audit 2026-07) fix: cap unified with bundle via METHOD_SCORE_CAPS["knrao"].
@@ -881,4 +1173,11 @@ def score_knrao(
     # charts (net penalties > positives) are distinguishable from neutral ones;
     # method_result() still clamps internally for the "score" field.
     return method_result("knrao", score, trace, components, rubric=rubric,
-                         normalization_cap=METHOD_SCORE_CAPS["knrao"])
+                         normalization_cap=METHOD_SCORE_CAPS["knrao"],
+                         metadata={
+                             "confirming_planets": _knrao_confirming_planets,
+                             "triple_ascendant_h10_lord": (
+                                 _triple_lord if _triple_count >= 2 else ""
+                             ),
+                             "high_potential_needs_exposure": high_potential_needs_exposure,
+                         })

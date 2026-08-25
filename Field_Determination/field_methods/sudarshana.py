@@ -19,6 +19,8 @@ Public API:
 from __future__ import annotations
 from typing import Any, Dict, List
 
+from jyotish.boosts import _d1_vitality_coefficient
+
 # ── Zodiac helpers ────────────────────────────────────────────────────────────
 _SIGNS = [
     "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
@@ -50,6 +52,7 @@ def score_sudarshana(
     label: str,
     affinity: Dict[str, float],
     payload: Any,
+    apply_unmatched_floor: bool = True,
 ) -> Dict:
     """
     Score a career field label using Sudarshana Chakra.
@@ -102,29 +105,102 @@ def score_sudarshana(
     sun_lord   = _SIGN_LORD.get(sun_h10,   "")
     moon_lord  = _SIGN_LORD.get(moon_h10,  "")
 
+    # Sudarshana gap-audit fix (2026-08): the dignity table only recognized
+    # EXALTED/OWN/DEBILITATED -- MOOLATRIKONA (roughly OWN-strength) and
+    # NEECHA_BHANGA (classically a substantial recovery from debilitation,
+    # not merely "no longer penalized") both silently fell through to the
+    # neutral 1.0 default, understating both. Extended to match the richer
+    # dignity tables every other method in this engine already uses.
     def _dig_mult(planet: str) -> float:
-        return {"EXALTED": 1.40, "OWN": 1.15, "DEBILITATED": 0.60}.get(
+        return {"EXALTED": 1.40, "OWN": 1.15, "MOOLATRIKONA": 1.20,
+                "NEECHA_BHANGA": 1.05, "DEBILITATED": 0.60}.get(
             planet_dig.get(planet, ""), 1.0
         )
 
     # ── Score each layer ──────────────────────────────────────────────────────
     _KT = frozenset({1, 4, 5, 7, 9, 10})
 
-    def _layer_score(lord: str, h10_sign: str, tag: str) -> float:
-        aff = affinity.get(lord, 0.0) * _dig_mult(lord)
+    def _layer_score(lord: str, h10_sign: str, tag: str, base_sign: str) -> float:
+        # Sudarshana gap-audit fix: vitality (D1 impairment) was not applied
+        # anywhere in this method -- every other method in this engine
+        # discounts a field-driving planet's contribution when it's afflicted
+        # (combust, weak, etc.) via _d1_vitality_coefficient; Sudarshana had
+        # no such check despite the Surya-Lagna layer specifically being
+        # anchored on the Sun, where combustion (proximity to the Sun) is
+        # mechanically almost guaranteed to be relevant for nearby planets.
+        vit = _d1_vitality_coefficient(lord, payload) if lord else 1.0
+        aff = affinity.get(lord, 0.0) * _dig_mult(lord) * vit
+        _floored = False
         if aff <= 0:
-            return 0.0
+            # 2026-08-20 gap-audit fix: this used to return a hard 0.0 for the
+            # ENTIRE layer whenever `lord` (this chart's fixed Lagna/Surya/
+            # Chandra H10-lord -- there are only 3, and they never change
+            # across fields) happened not to be listed in the field's curated
+            # affinity vector (BRANCH_PLANET_AFFINITY). But Sudarshana Chakra
+            # is a HOUSE-based technique (which sign/lord governs H10 counted
+            # from each ascendant) -- it is not supposed to go silent just
+            # because that lord isn't one of a field's hand-picked karaka
+            # planets. Confirmed on a real chart: 6/20 of a native's top-20
+            # fields hit this cliff to an identical, exact 0.00 -- all
+            # Saturn/Mars/Rahu/Ketu-only affinity vectors that never happened
+            # to include that chart's fixed Moon/Sun/Jupiter H10-lords, while
+            # unrelated fields with a Moon/Sun/Jupiter entry scored normally.
+            # A small, deliberately modest floor now applies instead, so the
+            # layer still registers the lord's own structural quality
+            # (dignity + kendra/trikona from its own ascendant) without
+            # affinity backing -- capped low enough (see the floor constant
+            # below) that it can never approach a genuinely affinity-matched
+            # layer or the convergence bonuses further down, which remain
+            # this method's real differentiator. `affinity.get(...)` itself
+            # is untouched, so the convergence-bonus logic below (which reads
+            # the real dict directly) is unaffected by this floor.
+            if not lord:
+                return 0.0
+            if not apply_unmatched_floor:
+                # §9 remediation (2026-08-19): when computing the bounded
+                # confirmation-bonus version of this method (see
+                # field_methods/__init__.py's sudarshan_confirmation
+                # wiring), the floor must be OFF -- §9 explicitly prohibits
+                # a cross-verification layer from assigning any score to a
+                # planet with zero other karaka support for the field. The
+                # floor stays ON by default for this function's own
+                # standalone display/audit score (method_entries["sudarshana"]),
+                # where it remains a deliberate, documented design choice
+                # for a different purpose (not going silent on fields whose
+                # curated affinity vector simply omits this chart's fixed
+                # H10 lords).
+                return 0.0
+            _SUDARSHANA_UNMATCHED_FLOOR = 0.05
+            aff = _SUDARSHANA_UNMATCHED_FLOOR * _dig_mult(lord) * vit
+            _floored = True
         score = aff * 30.0   # base: up to ~30 if lord is the dominant planet
-        # Boost if the lord is placed in a kendra/trikona in D1
-        if planet_house.get(lord, 0) in _KT:
+        # Sudarshana gap-audit fix: kendra/trikona strength must be judged
+        # FROM THE SAME ASCENDANT this layer is anchored to (Surya Lagna for
+        # the Sun layer, Chandra Lagna for the Moon layer) -- not always from
+        # the physical D1 lagna. The previous version used `planet_house`
+        # (D1-lagna-numbered) for all three layers, which is only correct for
+        # the Lagna layer itself; the Sun/Moon layers were silently judging
+        # kendra/trikona strength in the wrong reference frame.
+        lord_sign = planet_signs.get(lord, "")
+        lord_house_from_base = 0
+        if lord_sign in _SIGN_IDX and base_sign in _SIGN_IDX:
+            lord_house_from_base = ((_SIGN_IDX[lord_sign] - _SIGN_IDX[base_sign]) % 12) + 1
+        if lord_house_from_base in _KT:
             score *= 1.20
-            trace.append(f"  {tag}: {lord} in kendra/trikona → +20%")
+            trace.append(f"  {tag}: {lord} in kendra/trikona from {tag} ascendant ({base_sign}) → +20%")
+        if vit < 1.0:
+            trace.append(f"  {tag}: {lord} vitality reduced ({vit:.2f}) by D1 impairment.")
+        if _floored:
+            trace.append(
+                f"  {tag}: {lord} (H10 lord from {tag} ascendant) is not one of this field's "
+                "weighted karaka planets -- nominal structural floor only, no affinity backing."
+            )
         trace.append(f"  {tag}: H10 sign={h10_sign} lord={lord} aff={aff:.3f} → layer_score={score:.1f}")
         return min(score, 30.0)
 
-    s_lagna = _layer_score(lagna_lord, lagna_h10, "Lagna")
-    s_sun   = _layer_score(sun_lord,   sun_h10,   "Sun")
-    s_moon  = _layer_score(moon_lord,  moon_h10,  "Moon")
+    s_lagna = _layer_score(lagna_lord, lagna_h10, "Lagna", lagna_sign)
+    s_sun   = _layer_score(sun_lord,   sun_h10,   "Sun",   sun_sign)
+    s_moon  = _layer_score(moon_lord,  moon_h10,  "Moon",  moon_sign)
 
     # ── Convergence bonus ────────────────────────────────────────────────────
     # Bug fix (audit): Sudarshana Chakra's entire premise is AGREEMENT -- the
@@ -179,6 +255,38 @@ def score_sudarshana(
 
     raw = s_lagna + s_sun + s_moon + convergence_bonus
     score = min(round(raw, 2), 100.0)
+
+    # [CROSS-VERIFICATION NARRATIVE] (§9 audit, real-technique instrumentation):
+    # Sudarshana Chakra's own robustness bonus — the overlay of Lagna,
+    # Moon-as-Lagna, and Sun-as-Lagna as three simultaneous ascendants
+    # (lagna_lord/sun_lord/moon_lord already computed above) — reported per
+    # confirming planet, built from local variables only.
+    for _sd_lord, _sd_count in lord_counts.items():
+        if _sd_count >= 2:
+            # print(
+            #     f"Sudarshana robustness bonus — {_sd_lord}: {(convergence_bonus / 100.0):.3f} "
+            #     f"(angular/trinal from all 3 ascendants)"
+            #     if _sd_count == 3 else
+            #     f"Sudarshana robustness bonus — {_sd_lord}: {(convergence_bonus / 100.0):.3f} "
+            #     f"(confirmed by {_sd_count} of 3 ascendant overlays)"
+            # )
+            pass
+    # print(
+    #     f"[CROSS-VERIFICATION NARRATIVE] Sudarshana overlay checked H10 from Lagna "
+    #     f"({lagna_sign or '—'} → {lagna_h10 or '—'}, lord {lagna_lord or '—'}), from "
+    #     f"Moon-as-Lagna ({moon_sign or '—'} → {moon_h10 or '—'}, lord {moon_lord or '—'}), "
+    #     f"and from Sun-as-Lagna ({sun_sign or '—'} → {sun_h10 or '—'}, lord {sun_lord or '—'}); "
+    #     + (
+    #         f"planet(s) {', '.join(sorted(set(active_lords)))} held up across the overlay "
+    #         f"(max agreement {max_agreement} of 3 ascendants)"
+    #         if active_lords else "no planet held up with field-affinity backing across the overlay"
+    #     )
+    #     + ". Sudarshana's cross-check of three independent ascendant reference frames makes it "
+    #     "especially valuable as a robustness check under birth-time uncertainty, since a planet "
+    #     "confirmed from Moon-as-Lagna and Sun-as-Lagna (both largely insensitive to a few minutes' "
+    #     "birth-time error, unlike the Lagna-based cusp itself) still corroborates the judgment even "
+    #     "if the physical ascendant degree is only approximately known."
+    # )
 
     return {
         "score":           score,

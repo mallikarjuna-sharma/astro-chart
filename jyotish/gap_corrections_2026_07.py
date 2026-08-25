@@ -545,6 +545,29 @@ ADVANCED_PHYSICAL_ENGINEERING_FIELDS: Set[str] = {
     "polymer_plastics_engineering", "chemical_engineering",
     "chemical_engineering_data_science", "semiconductor_nanoelectronics",
     "nuclear_engineering", "robotics_automation", "ceramic_engineering",
+    # Gap-audit fix (2026-08): electrical_engineering, power_systems_engineering,
+    # energy_engineering, and aeronautical_engineering were absent from this
+    # whitelist despite being the same astrological category this mode exists
+    # to capture -- hard technical/structural engineering under a chart-wide
+    # strong-Saturn + Mars/Rahu/Ketu/Jupiter signature (Saturn/Rahu are the
+    # classical significators of electricity, power systems, and unconventional
+    # technology; Mars is the engineering/execution karaka). There is no
+    # documented rationale anywhere in this module for excluding them while
+    # including their closest siblings (chemical_engineering,
+    # automotive_engineering, semiconductor_nanoelectronics, aerospace_engineering
+    # are all present). Confirmed on a real chart (Midhula, 2026-08 audit):
+    # with this mode active, siblings inside the whitelist received +18-24%
+    # while electrical_engineering/power_systems_engineering/energy_engineering/
+    # aeronautical_engineering received 0% here -- and that gap then compounded
+    # through every later RELATIVE mechanism (interdomain normalization compares
+    # against the domain leader; the cross-batch 20-100 min-max stretch is
+    # skewed by whichever fields this mode inflated), producing a 59-64% final
+    # score collapse for fields that scored as strong or stronger than the
+    # boosted siblings on every raw method (electrical_engineering out-scored
+    # mechanical_engineering on K.N. Rao, KP, and Shashtiamsha in that same
+    # run). This was an incomplete whitelist, not an intentional exclusion.
+    "electrical_engineering", "power_systems_engineering",
+    "energy_engineering", "aeronautical_engineering",
 }
 SATURN_LAND_FALSE_POSITIVE_FIELDS: Set[str] = {
     "agriculture_forestry", "soil_science_agronomy", "horticulture",

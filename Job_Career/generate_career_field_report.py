@@ -12,6 +12,15 @@ OPENAI_API_KEY) for the narrative sections (identity, astrological signature,
 education routes, avoid-list, engine-gap audit, parent/student summaries).
 Without a key, the report is still generated with clearly labelled
 deterministic placeholder text in those sections.
+
+GAP-FIX (2026-08, "debug dump never created" investigation): the per-field
+astrologer-facing LLM explanations (jyotish/llm.py::call_llm_for_fields —
+and therefore the <chart_name>_astrological_signals_debug.json debug dump it
+can write when DEBUG=true) were previously NEVER triggered from this CLI,
+regardless of .env settings, because generate_career_field_report_v2's
+`enable_llm_field_explanations` parameter defaults to False and this script
+never passed it. Pass --llm to opt in (in addition to LLM consent, which is
+still required separately — see --llm's help text below).
 """
 import argparse
 import os as _os
@@ -45,6 +54,17 @@ def main() -> None:
     ap.add_argument("chart", help="Path to chart JSON file")
     ap.add_argument("--name", default=None, help="Override student name (default: chart's own name field)")
     ap.add_argument("--out", default="educational_records", help="Output directory (default: educational_records)")
+    ap.add_argument(
+        "--llm", action="store_true",
+        help=(
+            "Enable per-field LLM astrologer explanations (jyotish/llm.py::call_llm_for_fields). "
+            "Also requires LLM consent -- either external_llm_consent:true in the chart JSON's "
+            "student_context, or LLM_REPORT_CONSENT=true in .env -- plus a working "
+            "LLM_PROVIDER + API key in .env. Off by default: this makes a real LLM API call "
+            "per report. With DEBUG=true also set in .env, this is what triggers "
+            "<chart_name>_astrological_signals_debug.json to be written."
+        ),
+    )
     args = ap.parse_args()
 
     chart_path = pathlib.Path(args.chart).resolve()
@@ -53,7 +73,8 @@ def main() -> None:
         sys.exit(1)
 
     out_path = generate_career_field_report_v2(
-        str(chart_path), student_name=args.name, output_dir=args.out
+        str(chart_path), student_name=args.name, output_dir=args.out,
+        enable_llm_field_explanations=args.llm,
     )
     print(f"[JyotishAI] Career Field Recommendation Report written -> {out_path}")
 

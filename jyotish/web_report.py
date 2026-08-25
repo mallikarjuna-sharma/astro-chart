@@ -7,6 +7,27 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from .payload import NatalPayloadV2, logger
 from .foreign_opportunities import generate_foreign_report_beside
+# Gap-audit fix (2026-08): report_utils.py was created specifically to
+# de-duplicate field-label/cluster-label formatting between the CLI shim and
+# the report layer, but web_report.py never adopted it. On closer read (this
+# fix), the earlier audit's "duplicate cluster logic" characterization did
+# NOT hold up: this module's cluster rendering (career_cluster_report /
+# chart_type.domain_clusters, built upstream) is a structurally different
+# mechanism from report_utils.top20_as_four_cluster_groups/print_macro_cluster
+# (which classifies fields into Law/Medicine/Research/etc. buckets from a
+# hardcoded field-id set) -- web_report.py does not reimplement that
+# classification anywhere, so there is no cluster-logic duplication to
+# remove. The one real, trivially-safe overlap is field_display_name(): both
+# this module (at two call sites) and report_utils.py independently
+# formatted the "field_label, falling back to field_id" display string, with
+# a cosmetic difference in the fallback branch (this module previously
+# showed the raw underscored field_id; report_utils title-cases it). Since
+# field_label is always populated by the engine for every published result
+# row, that fallback branch is not reachable in normal operation -- so this
+# import/swap is a no-behavior-change-in-practice de-duplication, not a
+# functional change.
+from .report_utils import field_display_name
+from .kp_audit import audit_kp_cusps
 from .astrology_explainer import (
     _career_weather,
     _KP_CAREER_HOUSES,
@@ -504,7 +525,7 @@ _DA: Dict[str, str] = {
 
 def _gen_card(field: dict, rank: int) -> str:
     """Generates the HTML card for a single career field."""
-    label = esc(field.get("field_label", field.get("field_id", "Unknown")))
+    label = esc(field_display_name(field))
     domain = field.get("domain", "general").lower()
     score = field.get("final_score", field.get("_total_score", field.get("parashara_score", 0.0)))
     
@@ -929,7 +950,7 @@ def _gen_competency_hierarchy_section(results: List[Dict]) -> str:
         graph_rows.append(f"""
         <div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;background:#f8fafc;">
             <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-                <b style="color:#0f172a;">{esc(r.get('field_label', r.get('field_id', '')))}</b>
+                <b style="color:#0f172a;">{esc(field_display_name(r))}</b>
                 <span style="font-size:12px;color:#475569;">KG cluster: {esc(r.get('graph_cluster',''))}</span>
             </div>
             <div style="font-size:12px;color:#475569;margin-top:4px;">
@@ -4432,13 +4453,33 @@ def _tl_sidebar_html(payload: NatalPayloadV2, blocks: list, kp_cusps: dict,
 
     # ── KP Insights (H10 cuspal chain) ───────────────────────────────
     h10_cusp = (kp_cusps or {}).get("H10", {}) or {}
+    # GAP FIX (Phase 2 remediation, gap #8 birth-time-precision gating,
+    # deferred low-priority item A): this panel renders H10 star-lord/
+    # sub-lord/sub-sub-lord chain values directly to parents/astrologers
+    # with no indication that the scoring side (Job_Career/astro_enhancer.py
+    # enhancer_score_delta / Job_Career/timeline.py _score_period) already
+    # discounts this exact same KP chain data when birth time precision is
+    # uncertain (see CalculationPolicy.precise_cusps_allowed and
+    # jyotish/kp_audit.py::audit_kp_cusps "status"). Reusing those same two
+    # signals here (not inventing a new field) so the caveat only appears
+    # when the underlying numbers actually got discounted upstream.
+    _kp_policy = getattr(payload, "calculation_policy", None)
+    _kp_precise_allowed = bool(getattr(_kp_policy, "precise_cusps_allowed", True))
+    _kp_cusp_status = audit_kp_cusps(kp_cusps or {}, getattr(payload, "house_system", "") or "").get("status")
+    kp_caveat_html = ""
+    if (not _kp_precise_allowed) or (_kp_cusp_status != "VERIFIED"):
+        kp_caveat_html = (
+            '<div class="insight-caveat" style="font-size:0.85em;color:var(--amber,#B8720A);margin-top:6px;">'
+            'KP sub-lord/star-lord indications above are shown with reduced confidence '
+            'because birth time precision is uncertain.</div>'
+        )
     kp_panel_html = f"""<div class="insight-panel"><div class="insight-panel-title">KP Insights &mdash; H10 Cuspal Chain</div>
       <div class="insight-cells">
         <div class="insight-cell"><div class="insight-cell-label">Sign Lord</div><div class="insight-cell-val">{esc(h10_cusp.get("sign_lord","") or em)}</div></div>
         <div class="insight-cell"><div class="insight-cell-label">Star Lord</div><div class="insight-cell-val">{esc(h10_cusp.get("star_lord","") or em)}</div></div>
         <div class="insight-cell"><div class="insight-cell-label">Sub Lord</div><div class="insight-cell-val">{esc(h10_cusp.get("sub_lord","") or em)}</div></div>
         <div class="insight-cell"><div class="insight-cell-label">Sub-Sub Lord</div><div class="insight-cell-val">{esc(h10_cusp.get("sub_sub_lord","") or em)}</div></div>
-      </div></div>"""
+      </div>{kp_caveat_html}</div>"""
 
     # ── KN Rao Insights (Mahadasha lord + H10 relation) ───────────────
     # BUGFIX (2026-07-19, user-reported audit): "md_lord_houses_ruled" is

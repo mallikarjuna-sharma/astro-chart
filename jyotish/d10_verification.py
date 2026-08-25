@@ -7,10 +7,19 @@ def assess_d10_verification(payload:Any,canonical_report:Mapping[str,Any])->dict
     fact=(provenance.get("facts") or {}).get("D10.CHART") or {}
     uncertainty=max(0,int(getattr(payload,"birth_time_uncertainty_minutes",0) or 0))
     status=fact.get("status","MISSING")
+    # GAP-FIX (P0-2, CalculationPolicy threading): consult the single declared
+    # policy's precise_cusps_allowed instead of re-deriving an equivalent
+    # "== 'exact'" check locally (which silently ignored uncertainty_minutes
+    # and could drift from the policy's own definition of "precise").
+    _policy = getattr(payload, "calculation_policy", None)
+    if _policy is not None and hasattr(_policy, "precise_cusps_allowed"):
+        _precise = bool(_policy.precise_cusps_allowed)
+    else:
+        _precise = getattr(payload,"birth_time_precision","unknown")=="exact"
     return {"contract_version":"d10-verification.v1","fact_status":status,
             "calculation_source":fact.get("source"),"conflicts":provenance.get("conflicts",[]),
             "birth_time_uncertainty_minutes":uncertainty,
-            "sensitivity_status":"REQUIRED_NOT_RUN" if uncertainty or getattr(payload,"birth_time_precision","unknown")!="exact" else "NOT_REQUIRED_EXACT_DECLARED",
+            "sensitivity_status":"REQUIRED_NOT_RUN" if uncertainty or not _precise else "NOT_REQUIRED_EXACT_DECLARED",
             "authority_eligible":status=="CALCULATED" and not provenance.get("conflicts"),
             "golden_fixture_status":"NOT_AVAILABLE",
             "note":"Authority remains shadow-only until golden fixtures and real perturbation reruns pass."}

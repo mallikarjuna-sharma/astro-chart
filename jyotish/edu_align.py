@@ -3,7 +3,7 @@
 Implements three gap-fill modules for the student cohort:
 
   E-1  compute_d1_d24_stream_score(payload)
-       Cross-maps D1 H5 (intelligence house) × D24 H10 (academic profession)
+       Cross-maps D1 H5 (intelligence house) × D24 H9 (higher learning/guru)
        to produce technical / humanities / arts affinity scores.
 
   E-2  compute_sub_branch_compatibility(field_id, eff_strengths, planet_dignities)
@@ -24,9 +24,12 @@ Implements three gap-fill modules for the student cohort:
 """
 from __future__ import annotations
 
+import logging
 import math
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
+
+_logger = logging.getLogger("jyotish_engine_v11_0")
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -126,15 +129,89 @@ _STREAM_PLANET_WEIGHTS: Dict[str, Dict[str, float]] = {
 }
 
 
+def _check_d24_lagna_consistency(payload: Any) -> Dict[str, Any]:
+    """Gap-audit fix (2026-08, safe/non-scoring): detect drift between the
+    two independent D24-lagna read paths documented in the docstring below
+    (`payload.d24_lagna_sign` here vs.
+    `payload.divisional_charts["D24_siddhamsam"]["Lagna"]` in
+    Field_Determination/field_methods/siddhamsha.py::score_siddhamsha).
+
+    This is deliberately observation-only: it does not alter d1_d24 stream
+    scoring, siddhamsha scoring, or final_score in any way. It exists so a
+    real disagreement -- which the original docstring flagged as "a genuine
+    upstream payload-construction bug" that should be fixed at the source --
+    becomes a visible, loggable fact instead of silently going unnoticed
+    (the two paths were previously "intentionally not merged" with no way
+    to know if/when they actually diverge on a real chart).
+
+    Returns {"checked": bool, "consistent": bool, "d24_lagna_sign": str,
+    "divisional_charts_lagna": str} so callers can surface this in
+    diagnostics/reports without it affecting any score.
+    """
+    d24_lagna_field = getattr(payload, "d24_lagna_sign", "") or ""
+    divisional_charts = getattr(payload, "divisional_charts", {}) or {}
+    d24_chart = divisional_charts.get("D24_siddhamsam", {}) or {}
+    d24_lagna_chart = (
+        d24_chart.get("Lagna") if isinstance(d24_chart, dict) else None
+    ) or ""
+
+    if not d24_lagna_field or not d24_lagna_chart:
+        # One or both sources absent -- nothing to compare, not a disagreement.
+        return {
+            "checked": False,
+            "consistent": True,
+            "d24_lagna_sign": d24_lagna_field,
+            "divisional_charts_lagna": d24_lagna_chart,
+        }
+
+    consistent = str(d24_lagna_field).strip().lower() == str(d24_lagna_chart).strip().lower()
+    if not consistent:
+        _logger.warning(
+            "D24 lagna-sign disagreement between payload.d24_lagna_sign=%r "
+            "and payload.divisional_charts['D24_siddhamsam']['Lagna']=%r -- "
+            "compute_d1_d24_stream_score (edu_align.py) and score_siddhamsha "
+            "(Field_Determination/field_methods/siddhamsha.py) are reading "
+            "different D24 lagna values for the same chart. This indicates "
+            "an upstream payload-construction inconsistency (payload.py / "
+            "engine_io.py) and should be investigated at the source.",
+            d24_lagna_field, d24_lagna_chart,
+        )
+    return {
+        "checked": True,
+        "consistent": consistent,
+        "d24_lagna_sign": d24_lagna_field,
+        "divisional_charts_lagna": d24_lagna_chart,
+    }
+
+
 def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
-    """E-1: Cross-map D1 H5 × D24 H10 into stream affinity scores.
+    """E-1: Cross-map D1 H5 × D24 H9 into stream affinity scores.
+
+    Phase-5 remediation note (2026-08 gap-audit): this function and
+    Field_Determination/field_methods/siddhamsha.py::score_siddhamsha both
+    read D24 data from `payload`, but via different attribute paths --
+    this reads `payload.d24_lagna_sign` / `payload.d24_house_lords` while
+    score_siddhamsha reads `payload.divisional_charts["D24_siddhamsam"]`.
+    Both already share `payload.d24_planet_dignities` as a single source, so
+    dignity readings cannot drift between the two, but the *lagna sign* and
+    *house-lord* derivations are two independent code paths against
+    (presumably) the same underlying D24 chart object. These are
+    intentionally NOT merged here: this function answers a coarser question
+    ("technical vs. humanities vs. arts stream") while score_siddhamsha
+    answers a finer one ("how well does D24 support THIS specific field"),
+    and collapsing them risks silently changing either's calibration
+    without a real chart to validate against. If `payload.d24_lagna_sign`
+    and `payload.divisional_charts["D24_siddhamsam"]["Lagna"]` are ever
+    observed to disagree on a real chart, that is a genuine upstream
+    payload-construction bug (jyotish/payload.py / engine_io.py) and should
+    be fixed at the source, not patched around in either consumer.
 
     Args:
         payload: NatalPayloadV2 instance (or any object with required attrs).
 
     Returns dict:
         h5_d1_lord    : planet ruling H5 in D1
-        h10_d24_lord  : planet ruling H10 in D24
+        h9_d24_lord  : planet ruling H9 in D24
         technical     : float 0-1
         humanities    : float 0-1
         arts          : float 0-1
@@ -152,9 +229,21 @@ def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
     h5_sign_d1   = _nth_sign_from(lagna_sign, 5)
     h5_lord_d1   = house_lords.get("5") or house_lords.get("H5") or _sign_lord(h5_sign_d1)
 
-    # D24 H10 lord
-    h10_sign_d24 = _nth_sign_from(d24_lagna, 10) if d24_lagna else ""
-    h10_lord_d24 = getattr(payload, "d24_house_lords", {}).get("10") or _sign_lord(h10_sign_d24)
+    # D24 H9 lord
+    # GAP-FIX (2026-08, astrological audit): this previously read the D24
+    # 10TH house (career/karma in every standard bhava scheme) while this
+    # function's own docstring, and this same module's E-4 function
+    # (compute_academic_tier_recommendation, which correctly uses the D24
+    # 9th house), both frame D24 as the classical divisional chart for
+    # LEARNING specifically -- whose diagnostic houses are the lagna
+    # (baseline learning capacity) and the 9th (higher learning/guru), not
+    # the 10th. Using the 10th house here mixed a career-house signal into
+    # what was meant to be an education-alignment score, and did so
+    # inconsistently with E-4's correct convention for the same underlying
+    # "does D24 support deep learning" question. Changed to the 9th house
+    # to match the classical rule and this module's own E-4 usage.
+    h9_sign_d24 = _nth_sign_from(d24_lagna, 9) if d24_lagna else ""
+    h9_lord_d24 = getattr(payload, "d24_house_lords", {}).get("9") or _sign_lord(h9_sign_d24)
 
     # Dignity of D1 H5 lord in D24
     d24_dignity_of_h5_lord = d24_dignities.get(h5_lord_d1, "neutral")
@@ -165,11 +254,11 @@ def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
         return _map.get(str(dign).lower(), 0.5)
 
     h5_d1_weight  = _dignity_to_w(d24_dignity_of_h5_lord)
-    h10_d24_weight = _dignity_weight(h10_lord_d24, h10_sign_d24)
+    h9_d24_weight = _dignity_weight(h9_lord_d24, h9_sign_d24)
 
     # G21: detect D24 data availability; reduce confidence when absent
-    d24_available = bool(d24_lagna and h10_lord_d24)
-    cross_factor = (h5_d1_weight + h10_d24_weight) / 2.0
+    d24_available = bool(d24_lagna and h9_lord_d24)
+    cross_factor = (h5_d1_weight + h9_d24_weight) / 2.0
     if not d24_available:
         cross_factor *= 0.50  # halve cross-factor — D24 not verified
 
@@ -181,10 +270,10 @@ def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
             eff_strengths.get(p, 0.5) * w
             for p, w in weights.items()
         ) / total_w
-        # Cross-factor biases the score: H5×D24-H10 alignment
+        # Cross-factor biases the score: H5×D24-H9 alignment
         h5_bias  = weights.get(h5_lord_d1, 0.5) / max(weights.values())
-        h10_bias = weights.get(h10_lord_d24, 0.5) / max(weights.values())
-        cross_boost = cross_factor * (h5_bias + h10_bias) / 2.0 * 0.15
+        h9_bias = weights.get(h9_lord_d24, 0.5) / max(weights.values())
+        cross_boost = cross_factor * (h5_bias + h9_bias) / 2.0 * 0.15
         scores[stream] = min(1.0, raw * 0.85 + cross_boost)
 
     # Normalise so highest = 1.0
@@ -200,7 +289,7 @@ def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
     interp_parts = [
         f"H5(D1) lord is {h5_lord_d1 or '?'} "
         f"(dignity in D24: {d24_dignity_of_h5_lord}); "
-        f"H10(D24) lord is {h10_lord_d24 or '?'} in {h10_sign_d24 or '?'}.",
+        f"H9(D24) lord is {h9_lord_d24 or '?'} in {h9_sign_d24 or '?'}.",
         f"Cross-axis strength: {round(cross_factor * 100)}%.",
         f"Dominant stream: {dominant.capitalize()} "
         f"(confidence gap {round(confidence * 100)}%).",
@@ -208,8 +297,8 @@ def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
 
     return {
         "h5_d1_lord":      h5_lord_d1,
-        "h10_d24_lord":    h10_lord_d24,
-        "h10_d24_sign":    h10_sign_d24,
+        "h9_d24_lord":    h9_lord_d24,
+        "h9_d24_sign":    h9_sign_d24,
         "d24_dignity":     d24_dignity_of_h5_lord,
         "technical":       scores.get("technical", 0.5),
         "humanities":      scores.get("humanities", 0.5),
@@ -218,6 +307,10 @@ def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
         "confidence":      confidence,
         "interpretation":  " ".join(interp_parts),
         "d24_available":   d24_available,  # G21
+        # Gap-audit fix (2026-08): diagnostic-only cross-check against the
+        # independent D24-lagna read path used by siddhamsha.py. Does not
+        # affect any score above; see _check_d24_lagna_consistency().
+        "d24_lagna_consistency": _check_d24_lagna_consistency(payload),
     }
 
 
@@ -227,19 +320,59 @@ def compute_d1_d24_stream_score(payload: Any) -> Dict[str, Any]:
 
 # Format: {sub_branch_key: {planet: weight (0-3), ...}}
 # Higher weight = more importance of that planet for the branch.
+#
+# Gap-audit fix (2026-08): the 8 entries below marked "RECONCILED" were
+# previously drifting from jyotish/affinity.py::BRANCH_PLANET_AFFINITY's
+# vector for the same real-world field (surfaced by
+# check_affinity_table_drift(), above -- e.g. this table named Venus as
+# artificial_intelligence's/chemical's/biomedical's/entrepreneurship's
+# dominant planet, a karaka that didn't appear in affinity.py's vector for
+# those fields at all). Resolution: affinity.py is the primary, live
+# scoring table (drives field_methods' actual final_score/ranking) and
+# several of its entries carry explicit in-line audit rationale (e.g.
+# artificial_intelligence: "T3-B: Rahu dominant (disruption/machines);
+# Saturn added (training loops/rules); Ketu 0.25->0.10 (dissolution != ML)";
+# architecture: "Mercury raised for spatial geometry; Mars reduced") --
+# documented reasoning this table's original entries lacked. Each
+# reconciled entry below is affinity.py's own weight vector for the
+# matching key, rescaled onto this table's 0-3 display convention
+# (multiplied so the top planet lands at 3.0; compute_sub_branch_
+# compatibility() normalizes by total_weight, so the rescale changes
+# nothing structurally -- only the ABSOLUTE numbers look different,
+# relative proportions and therefore ranking/dominant-planet order are
+# identical to affinity.py's). This changes E-2 sub-branch tie-break output
+# for these 8 fields; it does NOT touch affinity.py or final_score/primary
+# ranking in any way. Re-run check_affinity_table_drift() after any future
+# edit to either table to confirm no new drift was introduced.
 _SUB_BRANCH_CLUSTERS: Dict[str, Dict[str, float]] = {
     # ── Engineering ──────────────────────────────────────────────────────────
     "computer_science":      {"Mercury": 3.0, "Rahu": 2.5, "Moon": 1.0, "Mars": 1.0},
-    "artificial_intelligence":{"Mercury":2.5, "Rahu":2.5, "Saturn":1.5, "Moon":1.0},
+    # RECONCILED (was Mercury/Rahu tie -> Mercury dominant; affinity.py's
+    # artificial_intelligence vector is Rahu-dominant, see banner above).
+    "artificial_intelligence":{"Rahu":3.0, "Mercury":2.57, "Saturn":1.29, "Ketu":0.86, "Jupiter":0.86},
     "electronics_comm":      {"Mercury": 3.0, "Rahu": 2.0, "Mars": 1.5, "Sun": 1.0},
     "electrical":            {"Sun": 2.5,    "Mars": 2.0, "Mercury": 1.5, "Saturn": 1.0},
     "mechanical":            {"Mars": 3.0,   "Saturn": 2.5, "Sun": 1.5},
     "civil":                 {"Saturn": 3.0, "Mars": 2.0, "Venus": 1.5},
-    "chemical":              {"Venus": 2.5,  "Mercury": 2.0, "Mars": 1.5, "Moon": 1.0},
+    # RECONCILED (2026-08, updated again after domain review): Venus added
+    # back into affinity.py::chemical_engineering as a secondary planet
+    # (rasa/formulation signification) -- Mars/Saturn remain tied dominant
+    # for the engineering discipline specifically. Mirrors affinity.py's
+    # current chemical_engineering vector exactly (rescaled to this file's
+    # 0-3 convention); see affinity.py's in-line comment for the full
+    # domain-review rationale.
+    "chemical":              {"Mars":3.0, "Saturn":3.0, "Mercury":2.54, "Sun":1.5, "Venus":1.5},
     "metallurgy":            {"Mars": 3.0,   "Saturn": 3.0, "Ketu": 2.0},
-    "materials_science":     {"Mars": 2.5,   "Saturn": 2.5, "Ketu": 2.0, "Mercury": 1.0},
-    "aerospace":             {"Mars": 2.5,   "Rahu": 2.0,  "Sun": 2.0,   "Mercury": 1.5},
-    "biomedical":            {"Moon": 2.5,   "Venus": 2.0, "Mercury": 2.0, "Mars": 1.0},
+    # RECONCILED (was Mars/Saturn tie -> Mars dominant; affinity.py's
+    # materials_science_engineering vector is clearly Saturn-dominant).
+    "materials_science":     {"Saturn":3.0, "Mars":2.57, "Rahu":1.71, "Ketu":1.29},
+    # RECONCILED (was Mars-dominant, which does agree with affinity.py's
+    # #2 planet, but affinity.py's aerospace_engineering vector is
+    # Rahu-dominant, not Mars).
+    "aerospace":             {"Rahu":3.0, "Mars":2.57, "Saturn":1.71, "Mercury":1.29},
+    # RECONCILED (was Moon-dominant; Venus is absent from affinity.py's
+    # biomedical_engineering vector entirely -- Mars is dominant there).
+    "biomedical":            {"Mars":3.0, "Mercury":2.5, "Moon":2.5, "Jupiter":2.0},
     "environmental":         {"Moon": 2.5,   "Venus": 2.0, "Saturn": 1.5, "Mercury": 1.0},
     # ── Medical ──────────────────────────────────────────────────────────────
     "surgery":               {"Mars": 3.0,   "Sun": 2.0,  "Saturn": 1.5, "Ketu": 1.0},
@@ -250,10 +383,18 @@ _SUB_BRANCH_CLUSTERS: Dict[str, Dict[str, float]] = {
     "dermatology":           {"Venus": 2.5,  "Moon": 2.0,   "Mercury": 1.5},
     # ── Commerce / Management ────────────────────────────────────────────────
     "finance":               {"Jupiter": 3.0,"Mercury": 2.5, "Venus": 1.5, "Saturn": 1.0},
-    "marketing":             {"Venus": 2.5,  "Mercury": 2.5, "Moon": 2.0, "Jupiter": 1.0},
+    # RECONCILED (was Venus/Mercury tie -> Venus dominant; affinity.py's
+    # digital_marketing vector is clearly Mercury-dominant, Venus 3rd not 1st).
+    "marketing":             {"Mercury":3.0, "Rahu":2.57, "Venus":1.71, "Mars":1.29},
     "hr_management":         {"Venus": 2.5,  "Moon": 2.0,   "Jupiter": 2.0, "Mercury": 1.5},
     "operations_logistics":  {"Saturn": 2.5, "Mars": 2.0,   "Mercury": 1.5},
-    "entrepreneurship":      {"Sun": 2.5,    "Jupiter": 2.0,"Mars": 2.0,  "Rahu": 1.5},
+    # RECONCILED (2026-08, updated again after domain review): Sun added
+    # back into affinity.py::entrepreneurship as a secondary planet
+    # (self-made-authority signification) -- Mars/Jupiter remain tied
+    # dominant. Mirrors affinity.py's current entrepreneurship vector
+    # exactly (rescaled to this file's 0-3 convention); see affinity.py's
+    # in-line comment for the full domain-review rationale.
+    "entrepreneurship":      {"Mars":3.0, "Jupiter":3.0, "Mercury":2.54, "Rahu":1.5, "Sun":1.5},
     # ── Sciences ─────────────────────────────────────────────────────────────
     "physics":               {"Sun": 2.5,    "Saturn": 2.0, "Mercury": 2.0, "Ketu": 1.5},
     "mathematics":           {"Mercury": 3.0,"Saturn": 2.5, "Moon": 1.5,  "Ketu": 1.0},
@@ -265,7 +406,10 @@ _SUB_BRANCH_CLUSTERS: Dict[str, Dict[str, float]] = {
     "journalism":            {"Mercury": 3.0,"Rahu": 2.0,   "Moon": 2.0, "Mars": 1.0},
     "psychology":            {"Moon": 3.0,   "Mercury": 2.5,"Ketu": 1.5, "Venus": 1.0},
     "fine_arts":             {"Venus": 3.0,  "Moon": 2.5,   "Rahu": 1.5, "Mercury": 1.0},
-    "architecture":          {"Venus": 2.5,  "Saturn": 2.0, "Mercury": 1.5,"Mars": 1.5},
+    # RECONCILED (was Venus-dominant; affinity.py's architecture vector is
+    # Saturn-dominant, per its own in-line audit note "Mercury raised for
+    # spatial geometry; Mars reduced" -- Venus is present but 2nd, not 1st).
+    "architecture":          {"Saturn":3.0, "Venus":2.25, "Mercury":1.5, "Mars":0.75},
     "education_teaching":    {"Jupiter": 3.0,"Moon": 2.0,   "Mercury": 2.0,"Venus": 1.0},
     "sports":                {"Mars": 3.0,   "Sun": 2.5,    "Rahu": 1.5,  "Saturn": 1.0},
 }
@@ -308,6 +452,117 @@ _SUB_BRANCH_LABELS: Dict[str, str] = {
     "education_teaching": "Education & Teaching",
     "sports": "Sports Science",
 }
+
+
+# ---------------------------------------------------------------------------
+# Gap-audit fix (2026-08, diagnostic-only, non-scoring): _SUB_BRANCH_CLUSTERS
+# above and jyotish/affinity.py::BRANCH_PLANET_AFFINITY are two independently
+# -maintained planet-weight tables that cover overlapping ground -- e.g. this
+# module's "civil" cluster and affinity.py's "civil_engineering" branch are
+# both meant to describe the same real-world field's planetary signature,
+# but nothing keeps the two in sync, and compute_sub_branch_compatibility()
+# (E-2, below) and affinity.py's compute_branch_affinity_score_llm() are two
+# separate scoring paths that could silently drift apart on the same field
+# without anyone noticing.
+#
+# This is intentionally NOT a merge: the two tables serve different
+# purposes (_SUB_BRANCH_CLUSTERS is a coarser 0-3 "sub-branch flavor" scale
+# used for advisory tie-breaking; BRANCH_PLANET_AFFINITY is the primary,
+# validated 0-1-normalized weight vector that field_methods/ actually scores
+# against) and merging them would change compute_sub_branch_compatibility's
+# and/or the primary affinity score's calibration with no real-chart
+# validation behind that change. Instead, only the KEY OVERLAP is curated
+# here (pairs where the two modules are unambiguously describing the same
+# field -- not guessed via fuzzy string matching, which would risk false
+# positives), and a checker flags any pair whose *dominant* (highest-weight)
+# planet disagrees, so a human can review real drift without either table
+# being auto-corrected.
+_SUB_BRANCH_TO_AFFINITY_KEY: Dict[str, str] = {
+    "computer_science":     "computer_science_engineering",
+    "artificial_intelligence": "artificial_intelligence",
+    "electronics_comm":      "electronics_communication_engineering",
+    "electrical":            "electrical_engineering",
+    "mechanical":            "mechanical_engineering",
+    "civil":                 "civil_engineering",
+    "chemical":              "chemical_engineering",
+    "materials_science":     "materials_science_engineering",
+    "aerospace":             "aerospace_engineering",
+    "biomedical":            "biomedical_engineering",
+    "environmental":         "environmental_engineering",
+    "psychiatry":            "psychiatry",
+    "finance":               "finance_banking",
+    "marketing":             "digital_marketing",
+    "entrepreneurship":      "entrepreneurship",
+    "physics":               "physics",
+    "mathematics":           "mathematics",
+    "chemistry":             "chemistry",
+    "biology":               "biology",
+    "astronomy":             "astronomy_astrophysics",
+    "law":                   "law_llb",
+    "journalism":            "journalism_media",
+    "psychology":            "psychology",
+    "fine_arts":             "fine_arts",
+    "architecture":          "architecture",
+    "education_teaching":    "education_teaching",
+    "sports":                "sports_science_management",
+    # Deliberately NOT mapped (no unambiguous 1:1 counterpart found in
+    # BRANCH_PLANET_AFFINITY -- these are medical specialties / management
+    # sub-fields the affinity table does not carry at this granularity):
+    # "metallurgy", "surgery", "pediatrics", "pharmacology", "radiology",
+    # "dermatology", "hr_management", "operations_logistics".
+}
+
+
+def check_affinity_table_drift() -> List[Dict[str, Any]]:
+    """Diagnostic-only (no score/ranking effect): for every curated key pair
+    in _SUB_BRANCH_TO_AFFINITY_KEY, compare the dominant (highest-weight)
+    planet in this module's _SUB_BRANCH_CLUSTERS entry against the dominant
+    planet in jyotish.affinity.BRANCH_PLANET_AFFINITY's entry for the same
+    real-world field. Returns a list of disagreement records (empty list =
+    no drift detected among the curated pairs).
+
+    Import of jyotish.affinity is deferred to call time (not module level)
+    to avoid any import-order fragility, even though affinity.py does not
+    currently import edu_align.py (verified: no circular dependency).
+
+    Each disagreement record:
+        {sub_branch_key, affinity_key, sub_branch_dominant_planet,
+         affinity_dominant_planet, sub_branch_weights, affinity_weights}
+
+    Intended use: call this from a test or a one-off diagnostic script, not
+    from the live scoring path -- it does not affect final_score, rank, or
+    any per-field output.
+    """
+    try:
+        from .affinity import BRANCH_PLANET_AFFINITY
+    except ImportError:
+        # Should not happen in a normal install; fail soft since this is a
+        # diagnostic utility, not part of the scoring critical path.
+        return []
+
+    def _dominant(weights: Dict[str, float]) -> str:
+        if not weights:
+            return ""
+        return max(weights.items(), key=lambda kv: kv[1])[0]
+
+    drift: List[Dict[str, Any]] = []
+    for sub_key, affinity_key in _SUB_BRANCH_TO_AFFINITY_KEY.items():
+        sub_weights = _SUB_BRANCH_CLUSTERS.get(sub_key, {})
+        aff_weights = BRANCH_PLANET_AFFINITY.get(affinity_key, {})
+        if not sub_weights or not aff_weights:
+            continue  # one side missing the key -- not a drift, a coverage gap
+        sub_dom = _dominant(sub_weights)
+        aff_dom = _dominant(aff_weights)
+        if sub_dom != aff_dom:
+            drift.append({
+                "sub_branch_key": sub_key,
+                "affinity_key": affinity_key,
+                "sub_branch_dominant_planet": sub_dom,
+                "affinity_dominant_planet": aff_dom,
+                "sub_branch_weights": dict(sub_weights),
+                "affinity_weights": dict(aff_weights),
+            })
+    return drift
 
 
 def compute_sub_branch_compatibility(

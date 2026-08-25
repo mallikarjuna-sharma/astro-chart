@@ -31,6 +31,22 @@ consent flag altered for any other caller.
 Payload safety: the payload is deep-copied before being handed to
 run_engine() so this bridge can never mutate the caller's own chart object,
 regardless of what run_engine() does internally.
+
+2026-08-22 audit fix (gap 10, KNOWN ACCEPTED LIMITATION, documentation only):
+the under-15/adult engine choice is a hard age cutoff (see
+early_age_stream_engine.py::is_eligible's own matching note) with no
+smoothing across the boundary -- a chart at current_age just below
+AGE_THRESHOLD_YEARS is scored entirely by Stream_Determination, and the same
+chart just at/above it is scored entirely by Field_Determination's adult
+engine, two independently-tuned engines that can disagree. This bridge
+module only fetches SUPPLEMENTARY adult-engine evidence for an
+already-under-15 chart (cross_validate.py's report-only comparison,
+field_derived_stream.py's optional capped section) -- it never runs as an
+alternative full determination for a boundary chart, so it has no natural
+place to blend two determinations even if that were otherwise safe. The
+actual dispatch decision lives in Field_Determination/education_engine.py's
+__main__ block, outside this directory, so a same-run blend is out of scope
+for a bounded fix here; documenting the discontinuity is the safe choice.
 """
 from __future__ import annotations
 

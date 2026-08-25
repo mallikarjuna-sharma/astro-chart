@@ -88,8 +88,16 @@ _TITHI_NAMES = [
     "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Amavasya",  # Krishna
 ]
 
-# Inauspicious tithis for examinations and new ventures
-_MALEFIC_TITHIS = {4, 8, 12, 14, 15, 19, 23, 27, 29, 30}  # 1-indexed
+# Inauspicious tithis for examinations and new ventures — the classical
+# Rikta ("empty") tithi group: every 5th tithi counting from Chaturthi
+# (Chaturthi/Navami/Chaturdashi, in both Shukla and Krishna paksha).
+# GAP-FIX (2026-08, astrological audit): this set previously omitted
+# Navami (tithi 9 and 24) entirely -- a genuinely Rikta/inauspicious tithi
+# was silently reported as auspicious -- and instead included Ashtami/
+# Dwadashi (8, 12, 23, 27) and Purnima/Amavasya (15, 30), none of which
+# belong to the classical Rikta scheme. Corrected to the exact six Rikta
+# tithis: 4, 9, 14 (Shukla) and 19, 24, 29 (Krishna).
+_MALEFIC_TITHIS = {4, 9, 14, 19, 24, 29}  # 1-indexed, classical Rikta tithis
 
 # Vara (weekday) lords  — Python weekday: Mon=0 … Sun=6
 _VARA_LORDS = {

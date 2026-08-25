@@ -24,6 +24,36 @@ from .field_derived_stream import FIELD_DERIVED_EVIDENCE_CAP
 REPORT_CONTRACT_VERSION = "stream-determination-report.v5"
 
 
+# 2026-08-22 audit fix (gap 6): companion to STREAM_META's Rahu/Ketu weights
+# in subject_registry.py -- those weights carry a source comment noting
+# Rahu/Ketu significator use in Science is "NOT a BPHS-original... common
+# Jaimini-adjacent practice, not a classical BPHS doctrine", but that
+# disclosure never reached a generated report. This surfaces it as a short
+# note whenever Rahu/Ketu is one of a stream's weighted signature planets
+# AND actually carries meaningful (above-baseline) strength for this chart.
+_RAHU_KETU_CAVEAT_TEXT = (
+    "Note: Rahu/Ketu weighting for this stream reflects contemporary "
+    "practitioner usage, not classical BPHS doctrine."
+)
+
+
+def _rahu_ketu_caveat(stream_id: str, planet_strengths: Dict[str, Any]) -> str | None:
+    meta = STREAM_META.get(stream_id, {})
+    weights = meta.get("planets", {}) or {}
+    for shadow_planet in ("Rahu", "Ketu"):
+        if shadow_planet not in weights:
+            continue
+        strength = planet_strengths.get(shadow_planet)
+        if strength is None:
+            continue
+        try:
+            if float(strength) > 1.0:
+                return _RAHU_KETU_CAVEAT_TEXT
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def build_report_payload(
     payload: Any, determination: Dict[str, Any], *,
     forced_override: bool = False, eligibility_status: str = "NORMAL",
@@ -167,6 +197,24 @@ def build_report_payload(
                 "d24_confirmation_signal_state": s.get("d24_confirmation_signal_state", "UNKNOWN"),
                 "trace": s.get("trace", []),
                 "subjects": s.get("subjects", []),
+                # 2026-08-22 audit fix (gap 6): the Rahu/Ketu "not BPHS-
+                # original, contemporary-practice" caveat previously existed
+                # only as a source comment in subject_registry.py, invisible
+                # to anyone reading a generated report. Surface it here
+                # whenever Rahu or Ketu meaningfully contributed to this
+                # stream's score (i.e. is one of its weighted signature
+                # planets AND has an above-baseline eff_strength).
+                "rahu_ketu_caveat": _rahu_ketu_caveat(
+                    s["stream_id"], determination.get("planet_strengths", {}) or {}
+                ),
+                # Round 4 addition: which classical yogas (Budha-Aditya,
+                # Saraswati, Dharma-Karmadhipati, Gaja-Kesari, Dhana) were
+                # detected as present AND relevant to this stream, and the
+                # bounded score adjustment they produced -- see
+                # stream_scoring.py::score_stream's "yoga_detection" field,
+                # wired through the same way "rahu_ketu_caveat" was wired in
+                # round 2.
+                "yoga_detection": s.get("yoga_detection", {}),
             }
             for s in determination.get("streams", [])
         ],

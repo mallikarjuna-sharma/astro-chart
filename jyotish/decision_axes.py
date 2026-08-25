@@ -38,7 +38,22 @@ def _domain_native_score(row:Mapping[str,Any])->tuple[float,dict]:
     domain=str(row.get("domain","") or "").lower()
     scores=(row.get("d10_chart_native_archetypes") or {}).get("scores",{}) or {}
     mapping=next((weights for key,weights in DOMAIN_ARCHETYPES.items() if key in domain),{})
-    if not mapping:return 0.0,{"status":"UNMAPPED_DOMAIN","domain":domain,"weights":{}}
+    # Gap-audit fix (2026-08): DOMAIN_ARCHETYPES only recognizes 8 domain
+    # strings (engineering/technology/medicine/arts/law/science/business/
+    # education). Real registry rows also carry domains like "commerce",
+    # "humanities", and "public" (e.g. entrepreneurship, defence_strategic_
+    # studies, defence_military -- see jyotish/india_course_registry_v12.json)
+    # that hit this branch every time. The previous fallback returned 0.0 --
+    # the WORST possible score for this 8%-weighted component, silently
+    # applied to real fields for a taxonomy gap that has nothing to do with
+    # their actual chart evidence. This is exactly the "not computed" vs "0"
+    # conflation this same module's `_clamp` docstring above already
+    # identifies as a defect class; 0.0 here committed it again. Fixed to
+    # return a neutral 50.0 (this module's own established convention for
+    # "not computed" -- see `educational=_clamp(...,50)` in
+    # attach_decision_axes below), and the "UNMAPPED_DOMAIN" status is
+    # unchanged so the gap remains fully traceable in the audit trail.
+    if not mapping:return 50.0,{"status":"UNMAPPED_DOMAIN","domain":domain,"weights":{}}
     value=sum(float(scores.get(k,0))*w for k,w in mapping.items())/sum(mapping.values())
     return _clamp(value),{"status":"CALCULATED","domain":domain,"weights":mapping}
 
@@ -133,7 +148,26 @@ def attach_decision_axes(rows:list[dict],canonical_report:Mapping[str,Any])->lis
             row["final_score"] = round(original_final_score * penalty_factor, 4)
 
         row["decision_axes"]={
-            "contract_version":"decision-axes.v1-shadow","authoritative":False,
+            "contract_version":"decision-axes.v1-shadow",
+            # GAP-FIX (2026-08, structural-risk audit): this top-level
+            # "authoritative": False describes the axes below it (permanent_
+            # astro_fit, within_chart_index, evidence_confidence, etc.) --
+            # display/diagnostic scores that never touch final_score or
+            # ranking. It does NOT describe "d1_d10_disagreement_penalty"
+            # nested a few keys down: that block DOES mutate row["final_score"]
+            # in place a few lines above (see original_final_score /
+            # penalty_factor above), by explicit design (2026-07 astrologer's
+            # audit fix 2), so it is genuinely ranking-affecting. Previously
+            # the single "authoritative": False at this level silently
+            # covered both, misdescribing the penalty block as cosmetic --
+            # exactly the kind of self-documentation trap that could lead a
+            # future maintainer to treat changing/removing it as risk-free
+            # when it is not. The penalty block now carries its own explicit
+            # "authoritative": True (see below) so the two claims don't
+            # collide; this outer flag's scope is narrowed to the axes that
+            # were always meant to be display-only.
+            "authoritative":False,
+            "authoritative_scope":"display_axes_only_see_d1_d10_disagreement_penalty_for_ranking_affecting_block",
             "legacy_relative_score":original_final_score,
             "permanent_astro_fit":round(permanent,4),"within_chart_index":None,
             "educational_suitability":round(educational,4),"evidence_confidence":round(confidence,4),
@@ -146,6 +180,11 @@ def attach_decision_axes(rows:list[dict],canonical_report:Mapping[str,Any])->lis
             "d1_d10_disagreement_penalty":{
                 **penalty_detail,
                 "contract_version": D1_D10_DISAGREEMENT_PENALTY_VERSION,
+                # This block IS ranking-affecting, unlike the rest of
+                # decision_axes -- see the "authoritative_scope" note on the
+                # parent dict above. final_score has already been mutated
+                # in place above by the time this dict is built.
+                "authoritative": True,
                 "final_score_before_penalty": original_final_score,
                 "final_score_after_penalty": round(float(row.get("final_score", 0)), 4),
                 "applied_to_final_score": penalty_factor < 1.0,

@@ -64,6 +64,41 @@ logger = logging.getLogger(__name__)
 VALIDATOR_VERSION = "career_validator_v1.1"  # bumped to invalidate stale pyc
 
 # ---------------------------------------------------------------------------
+# Gap-audit fix (2026-08): sanitizer for the one place in this file (and,
+# per the wider audit, in the whole jyotish/ LLM-integration layer) where
+# genuine free-text *user* input -- career-event description/role/company/
+# notes, supplied via extract_actual_history_from_payload() or a direct API
+# caller -- is interpolated into an LLM prompt. Every other prompt in this
+# module is built from server-controlled structured data (scores, dates,
+# chart facts), which is why this is the actual injection-risk surface, not
+# those. This does not attempt full prompt-injection defense (an LLM can
+# still be influenced by adversarial *content*, which no string filter can
+# fully prevent) -- it specifically closes the two concrete, testable risks:
+# (1) embedded newlines/control chars forging a fake "[Axx] ... ━━━" section
+# boundary that could desynchronize the validator's structured event index,
+# and (2) unbounded length pushing other prompt content out of context.
+# ---------------------------------------------------------------------------
+_USER_TEXT_MAX_LEN = 300
+
+
+def _sanitize_user_text(value: Any, max_len: int = _USER_TEXT_MAX_LEN) -> str:
+    """Collapse newlines/control chars and cap length on untrusted text
+    before it is embedded into an LLM prompt. Non-string input is coerced
+    via str(); None/empty returns "".
+    """
+    if value is None:
+        return ""
+    text = str(value)
+    # Collapse all whitespace runs (including newlines/tabs/CR) to a single
+    # space so multi-line input can't forge a new prompt line/section.
+    text = " ".join(text.split())
+    # Strip any remaining non-printable/control characters defensively.
+    text = "".join(ch for ch in text if ch.isprintable() or ch == " ")
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return text
+
+# ---------------------------------------------------------------------------
 # D10 DEVATA DIAGNOSTIC LABELS
 # ---------------------------------------------------------------------------
 _D10_ARCHETYPE_LABEL = {
@@ -702,6 +737,14 @@ def build_chart_summary_for_validation(payload: Any) -> str:
     retrogrades   = _g("retrograde_planets", [])
 
     # KP data
+    # CAVEAT (2026-08-21, remediation plan item 2.4, lower-priority): this KP
+    # cusp data is fed to the LLM prompt as-is, with no birth-time-precision
+    # or cusp-verification caveat attached — unlike the Tier 6 KP scoring
+    # path in Job_Career/astro_enhancer.py, which now degrades its
+    # contribution under birth-time uncertainty and unverified cusp chains
+    # (see enhancer_score_delta()). Display/prompt text only (not scoring
+    # math), so left as a flagged caveat here rather than changed, per the
+    # remediation plan's explicit "more liberty here" scoping for this item.
     kp_cusps      = _g("kp_cusps", {}) or {}
     h10_kp        = kp_cusps.get("H10", {}) or {}
     h11_kp        = kp_cusps.get("H11", {}) or {}
@@ -982,15 +1025,33 @@ def build_validator_user_message(
     # Supports two formats:
     #   Validator format:     {date, description, company, intensity}
     #   career_events format: {date, event_type, role, company, notes}
+    #
+    # Gap-audit fix (2026-08): description/role/company/notes/event_type are
+    # free-text fields sourced directly from the end user (this is the one
+    # place in the LLM-integration layer where genuine user-supplied text
+    # reaches a prompt, as opposed to the server-controlled structured data
+    # used everywhere else in this file). Previously interpolated verbatim
+    # with no escaping or length bound, which meant a user could: (a) embed
+    # newlines + fake `[Axx]`/`━━━ ... ━━━` section markers to try to forge
+    # additional history entries or spoof a new prompt section boundary,
+    # confusing the structured [Axx]-index matching the validator LLM relies
+    # on, or (b) submit an unbounded-length string to inflate token usage /
+    # push other content out of context. _sanitize_user_text() below strips
+    # control/newline characters (collapsing them to a single space, so a
+    # multi-line "event description" still reads as one line and cannot
+    # inject a fake delimiter/section boundary) and caps length. This does
+    # not change any scoring/validation logic -- only how untrusted text is
+    # embedded into the prompt string.
     def _fmt_event(e: Dict, idx: int) -> str:
         desc = (e.get("description")
                 or e.get("notes")
                 or e.get("event_type", "?").replace("_", " ").title())
-        role = e.get("role", "")
+        desc = _sanitize_user_text(desc)
+        role = _sanitize_user_text(e.get("role", ""))
         if role and role not in desc:
             desc = f"{role} — {desc}"
         parts = [f"[A{idx:02d}]", e.get("date", "?"), "|", desc]
-        co = e.get("company", "")
+        co = _sanitize_user_text(e.get("company", ""))
         if co:
             parts += ["@", co]
         intensity = e.get("intensity", "")

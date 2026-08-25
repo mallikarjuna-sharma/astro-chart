@@ -368,20 +368,15 @@ _MAHESHWARA_DOMAIN_KW: Dict[str, List[str]] = {
     "Ketu":    ["research","ayurveda","spiritual","philosophy","archaeology","investigation"],
 }
 
-def _maheshwara_lord_bonus(label: str, maheshwara_lord: str, affinity: Dict[str, float]) -> float:
-    """FIX-6: Maheshwara lord (Jaimini special lord) now contributes to branch scoring.
-    Maheshwara represents the peak institutional authority phase of the native's career.
-    When a branch aligns with the Maheshwara lord's domain keywords, it receives a bonus."""
-    if not maheshwara_lord:
-        return 0.0
-    kws = _MAHESHWARA_DOMAIN_KW.get(maheshwara_lord, [])
-    if not any(kw in label.lower() for kw in kws):
-        return 0.0
-    w = affinity.get(maheshwara_lord, 0.0)
-    if   w >= 0.25: return 0.07
-    if   w >= 0.15: return 0.04
-    if   w >= 0.08: return 0.02
-    return 0.0
+# 2026-08-17 cleanup: this file used to have its own stale copy of
+# _maheshwara_lord_bonus() (plain substring keyword matching, no word-boundary
+# guard) alongside boosts.py's real one (which uses the word-boundary-safe
+# _wm() matcher and is what every live call site actually imports -- see
+# jyotish/engine.py and Field_Determination/field_methods/jaimini.py). This
+# copy had zero importers anywhere in the repo, so it never affected any
+# score; removed as dead code rather than left as a landmine for a future
+# import-from-the-wrong-module mistake. See
+# md/ENGINE_SIMPLIFICATION_2026-08-17_combustion_unify.md.
 
 _STREAM_MAP = {
     # domain → recommended 11th-12th stream

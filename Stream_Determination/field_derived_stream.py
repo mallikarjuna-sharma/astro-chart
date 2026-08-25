@@ -181,6 +181,13 @@ def derive_stream_marks_from_field_determination(
     # all discount how far this section's distribution is allowed to pull
     # away from a neutral 1/3-each split -- thin or poorly-mapped evidence
     # shrinks toward neutral rather than asserting a strong opinion.
+    # NOTE (engineered, not classically derived): the 20/8 denominators below
+    # and the 0.5/0.3/0.2 blend weights are tuned constants, not sourced
+    # values -- same disclosure as stream_scoring.py's weighted_strength
+    # scale-constant note (~L2226-2239): "nothing in the astrological
+    # literature specifies" these particular thresholds/weights; they were
+    # picked so reliability behaves reasonably across typical inputs, not
+    # derived from any formal mapping. Treat as unvalidated tuning.
     field_count_factor = min(1.0, len(usable) / 20.0)
     family_breadth_factor = min(1.0, family_count / 8.0)
     reliability = max(0.0, min(1.0, mapping_coverage * 0.5 + field_count_factor * 0.3 + family_breadth_factor * 0.2))

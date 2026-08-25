@@ -90,6 +90,17 @@ def build_stream_narrative_evidence(payload: Any, determination: Dict[str, Any])
                      "core": bool(subject.get("core"))}
                     for subject in (stream.get("subjects") or [])[:5]
                 ],
+                # Round 4 addition: names only (no scores/strengths -- keeps
+                # this packet minimal, consistent with the rest of this
+                # function's "minimized, calculated-only" evidence
+                # convention) of any classically-detected yoga relevant to
+                # this stream, so the LLM prompt/fallback narrative MAY
+                # mention one if present. Empty list is the normal case and
+                # must not change narrative generation.
+                "yogas_present": [
+                    y.get("yoga_name") for y in (stream.get("yoga_detection", {}) or {}).get("contributing_yogas", [])
+                    if y.get("relevant_to_this_stream")
+                ],
             }
             for stream in streams
         ],
@@ -99,6 +110,76 @@ def build_stream_narrative_evidence(payload: Any, determination: Dict[str, Any])
             "age_routing_note": determination.get("age_routing_note"),
             "scores_are_probabilities": False,
         },
+    }
+
+
+# GAP FIX (2026-08-21, remediation plan item 2.6; source:
+# audit/CURRENT_ASTROLOGICAL_LOGIC_AND_LLM_VALIDATION_AUDIT_2026-07-17.md,
+# "Best production prompt: rule-trace validator" section). That section
+# specs a fuller validator design: per-claim OBSERVED/DERIVED/TRADITIONAL/
+# HEURISTIC/CONCLUSION classification, source-support checking, and
+# birth-time-sensitivity tagging. jyotish/llm_validator.py already
+# implements the full per-claim version of that design for the rule-trace
+# validator pipeline (see VALIDATOR_VERSION there). This module's
+# `validation` block, however, is a different, narrower validator (schema_
+# valid/facts_grounded/decision_unchanged/unsupported_claims only) that
+# runs on the free-form 3-4 paragraph student/astrological narratives
+# produced here -- there is no per-claim list in this module's LLM output
+# schema to classify individually without a breaking prompt/schema change,
+# which is too large a change to make safely in this pass (untested
+# Phase 1 changes still pending pytest verification).
+#
+# Implemented here as an ADDITIVE, deterministic (non-LLM) partial version:
+# - birth_time_sensitivity: reuses the exact none/low/medium/high/unknown
+#   vocabulary llm_validator.py's schema already uses for the same concept,
+#   computed from the evidence packet's own input_quality/age_routing_note
+#   fields (no new LLM call, no schema risk).
+# - claim_classification: a coarse, SECTION-level (not per-claim) tag using
+#   the same observed/derived/traditional/heuristic/conclusion vocabulary --
+#   student_narrative is a conclusion restating the locked decision;
+#   astrological_narrative is derived/traditional reasoning presented from
+#   the calculated evidence. This is explicitly labeled as section-level,
+#   not per-sentence, to avoid overstating precision.
+# Deferred: true per-claim classification and source_support checking would
+# require restructuring the LLM output into an itemized claims list (like
+# llm_validator.py's schema) -- left for a future, non-conservative pass.
+def _birth_time_sensitivity(evidence: Dict[str, Any]) -> str:
+    """Deterministic birth-time-sensitivity classification for this
+    narrative's underlying evidence, using the same vocabulary as
+    llm_validator.py's per-claim `birth_time_sensitivity` field.
+
+    D24/dasha-window facts (referenced in the astrological_narrative
+    paragraphs built by _fallback_narrative and expected of the LLM prompt)
+    are birth-time sensitive; the exact sensitivity band depends on how
+    precise/uncertain the input birth time was.
+    """
+    quality = (evidence.get("limitations") or {}).get("input_quality") or {}
+    if not isinstance(quality, dict) or not quality:
+        return "unknown"
+    precision = str(quality.get("birth_time_precision", "") or "").lower()
+    try:
+        uncertainty = int(quality.get("birth_time_uncertainty_minutes", 0) or 0)
+    except (TypeError, ValueError):
+        uncertainty = 0
+    if precision == "exact" and uncertainty <= 2:
+        return "low"
+    if precision in ("", "unknown"):
+        return "unknown"
+    if uncertainty <= 5:
+        return "low"
+    if uncertainty <= 30:
+        return "medium"
+    return "high"
+
+
+def _claim_classification() -> Dict[str, str]:
+    """Coarse, section-level (not per-sentence) claim-type tagging -- see
+    the GAP FIX comment above this function for why per-claim tagging is
+    deferred."""
+    return {
+        "student_narrative": "conclusion",
+        "astrological_narrative": "derived_and_traditional",
+        "granularity": "section_level_not_per_claim",
     }
 
 
@@ -149,6 +230,18 @@ def _fallback_narrative(evidence: Dict[str, Any], *, status: str, reason: str) -
         ("Only calculated facts present in the report are asserted. Missing evidence remains missing, and an "
          "unresolved tie is reported as a tie rather than converted into a recommendation."),
     ]
+    # Round 4 addition: conservative, optional mention of any classical
+    # yoga(s) detected as relevant to the top-ranked (or, when tied, first
+    # tied) stream -- purely additive, only appended when the list is
+    # non-empty, so a chart with no detected yoga produces byte-identical
+    # narrative output to before this change.
+    _yoga_row = streams.get(top if not tied else (tied[0] if tied else top), {})
+    _yogas = _yoga_row.get("yogas_present") or []
+    if _yogas:
+        astrology.append(
+            f"The chart also shows {', '.join(_yogas)} relevant to this stream -- a supplementary "
+            "classical pattern, not an independent source of the recommendation above."
+        )
     return {
         "contract": NARRATIVE_CONTRACT,
         "status": status,
@@ -159,8 +252,14 @@ def _fallback_narrative(evidence: Dict[str, Any], *, status: str, reason: str) -
         "student_narrative": {"paragraphs": student, "recommended_stream": None if tied else top,
                               "secondary_streams": tied},
         "astrological_narrative": {"paragraphs": astrology, "resolution_stage": stage},
+        # GAP FIX (2026-08-21, item 2.6): birth_time_sensitivity and
+        # claim_classification are ADDITIVE fields -- the four original
+        # keys are unchanged so any existing reader of this block still
+        # works. See the GAP FIX comment above _birth_time_sensitivity.
         "validation": {"schema_valid": True, "facts_grounded": True,
-                       "decision_unchanged": True, "unsupported_claims": []},
+                       "decision_unchanged": True, "unsupported_claims": [],
+                       "birth_time_sensitivity": _birth_time_sensitivity(evidence),
+                       "claim_classification": _claim_classification()},
     }
 
 
@@ -232,6 +331,43 @@ def _validate(parsed: Dict[str, Any], evidence: Dict[str, Any]) -> Dict[str, Any
         unsupported.append("unsupported yoga")
     if unsupported:
         raise ValueError("unsupported astrological claims: " + ", ".join(sorted(set(unsupported))))
+
+    # 2026-08-22 audit fix (gap 8): the checks above only confirm an entity
+    # (planet/sign/dignity/house) is MENTIONED somewhere in the evidence
+    # packet -- they never check it is CHARACTERIZED correctly, e.g. the
+    # narrative could claim "Jupiter supports Science" when the evidence
+    # packet's own per-stream section notes attribute Jupiter's contribution
+    # to Humanities instead. Conservative, regex/string-matching level
+    # (consistent with the entity-mention checks above, not a full NLU
+    # rewrite): scan for a "<Planet> ... <supports/favors/etc> ... <Stream>"
+    # pattern in the astrological narrative, and reject it if that planet
+    # does not actually appear in THAT stream's own section notes in the
+    # evidence packet (i.e. scoring never attributed that planet's
+    # contribution to the claimed stream).
+    _stream_section_text = {
+        row.get("stream_id"): " ".join(
+            str(sec.get("note") or "") for sec in (row.get("sections") or [])
+        ).lower()
+        for row in evidence.get("streams", [])
+        if row.get("stream_id")
+    }
+    _support_verbs = r"(?:support[s]?|favor[s]?|favour[s]?|indicat(?:es|ing|e)?|point[s]?\s+toward|strengthen[s]?|back[s]?|driv(?:es|ing|e)?)"
+    _stream_words = r"(Science|Commerce|Humanities)"
+    misattributed = []
+    for match in re.finditer(
+        rf"\b({'|'.join(sorted(_PLANETS))})\b[^.]{{0,60}}?{_support_verbs}[^.]{{0,40}}?\b{_stream_words}\b",
+        narrative_text, flags=re.I,
+    ):
+        claimed_planet, claimed_stream = match.group(1), match.group(2)
+        stream_id = claimed_stream.lower()
+        stream_text = _stream_section_text.get(stream_id, "")
+        if claimed_planet.lower() not in stream_text:
+            misattributed.append(f"{claimed_planet}->{claimed_stream}")
+    if misattributed:
+        raise ValueError(
+            "narrative attributes planet support to a stream the evidence packet's own "
+            "scoring does not: " + ", ".join(sorted(set(misattributed)))
+        )
     return {"student_narrative": student, "astrological_narrative": astrology}
 
 
@@ -243,53 +379,42 @@ def generate_stream_narrative(
     runtime_consent: bool = False,
     model: str | None = None,
     caller: Callable[[str, str, str], str] | None = None,
-    api_mode: bool = False,
 ) -> Dict[str, Any]:
-    """Generate an LLM narrative when enabled (or always when ``api_mode=True``)."""
+    """Generate an OpenAI narrative when both consent gates are true."""
     evidence = build_stream_narrative_evidence(payload, determination)
-    if not api_mode and not enabled:
+    if not enabled:
         return _fallback_narrative(evidence, status="SKIPPED_DISABLED", reason="llm narrative switch is off")
-    if not api_mode:
-        chart_consent = bool(getattr(payload, "external_llm_consent", False))
-        if not runtime_consent or not chart_consent:
-            missing = []
-            if not runtime_consent:
-                missing.append("runtime --llm-consent/LLM_REPORT_CONSENT")
-            if not chart_consent:
-                missing.append("chart external_llm_consent")
-            return _fallback_narrative(evidence, status="SKIPPED_NO_CONSENT", reason="missing: " + ", ".join(missing))
-
-    provider_name = "openai"
-    resolved_model = model or os.getenv("OPENAI_NARRATIVE_MODEL") or os.getenv("LLM_MODEL") or DEFAULT_OPENAI_NARRATIVE_MODEL
+    chart_consent = bool(getattr(payload, "external_llm_consent", False))
+    if not runtime_consent or not chart_consent:
+        missing = []
+        if not runtime_consent:
+            missing.append("runtime --llm-consent/LLM_REPORT_CONSENT")
+        if not chart_consent:
+            missing.append("chart external_llm_consent")
+        return _fallback_narrative(evidence, status="SKIPPED_NO_CONSENT", reason="missing: " + ", ".join(missing))
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return _fallback_narrative(evidence, status="FALLBACK", reason="OPENAI_API_KEY is not configured")
+    model = model or os.getenv("OPENAI_NARRATIVE_MODEL") or os.getenv("LLM_MODEL") or DEFAULT_OPENAI_NARRATIVE_MODEL
+    if caller is None:
+        from jyotish.llm import _call_openai
+        caller = _call_openai
     try:
-        if api_mode:
-            from jyotish.llm import call_llm_text_prompt
-
-            raw, provider_name, resolved_model = call_llm_text_prompt(_prompt(evidence), model_override=model)
-        else:
-            api_key = os.getenv("OPENAI_API_KEY", "").strip()
-            if not api_key:
-                return _fallback_narrative(evidence, status="FALLBACK", reason="OPENAI_API_KEY is not configured")
-            if caller is None:
-                from jyotish.llm import _call_openai
-                caller = _call_openai
-            raw = caller(_prompt(evidence), api_key, resolved_model)
-
-        parsed = _clean_json(raw)
+        parsed = _clean_json(caller(_prompt(evidence), api_key, model))
         validated = _validate(parsed, evidence)
         return {
             "contract": NARRATIVE_CONTRACT,
             "status": "GENERATED",
-            "provider": provider_name,
-            "model": resolved_model,
+            "provider": "openai",
+            "model": model,
             "decision_locked": True,
             **validated,
+            # GAP FIX (2026-08-21, item 2.6): additive fields, see
+            # _fallback_narrative's identical addition above for rationale.
             "validation": {"schema_valid": True, "facts_grounded": True,
-                           "decision_unchanged": True, "unsupported_claims": []},
+                           "decision_unchanged": True, "unsupported_claims": [],
+                           "birth_time_sensitivity": _birth_time_sensitivity(evidence),
+                           "claim_classification": _claim_classification()},
         }
     except Exception as exc:
-        return _fallback_narrative(
-            evidence,
-            status="FALLBACK",
-            reason=f"LLM narrative failed: {type(exc).__name__}: {exc}",
-        )
+        return _fallback_narrative(evidence, status="FALLBACK", reason=f"OpenAI narrative failed: {type(exc).__name__}: {exc}")

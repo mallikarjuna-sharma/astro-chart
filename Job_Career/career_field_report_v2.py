@@ -69,6 +69,8 @@ from jyotish.llm_policy import build_policy_json
 from jyotish.report_utils import field_display_name as _field_display_name
 from jyotish.report_utils import print_macro_cluster as _print_macro_cluster
 from jyotish.report_utils import top20_as_four_cluster_groups as _top20_as_four_cluster_groups
+from jyotish.report_utils import cluster_strength_weighted as _cluster_strength_weighted
+from jyotish.step9_convergence import score_convergence_simple  # GAP FIX (2026-08-17): Step 9 convergence
 
 
 # =============================================================================
@@ -83,27 +85,34 @@ def _macro_cluster_ranking(results: List[Dict], top_n: int = 20) -> List[Dict]:
     - Uses actual final_score evidence.
     - Keeps report_utils grouping/floor/cap logic.
     - Preserves deterministic result order.
+
+    Gap-audit fix (2026-08): the displayed strength_pct used to be computed
+    by a SECOND, independent formula (sum over ALL member rows, no top-3 cap,
+    no 50%-floor exclusion, a gentler 1/rank**0.65 decay) that had nothing to
+    do with `cluster_strength_weighted()` -- the capped/floored/exponential-
+    decay formula in report_utils.py that actually DECIDES which cluster is
+    ranked "Cluster 1" / dominant. Because the two formulas disagreed on cap,
+    floor, and decay shape, they could (and, confirmed by simulation, did)
+    disagree on which cluster is strongest: a cluster could be labelled
+    "Cluster 1 / dominant" by the ordering decision while being shown a LOWER
+    percentage than a cluster ranked below it, and a wide tail of
+    barely-above-floor fields (uncapped, unfloored under the old formula)
+    could inflate a cluster's displayed % beyond what the ordering logic
+    would credit it for. Fixed by reusing `cluster_strength_weighted()` for
+    both the ordering AND the displayed percentage, so the number on the
+    report always matches the decision it purports to explain.
     """
     groups = _top20_as_four_cluster_groups((results or [])[:top_n])
     if not groups:
         return []
 
+    top_score = float((results or [{}])[0].get("final_score", 0.0) or 0.0) if results else 0.0
+
     raw_groups = []
 
     for cluster, rows in groups:
-        raw_strength = 0.0
-        member_rows = []
-
-        for rank, row in rows:
-            try:
-                score = float(row.get("final_score", 0.0) or 0.0)
-            except Exception:
-                score = 0.0
-
-            # Earlier ranks matter more, but lower-ranked sibling fields still contribute.
-            rank_decay = 1.0 / (float(rank) ** 0.65)
-            raw_strength += score * rank_decay
-            member_rows.append(row)
+        raw_strength = _cluster_strength_weighted(rows, top_score)
+        member_rows = [row for _, row in rows]
 
         raw_groups.append({
             "cluster": cluster,
@@ -112,21 +121,22 @@ def _macro_cluster_ranking(results: List[Dict], top_n: int = 20) -> List[Dict]:
             "raw_strength": raw_strength,
         })
 
-    max_strength = max((g["raw_strength"] for g in raw_groups), default=1.0) or 1.0
-
-    raw_groups.sort(key=lambda g: g["raw_strength"], reverse=True)
+    scored_groups = [g for g in raw_groups if g["cluster"] != "Additional Top-20 Branches"]
+    max_strength = max((g["raw_strength"] for g in scored_groups), default=1.0) or 1.0
 
     out = []
     for i, g in enumerate(raw_groups, 1):
         rows = g["rows"]
         member_rows = g["member_rows"]
-        strength_pct = round(100.0 * g["raw_strength"] / max_strength, 1)
+        display_only = g["cluster"] == "Additional Top-20 Branches"
+        strength_pct = None if display_only else round(100.0 * g["raw_strength"] / max_strength, 1)
 
         out.append({
-            "rank": i,
+            "rank": None if display_only else sum(1 for prior in raw_groups[:i] if prior["cluster"] != "Additional Top-20 Branches"),
             "cluster": g["cluster"],
             "strength_pct": strength_pct,
-            "raw_strength": round(g["raw_strength"], 3),
+            "raw_strength": None if display_only else round(g["raw_strength"], 3),
+            "display_only": display_only,
             "member_fields": [_field_display_name(r) for r in member_rows],
             "best_rank_in_cluster": min(rank for rank, _ in rows) if rows else None,
         })
@@ -212,6 +222,19 @@ def apply_cluster_coherence_guard(results: List[Dict]) -> List[Dict]:
 
     out: List[Dict] = []
 
+    # Scale fix (2026-08-18, tiered-ranking rollout): the preservation-boost
+    # floor below used to be an absolute `score >= 30`, calibrated against
+    # the old flat 9-method blend's ~45-100 final_score range (30 was
+    # roughly 30% of a ~100-point ceiling). jyotish/tiered_ranking.py can
+    # now produce a much lower/tighter absolute range (e.g. ~13-27 on a
+    # real chart), where a fixed 30-point floor almost never clears --
+    # silently disabling this guard for every chart. Rescaled to the same
+    # ~30%-of-the-run's-own-top-score ratio the original constant implied,
+    # so the guard's behavior is preserved regardless of which ranking
+    # authority (flat blend or tiered) produced final_score.
+    _guard_top_score = float(results[0].get("final_score", 0.0) or 0.0) if results else 0.0
+    _preservation_floor = _guard_top_score * 0.30
+
     for idx, row in enumerate(results):
         r = dict(row)
         fid = str(
@@ -232,7 +255,7 @@ def apply_cluster_coherence_guard(results: List[Dict]) -> List[Dict]:
             )
 
         # Small preservation boost for adjacent technical families below the top 10.
-        elif idx >= 10 and fam in protected_adjacent_families and score >= 30:
+        elif idx >= 10 and fam in protected_adjacent_families and score >= _preservation_floor:
             r["final_score"] = round(score * 1.025, 3)
             r.setdefault("post_v12_adjustments", []).append(
                 "cluster_coherence_guard: adjacent physical/technical field preserved"
@@ -282,6 +305,29 @@ def _career_phase_label(age_stage: Dict, career_phase_raw: str) -> str:
         "adult": career_phase_raw.replace("_", " ").title() if career_phase_raw else "Working Professional",
     }
     return mapping.get(stage, career_phase_raw.replace("_", " ").title() if career_phase_raw else "Adult")
+
+
+def _resolve_education_intent(data: Dict[str, Any], current_age: float) -> str:
+    """Resolve route intent before generating UG/PG/professional advice."""
+    student = data.get("student_context", {}) or {}
+    career = data.get("career_context", {}) or {}
+    explicit = str(student.get("education_intent") or career.get("education_intent") or "").strip().lower()
+    allowed = {"first_ug_selection", "ug_correction", "pg_selection", "professional_upskilling", "career_transition"}
+    if explicit in allowed:
+        return explicit
+    years = career.get("years_experience", student.get("years_experience", 0)) or 0
+    status = str(career.get("employment_status") or student.get("employment_status") or "").lower()
+    try:
+        years = float(years)
+    except (TypeError, ValueError):
+        years = 0.0
+    if years >= 2 or status in {"employed", "working", "self_employed"}:
+        return "professional_upskilling" if current_age < 30 else "career_transition"
+    if current_age >= 21:
+        return "pg_selection"
+    if current_age >= 18:
+        return "ug_correction"
+    return "first_ug_selection"
 
 
 # =============================================================================
@@ -351,7 +397,7 @@ Return ONLY a single valid JSON object matching exactly this schema (no markdown
       "risk_level": "Low | Low-Medium | Medium | Medium-High | High",
       "long_term_value": "Good | High | Very High"
     },
-    {"route_name": "Route B - High-End Specialised Route", "title": "", "ug_options": "", "pg_options": "", "phd_options": "", "careers": "", "best_for": "", "risk_level": "", "long_term_value": ""},
+    {"route_name": "Route B - Backup Route", "title": "", "ug_options": "", "pg_options": "", "phd_options": "", "careers": "", "best_for": "", "risk_level": "", "long_term_value": ""},
     {"route_name": "Route C - Safe Practical Backup", "title": "", "ug_options": "", "pg_options": "", "careers": "", "best_for": "", "risk_level": "", "long_term_value": "", "phd_options": ""}
   ],
   "fields_to_avoid": [
@@ -408,6 +454,7 @@ def _build_report_user_prompt(
     chart_facts: Dict[str, Any],
     top35: List[Dict],
     macro_clusters: List[Dict],
+    locked: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build the single LLM prompt for the 14-section report.
 
@@ -415,6 +462,14 @@ def _build_report_user_prompt(
     - Ranks/scores are deterministic and must not be changed by the LLM.
     - registry_v12 metadata is passed so the LLM does not invent routes,
       risk, market, curriculum, or career outcomes.
+    - `locked` (from _select_headline_routes) fixes which fields are the
+      headline UG/PG/backup/alternate-backup routes. The LLM is not asked to
+      choose these — only to narrate them. This is re-asserted on the
+      returned JSON by _enforce_deterministic_headline() regardless of what
+      the LLM writes, so a non-compliant response cannot leak into the
+      published report; the prompt instruction below exists so the LLM's own
+      prose (final_recommendation, parent/student summaries, route titles)
+      stays consistent with the locked fields instead of contradicting them.
     """
     registry = _load_course_registry()
     field_lines: List[Dict[str, Any]] = []
@@ -457,6 +512,47 @@ def _build_report_user_prompt(
             "registry_v12": _v12_registry_slice(meta),
         })
 
+    locked = locked or {}
+    locked_block = ""
+    if locked:
+        locked_block = f"""
+--- LOCKED HEADLINE SELECTION (already decided by the deterministic engine policy — you do NOT choose this, you only narrate it) ---
+{{
+  "ug_primary_field": "{locked.get('ug_label', '')}",
+  "pg_route_program": "{locked.get('pg_label', '')}",
+  "strong_backup_field": "{locked.get('backup_label', '')}",
+  "safe_alternate_backup_field": "{locked.get('alt_backup_label', '')}"
+}}
+This selection was computed by the deterministic suitability policy (astrological
+alignment + academic fit + education feasibility + career viability, not raw score
+rank alone) and is FINAL. It is not up for revision in this report.
+
+IMPORTANT about pg_route_program: PG is the ug_primary_field's OWN registry PG
+program (e.g. "M.Des Industrial Design" as the PG deepening of a "B.Des
+Industrial Design" UG) -- it is NOT a different field from ug_primary_field.
+Never write a PG recommendation naming a field unrelated to ug_primary_field.
+"""
+        _pg_alert = locked.get("pg_divergence_alert")
+        if _pg_alert:
+            # 2026-08-18 gap fix: this diagnostic was already being computed
+            # (D24/Siddhamsha meaningfully favoring a different field than
+            # the locked UG pick for postgraduate study) but was never
+            # surfaced to the LLM prompt, so it never reached the narrative
+            # even when it fired. Does NOT change the locked PG selection
+            # above (pg_route_program stays the UG field's own PG program,
+            # per policy) -- this only asks the narrative to add one honest
+            # caveat sentence, it must not override the locked pick.
+            locked_block += f"""
+NOTE (do not override the locked selection above): the deterministic D24/
+Siddhamsha (postgraduate-study) signal shows meaningfully stronger support for
+"{_pg_alert.get('alternate_field', '')}" than for {locked.get('ug_label', '')}'s
+own D24 support ({_pg_alert.get('rationale', '')}).
+Add ONE brief, honest sentence noting this as a genuine alternative direction
+for postgraduate study worth the family discussing -- do not change
+pg_route_program itself, which remains {locked.get('pg_label', '')} per the
+locked policy above.
+"""
+
     return f"""--- STUDENT / CLIENT ---
 Name: {student_name}
 Career phase: {career_phase}
@@ -471,7 +567,7 @@ Peak career Mahadasha lord: {peak_lord}
 
 --- ENGINE TOP-35 FIELDS (deterministic ranking + scores + ontology + registry_v12 metadata — do not change ranks/scores) ---
 {json.dumps(field_lines, indent=2, default=str)}
-
+{locked_block}
 Rules for the report:
 1. Do not change rank, score, field_label, field_id, or macro cluster.
 2. Use registry_v12.routes for education route mapping when available.
@@ -482,6 +578,14 @@ Rules for the report:
 7. Use registry_v12.ontology.secondary_families and graph_family_memberships for cross-disciplinary explanations.
 8. If registry_v12 data is missing for a field, say "registry metadata unavailable" instead of inventing details.
 9. Use exact field_label values only. Do not rename fields.
+10. snapshot.best_ug_route MUST equal LOCKED HEADLINE SELECTION.ug_primary_field exactly.
+11. snapshot.best_pg_route MUST equal LOCKED HEADLINE SELECTION.pg_route_program exactly — this is a PG PROGRAM NAME within ug_primary_field, not a different field.
+12. snapshot.strong_backup_route MUST equal LOCKED HEADLINE SELECTION.strong_backup_field exactly.
+13. education_routes[0] (Route A - Primary Route) ug_options MUST describe ug_primary_field; pg_options MUST describe pg_route_program as a deepening of ug_primary_field, never a separate field.
+13b. education_routes[1] (Route B - Backup Route) MUST describe LOCKED HEADLINE SELECTION.strong_backup_field — a genuinely DIFFERENT field from ug_primary_field, using that field's own registry_v12 data. Do not describe ug_primary_field again here.
+14. education_routes[2] (Route C - Safe Practical Backup) MUST describe the locked safe_alternate_backup_field — a further, genuinely different, lower-risk field from both ug_primary_field and strong_backup_field, using that field's own registry_v12.routes.safe_route.
+15. final_recommendation MUST name the locked ug_primary_field as the primary route, the locked strong_backup_field as backup, and pg_route_program (the SAME field's PG deepening) as the PG/specialization direction. Do not substitute a different field as primary, no matter how it compares on raw engine_rank/score alone — the locked field already reflects rank plus academic/education/market suitability.
+16. In engine_output_comparison, the entry for the locked ug_primary_field must have correct_status "Correct" and action "Keep". You may still note in engine_gap_audit or astrological_signature if a higher-raw-score field looks astrologically strong but was not selected as primary — explain why (education realism, market, risk) rather than silently overriding the selection.
 
 Using ONLY the fields, clusters, chart facts, ontology data, and registry_v12 metadata above, produce the JSON object described in the system prompt.
 """
@@ -631,6 +735,7 @@ def _call_llm_for_report(
     chart_facts: Dict[str, Any],
     top35: List[Dict],
     macro_clusters: List[Dict],
+    locked: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict]:
     """Single structured LLM call producing every narrative/judgement field.
 
@@ -666,13 +771,7 @@ def _call_llm_for_report(
             "[career_field_report_v2] LLM provider preflight failed: %s. Install with `%s`.",
             preflight, preflight.get("install_extra", ""),
         )
-        return None, {
-            "attempted": False,
-            "succeeded": False,
-            "provider": provider_name,
-            "model": model_override,
-            "error_message": f"LLM provider preflight failed: {preflight}",
-        }
+        return None
 
     if not api_key:
         logger.warning(
@@ -680,13 +779,7 @@ def _call_llm_for_report(
             env_var,
             provider_name,
         )
-        return None, {
-            "attempted": False,
-            "succeeded": False,
-            "provider": provider_name,
-            "model": model_override,
-            "error_message": f"{env_var} missing for provider={provider_name}",
-        }
+        return None
 
     allowed_fields = {
         _field_display_name(r)
@@ -716,6 +809,7 @@ def _call_llm_for_report(
         chart_facts,
         top35,
         macro_clusters,
+        locked=locked,
     )
 
     messages = [
@@ -726,20 +820,13 @@ def _call_llm_for_report(
     schema = {"schema": {"required": [], "properties": {}}}
 
     try:
-        report = _run_llm_with_retry(
+        return _run_llm_with_retry(
             client,
             messages,
             schema,
             _strict_validator,
             max_retries=3,
         )
-        return report, {
-            "attempted": True,
-            "succeeded": True,
-            "provider": provider_name,
-            "model": model_override,
-            "error_message": "",
-        }
     except Exception as exc:
         msg = str(exc)
         if "billing_not_active" in msg or "account is not active" in msg:
@@ -748,30 +835,10 @@ def _call_llm_for_report(
                 "Enable API billing or use a key from an active billed project.",
                 provider_name,
             )
-            return None, {
-                "attempted": True,
-                "succeeded": False,
-                "provider": provider_name,
-                "model": model_override,
-                "error_message": "Billing inactive for LLM provider",
-            }
-        if "quota" in msg.lower() or "credit" in msg.lower() or "rate limit" in msg.lower():
-            return None, {
-                "attempted": True,
-                "succeeded": False,
-                "provider": provider_name,
-                "model": model_override,
-                "error_message": msg,
-            }
+            return None
 
         logger.error("[career_field_report_v2] Unexpected LLM report failure: %s", exc)
-        return None, {
-            "attempted": True,
-            "succeeded": False,
-            "provider": provider_name,
-            "model": model_override,
-            "error_message": msg,
-        }
+        return None
 
 
 # =============================================================================
@@ -788,12 +855,46 @@ def _row_section(row: Dict[str, Any], key: str) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _select_pg_route_row(top35: List[Dict], primary_row: Dict[str, Any] | None = None) -> Dict[str, Any]:
-    """Pick the field that is actually the best PG/specialization route.
+def _registry_pg_program_label(row: Dict[str, Any]) -> str:
+    """The chosen UG field's OWN registry PG program name (e.g. 'M.Des
+    Industrial Design / CEED-route' for Industrial / Product Design), not a
+    jump to a different field.
 
-    Rank position alone is not evidence of a PG route: the deterministic
-    top-3-by-astrology field may not need PG at all, and a field that *does*
-    need PG (education_realism.pg_required_for_good_outcome) may sit at any
+    Design fix (2026-08-17, user-flagged): "Best PG Route" previously came
+    from _select_pg_route_row(), which explicitly EXCLUDED the locked UG
+    field and searched the rest of top35 for some other field flagged
+    pg_required_for_good_outcome -- producing results like "UG: Industrial /
+    Product Design, PG: Computational Finance & Financial Engineering", two
+    unrelated fields with no natural progression between them. A student's
+    PG is overwhelmingly the deepening/specialization of their OWN UG field
+    (registry_v12.routes.ambitious_route.pg is exactly this -- e.g. "B.Des
+    Industrial Design" -> "M.Des Industrial Design"), so PG must default to
+    the UG field's own registry PG program, not an unrelated field's label.
+    """
+    routes = _row_section(row, "routes")
+    ambitious = routes.get("ambitious_route") if isinstance(routes, dict) else {}
+    pg_name = (ambitious or {}).get("pg") if isinstance(ambitious, dict) else ""
+    if pg_name:
+        return str(pg_name)
+    label = _field_display_name(row)
+    return f"{label} (PG specialization)" if label else ""
+
+
+def _select_pg_route_row(top35: List[Dict], primary_row: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    """DEPRECATED for headline PG selection (see _registry_pg_program_label
+    above) -- PG must default to the UG field's own registry program, not a
+    different field. Kept only as a narrow fallback for the rare case where
+    the UG field's own registry has literally no PG program data at all
+    (_registry_pg_program_label already handles that gracefully with a
+    generic label, so this fallback should rarely if ever trigger in
+    practice); do not use this to override an already-resolved UG-anchored
+    PG pick.
+
+    Original docstring: pick the field that is actually the best PG/
+    specialization route. Rank position alone is not evidence of a PG
+    route: the deterministic top-3-by-astrology field may not need PG at
+    all, and a field that *does* need PG (education_realism.
+    pg_required_for_good_outcome) may sit at any
     rank. This walks the ranked list in order and returns the first field
     that (a) is not the UG primary field, (b) is flagged as PG-dependent,
     and (c) has not been rejected outright (STATUS_NOT_PRIMARY). Only if no
@@ -820,10 +921,297 @@ def _select_pg_route_row(top35: List[Dict], primary_row: Dict[str, Any] | None =
     return (top35[0] if top35 else {}) or {}
 
 
-def _fallback_report_json(top35, macro_clusters, student_name):
-    top1 = top35[0] if top35 else {}
-    top2 = top35[1] if len(top35) > 1 else {}
-    pg_row = _select_pg_route_row(top35, primary_row=top1)
+def _validated_rows(rows):
+    return sorted(
+        [r for r in rows if r.get("validated_recommendation_rank") is not None],
+        key=lambda r: r["validated_recommendation_rank"],
+    )
+
+
+# =============================================================================
+# 2b. DETERMINISTIC HEADLINE SELECTION (single source of truth)
+# =============================================================================
+#
+# The narrative/LLM layer previously had free discretion over
+# snapshot.best_ug_route / best_pg_route / strong_backup_route, and an
+# explicit "Demote" mechanism (engine_output_comparison) that let it replace
+# the engine's own top pick with a different field. That produced reports
+# where the headline UG/PG recommendation did not match the deterministic
+# ranking + suitability policy at all (see career_field_report gap analysis,
+# 2026-08-17: Ramsunder's rank-#1-by-suitability field and the narrative
+# final_recommendation named different fields across saved runs).
+#
+# This function is now the ONLY place that decides which fields become the
+# headline UG / PG / backup / alternate-backup routes. It is pure Python,
+# reuses the same validated_recommendation_rank + recommendation_status +
+# education_realism.pg_required_for_good_outcome signals already computed by
+# field_suitability.py, and its output is passed into the LLM prompt as a
+# locked instruction and re-asserted on the report after the LLM (or the
+# fallback) has run — see _build_report_user_prompt() and
+# _enforce_deterministic_headline() below.
+def _select_headline_routes(top35: List[Dict]) -> Dict[str, Any]:
+    """Deterministically choose the UG / PG / backup / alternate-backup rows.
+
+    Rules (in order, all reusing existing engine signals — no new scoring):
+    1. UG primary = highest validated_recommendation_rank row (i.e. the
+       suitability-validated #1), falling back to the raw top35[0] only if
+       no field has cleared academic validation yet.
+    2. PG route = _select_pg_route_row()'s existing PG-dependency logic,
+       excluding the UG field.
+    3. Backup = the next validated row (in rank order) that is not the UG or
+       PG field and is not STATUS_NOT_PRIMARY; falls back to the next raw
+       top35 row if no further validated rows exist.
+    4. Alternate/safe backup = the next top35 row, distinct from the three
+       above and not STATUS_NOT_PRIMARY, preferring one whose
+       education_realism.risk_level is Low or Low-Medium (a genuinely safer
+       practical fallback, not just the next-highest score).
+    """
+    top35 = top35 or []
+    validated = _validated_rows(top35)
+
+    def _status(row):
+        return (row.get("recommendation_assessment") or {}).get("recommendation_status", "")
+
+    # UG primary = the highest-ranked validated row that also clears the
+    # independent suitability check (not STATUS_NOT_PRIMARY). A field can be
+    # rank-1 by validated_recommendation_rank yet still be flagged
+    # NOT_PRIMARY by field_suitability.py's multi-dimensional adverse-evidence
+    # check (e.g. poor education realism/market/risk) — that field must not
+    # become the headline UG pick just because it ranks first. Falls back to
+    # the raw validated[0] only if every validated row is NOT_PRIMARY (should
+    # not normally happen, since NOT_PRIMARY rows are excluded from
+    # validation upstream in most policies, but this keeps the function safe
+    # either way), and finally to the raw top35[0] if nothing is validated.
+    ug_row: Dict[str, Any] = {}
+    for row in validated:
+        if _status(row) != STATUS_NOT_PRIMARY:
+            ug_row = row
+            break
+    if not ug_row:
+        ug_row = validated[0] if validated else (top35[0] if top35 else {})
+    primary_resolved = bool(validated)
+    # PG defaults to deepening the SAME field the student is doing UG in —
+    # its own registry PG program — not a jump to an unrelated field. See
+    # _registry_pg_program_label() docstring for why this changed.
+    pg_row = ug_row
+
+    def _label(r):
+        return _field_display_name(r) if r else ""
+
+    excluded = {_label(ug_row)}
+
+    # gap fix 2026-08-18 (item 4): PG defaulting to "same field as UG"
+    # unconditionally never consults Siddhamsha (D24) -- BPHS's dedicated
+    # vidya (education) varga, and the single highest-weighted method in
+    # the whole 10-method field-determination bundle (METHOD_WEIGHTS
+    # ["siddhamsha"] = 0.1748, see field_methods/__init__.py) -- even though
+    # its per-field verdict is already computed upstream in engine.py and
+    # attached to every row as row["method_breakdown"]["siddhamsha"]
+    # ["normalized_score"] (0-100 scale; see engine.py's `_method_breakdown`
+    # dict, built from compute_field_method_bundle()'s bvb_eval). This does
+    # NOT recompute anything -- it only reads what's already there.
+    #
+    # Behavior is intentionally conservative and additive:
+    #  - pg_row stays == ug_row in the common case (no real divergence),
+    #    preserving 100% of existing output shape/keys/behavior and the
+    #    "PG deepens your UG field" prompt contract (see the
+    #    "IMPORTANT about pg_route_program" block below and the
+    #    snapshot.best_pg_route == pg_route_program invariant).
+    #  - if a DIFFERENT, still-eligible field's D24 support meaningfully
+    #    exceeds the UG field's own D24 support, we surface that as a
+    #    separate, clearly-labeled `pg_divergence_alert` key rather than
+    #    silently overwriting pg_row -- so a human reviewer / future
+    #    report-copy update can see the real astrological signal without
+    #    breaking anything that currently reads pg_row/pg_label.
+    def _d24_support(row: Dict[str, Any]) -> float:
+        try:
+            return float(
+                (row.get("method_breakdown") or {})
+                .get("siddhamsha", {})
+                .get("normalized_score", 0.0) or 0.0
+            )
+        except (TypeError, ValueError):
+            return 0.0
+
+    _ug_d24 = _d24_support(ug_row)
+    # Threshold rationale: normalized_score is 0-100. A 15-point gap on that
+    # scale is roughly 1.5x the smallest STATUS_EXPLORATORY overall_suitability
+    # margin used elsewhere in this codebase's status-bucket thresholds
+    # (field_suitability.py uses a 35-point floor for its lowest eligible
+    # bucket out of 100 -- i.e. ~1/3 of the scale counts as a real
+    # separation there). 15 points (~1/6 of the 0-100 scale) is deliberately
+    # smaller than that -- D24 is a single, highly classically authoritative
+    # tier, not the blended overall_suitability score -- but still well
+    # above normal chart-to-chart noise on one method's normalized score.
+    # This is a judgment call; flagged for Dr. Sooriyan's review.
+    _D24_DIVERGENCE_MARGIN = 15.0
+    pg_divergence_alert: Dict[str, Any] | None = None
+    _best_alt_row: Dict[str, Any] = {}
+    _best_alt_d24 = _ug_d24
+    for row in validated:
+        if _label(row) == _label(ug_row) or _status(row) == STATUS_NOT_PRIMARY:
+            continue
+        _alt_d24 = _d24_support(row)
+        if _alt_d24 > _best_alt_d24:
+            _best_alt_d24 = _alt_d24
+            _best_alt_row = row
+    if _best_alt_row and (_best_alt_d24 - _ug_d24) >= _D24_DIVERGENCE_MARGIN:
+        pg_divergence_alert = {
+            "alternate_field": _label(_best_alt_row),
+            "ug_field_d24_support": round(_ug_d24, 2),
+            "alternate_field_d24_support": round(_best_alt_d24, 2),
+            "margin": round(_best_alt_d24 - _ug_d24, 2),
+            "rationale": (
+                f"D24 (Siddhamsha, BPHS's dedicated vidya varga -- the highest-"
+                f"weighted single method in the field-determination bundle) shows "
+                f"meaningfully stronger education-specific support for "
+                f"'{_label(_best_alt_row)}' ({round(_best_alt_d24, 1)}) than for the "
+                f"locked UG field '{_label(ug_row)}' ({round(_ug_d24, 1)}) on a "
+                "0-100 scale. The headline PG recommendation is intentionally left "
+                "unchanged (PG still deepens the UG field) -- this is a signal for "
+                "a human reviewer / future report-copy update, not a silent "
+                "override."
+            ),
+        }
+
+    backup_row: Dict[str, Any] = {}
+    for row in validated[1:]:
+        if _label(row) in excluded or _status(row) == STATUS_NOT_PRIMARY:
+            continue
+        backup_row = row
+        break
+    if not backup_row:
+        for row in top35[1:]:
+            if _label(row) in excluded:
+                continue
+            backup_row = row
+            break
+    excluded.add(_label(backup_row))
+
+    # gap fix 2026-08-18 (item 5): the safe-alternate backup previously had
+    # no minimum astrological support of its own -- only the risk-level
+    # filter above. A field could become "your safe alternate" purely for
+    # being low-risk even if the chart barely supports it astrologically at
+    # all. Add a floor on `astrological_alignment` (from
+    # recommendation_assessment, already computed by
+    # assess_field_suitability() in field_suitability.py) using the SAME
+    # 35-point threshold that function already uses as its own
+    # STATUS_EXPLORATORY floor for overall_suitability (see
+    # field_suitability.py: `elif overall >= 35 or dimensions_adverse < 2:
+    # status = STATUS_EXPLORATORY`) -- reusing an existing, documented
+    # threshold rather than inventing a new arbitrary number.
+    _ALT_BACKUP_ASTRO_FLOOR = 35.0
+
+    def _astro_alignment(row: Dict[str, Any]) -> float:
+        try:
+            return float(
+                (row.get("recommendation_assessment") or {}).get(
+                    "astrological_alignment", 0.0
+                ) or 0.0
+            )
+        except (TypeError, ValueError):
+            return 0.0
+
+    alt_backup_row: Dict[str, Any] = {}
+    for row in top35:
+        if _label(row) in excluded or _status(row) == STATUS_NOT_PRIMARY:
+            continue
+        risk = str(_row_section(row, "education_realism").get("risk_level", "")).lower()
+        if risk in {"low", "low-medium"} and _astro_alignment(row) >= _ALT_BACKUP_ASTRO_FLOOR:
+            alt_backup_row = row
+            break
+    # gap fix 2026-08-18 (item 5): flag when we had to fall back to the
+    # risk-only filter (no candidate cleared both the risk AND astrological
+    # bars) so downstream consumers know this specific pick has weaker
+    # chart support than usual, rather than silently degrading.
+    safe_backup_astrological_floor_waived = False
+    if not alt_backup_row:
+        for row in top35:
+            if _label(row) in excluded or _status(row) == STATUS_NOT_PRIMARY:
+                continue
+            risk = str(_row_section(row, "education_realism").get("risk_level", "")).lower()
+            if risk in {"low", "low-medium"}:
+                alt_backup_row = row
+                safe_backup_astrological_floor_waived = True
+                break
+    if not alt_backup_row:
+        for row in top35:
+            if _label(row) in excluded or _status(row) == STATUS_NOT_PRIMARY:
+                continue
+            alt_backup_row = row
+            safe_backup_astrological_floor_waived = True
+            break
+
+    return {
+        "ug_row": ug_row,
+        "pg_row": pg_row,
+        "backup_row": backup_row,
+        "alt_backup_row": alt_backup_row,
+        "primary_resolved": primary_resolved,
+        "ug_label": _label(ug_row),
+        "pg_label": _registry_pg_program_label(ug_row),
+        "backup_label": _label(backup_row),
+        "alt_backup_label": _label(alt_backup_row),
+        # gap fix 2026-08-18 (item 4): additive-only; None when no real D24
+        # divergence was detected. See computation above for rationale.
+        "pg_divergence_alert": pg_divergence_alert,
+        # gap fix 2026-08-18 (item 5): additive-only; see computation above.
+        "safe_backup_astrological_floor_waived": safe_backup_astrological_floor_waived,
+    }
+
+
+def _deterministic_field_audit(rows):
+    """Independent publication-contract audit; never reuses Keep/avoid labels."""
+    gaps = []
+    for row in rows[:20]:
+        fid = _row_field_id(row)
+        if not row.get("career_family") and not row.get("career_family_label"):
+            gaps.append({"gap": f"Unclassified ontology field: {fid}", "effect": "Cannot establish coherent family support", "fix": "Add a career-family mapping before publication"})
+        if row.get("field_role") in {"career_route", "career_context"}:
+            gaps.append({"gap": f"Non-degree route entered Top 20: {fid}", "effect": "Mixes occupations with academic fields", "fix": "Keep it in the career-outcome layer"})
+        if row.get("publication_eligibility") == "exploratory_only" and row.get("validated_recommendation_rank") is not None:
+            gaps.append({"gap": f"Narrow-field gate bypassed: {fid}", "effect": "Unsupported exact-field recommendation", "fix": "Remove from validated ranking"})
+        # Gap-audit fix (2026-08): jyotish/decision_axes.py already computes and
+        # applies a bounded penalty to final_score when a field's D1 (general-
+        # life) and D10 (career-specific) evidence diverge severely (>50-point
+        # split -- see D1_D10_DISAGREEMENT_PENALTY_VERSION), but that finding
+        # never reached the actual HTML report: decision_axes is not referenced
+        # anywhere in web_report.py or elsewhere in this file, so a field could
+        # rank in the published Top 20 while the engine's own internal audit
+        # flagged its two strongest chart-structure signals as flatly
+        # contradicting each other, with no disclosure to the reader. This
+        # section is the report's one deterministic, always-populated home for
+        # exactly this class of internal-conflict finding, so surface it here
+        # rather than adding a new, easy-to-miss report section.
+        _penalty = ((row.get("decision_axes") or {}).get("d1_d10_disagreement_penalty") or {})
+        if _penalty.get("band") == "SEVERE":
+            _split = _penalty.get("d1_d10_split")
+            _pct = _penalty.get("penalty_pct")
+            gaps.append({
+                "gap": f"Severe D1/D10 disagreement: {fid}",
+                "effect": (
+                    f"General-life (D1) and career-specific (D10) chart evidence for this field "
+                    f"diverge by {_split} points on a 0-100 scale -- the engine's own internal "
+                    f"consistency check flags this as a severe contradiction, not a minor "
+                    f"nuance. A {_pct}% publication-score penalty was already applied for this, "
+                    "but the underlying disagreement itself was not previously disclosed."
+                ),
+                "fix": "Treat this field's ranking with caution; verify the D1 vs D10 signals independently before recommending it as a primary route.",
+            })
+    return [dict({"gap_no": i}, **g) for i, g in enumerate(gaps, 1)]
+
+
+def _fallback_report_json(top35, macro_clusters, student_name, education_intent="first_ug_selection", locked=None):
+    locked = locked or _select_headline_routes(top35)
+    top1 = locked["ug_row"]
+    top2 = locked["backup_row"] or {}
+    primary_resolved = locked["primary_resolved"]
+    pg_row = locked["pg_row"]
+    # `validated` (used below for validated_recommendation_ranking) is a
+    # separate, larger list than the single locked ug_row/backup_row picks
+    # above -- restored here after a prior edit accidentally dropped this
+    # assignment while refactoring top1/top2/pg_row to come from `locked`.
+    validated = _validated_rows(top35)
 
     def label(r):
         return _field_display_name(r) if r else ""
@@ -847,76 +1235,39 @@ def _fallback_report_json(top35, macro_clusters, student_name):
             return section.get("safe_route", "")
         return ""
 
-    # PG route options must come from the field actually selected as the PG
-    # route (pg_row), not from top1's own route data — otherwise the
-    # "Best PG Route" label and the PG option shown in the route table name
-    # two unrelated fields.
+    # PG now defaults to deepening the SAME field as UG (pg_row is top1
+    # itself — see _registry_pg_program_label), so pg_program below is the
+    # UG field's own registry PG program name, not a different field's.
     safe_route = route_path(routes)
     pg_safe_route = route_path(pg_routes) or safe_route
+    pg_program = locked.get("pg_label") or _registry_pg_program_label(pg_row)
+
+    # Route B (Backup) = locked["backup_row"]/top2 — the strong backup FIELD
+    # (a genuinely different field from Route A, e.g. rank #2/#3 by
+    # suitability), not a deepened version of Route A. Route C (Safe
+    # Practical Backup) = locked["alt_backup_row"] — a further, genuinely
+    # lower-risk field distinct from both Route A and Route B (see
+    # _select_headline_routes: prefers a Low/Low-Medium risk_level field
+    # distinct from UG/PG/backup). Each route uses ITS OWN field's registry
+    # data (routes/education_realism/market/career_outcomes) — not top1's.
+    backup_edu = sec(top2, "education_realism") if top2 else {}
+    backup_routes = sec(top2, "routes") if top2 else {}
+    backup_market = sec(top2, "market") if top2 else {}
+    backup_outcomes = sec(top2, "career_outcomes") if top2 else {}
+    backup_outcome_core = backup_outcomes.get("core", []) if isinstance(backup_outcomes, dict) else []
+    backup_safe_route = route_path(backup_routes)
+    backup_pg_program = _registry_pg_program_label(top2) if top2 else ""
+
+    alt_row = locked.get("alt_backup_row") or {}
+    alt_edu = sec(alt_row, "education_realism") if alt_row else {}
+    alt_routes = sec(alt_row, "routes") if alt_row else {}
+    alt_market = sec(alt_row, "market") if alt_row else {}
+    alt_outcomes = sec(alt_row, "career_outcomes") if alt_row else {}
+    alt_outcome_core = alt_outcomes.get("core", []) if isinstance(alt_outcomes, dict) else []
+    alt_safe_route = route_path(alt_routes)
 
     core_subjects = curriculum.get("core_subjects_ug", []) if isinstance(curriculum, dict) else []
     outcome_core = outcomes.get("core", []) if isinstance(outcomes, dict) else []
-
-    def _route_dict(row, route_name: str, variant: str) -> dict:
-        """Build one education-route card from registry v12 metadata."""
-        row = row or {}
-        r_edu = sec(row, "education_realism")
-        r_market = sec(row, "market")
-        r_outcomes = sec(row, "career_outcomes")
-        r_routes = sec(row, "routes")
-        if not isinstance(r_routes, dict):
-            r_routes = {}
-        careers = r_outcomes.get("core", []) if isinstance(r_outcomes, dict) else []
-        ambitious = r_routes.get("ambitious_route") if isinstance(r_routes.get("ambitious_route"), dict) else {}
-        backup = r_routes.get("backup_route") if isinstance(r_routes.get("backup_route"), dict) else {}
-
-        if variant == "specialised":
-            title = ambitious.get("label") or label(row)
-            ug = ambitious.get("ug") or label(row)
-            pg = ambitious.get("pg") or label(pg_row) or label(row)
-            phd = (
-                ambitious.get("phd_or_research")
-                or ambitious.get("phd")
-                or "Optional PhD if research orientation becomes strong."
-            )
-            best_for = ambitious.get("why") or (
-                "Students aiming for depth, research, or high-end specialization."
-            )
-        elif variant == "backup":
-            title = backup.get("label") or label(row)
-            ug = backup.get("path") or label(row)
-            pg = f"Bridge toward {label(top1)} or an adjacent PG specialization."
-            phd = "Optional only after UG/PG direction is clear."
-            best_for = backup.get("why") or (
-                "Practical fallback if entrance rank, finance, or interest shifts."
-            )
-        else:
-            title = label(row)
-            ug = label(row)
-            pg_path = route_path(r_routes)
-            pg = f"{label(pg_row)}: {pg_path}" if pg_path and pg_row else label(pg_row)
-            phd = (
-                f"Optional PhD extension of {label(pg_row)} only if research orientation becomes strong."
-                if pg_row else "Optional only if research orientation becomes strong."
-            )
-            best_for = (
-                "Students comfortable with physics, chemistry, mathematics, lab work, and engineering systems."
-            )
-
-        return {
-            "route_name": route_name,
-            "title": title,
-            "ug_options": ug,
-            "pg_options": pg,
-            "phd_options": phd,
-            "careers": ", ".join(careers[:5]) if careers else ", ".join(outcome_core[:5]),
-            "best_for": best_for,
-            "risk_level": r_edu.get("risk_level", "Medium"),
-            "long_term_value": (
-                r_market.get("india_2035_demand", "Medium")
-                if isinstance(r_market, dict) else "Medium"
-            ),
-        }
 
     top_cluster = macro_clusters[0]["cluster"] if macro_clusters else "Undetermined"
 
@@ -924,14 +1275,15 @@ def _fallback_report_json(top35, macro_clusters, student_name):
         "final_identity": {
             "macro_identity": top_cluster,
             "one_line_summary": (
-                f"{student_name}'s strongest direction is {label(top1)}, "
-                f"with {label(top2)} as backup and {label(pg_row)} as the PG/specialization route."
+                f"{student_name}'s validated direction is {label(top1)}, with {label(top2)} as backup."
+                if primary_resolved else
+                f"{student_name}'s provisional astrological potential is {label(top1)}; mandatory academic evidence is still unresolved."
             ),
             "confidence": "Medium",
         },
         "snapshot": {
-            "best_ug_route": label(top1),
-            "best_pg_route": label(pg_row) or label(top1),
+            "best_ug_route": label(top1) if primary_resolved else "Unresolved pending mandatory academic validation",
+            "best_pg_route": pg_program,
             "best_career_cluster": top_cluster,
             "strong_backup_route": label(top2),
             "avoid_as_primary": "Route suitability is classified separately from astrological aptitude; see conditional, PG and exploratory routes below.",
@@ -978,10 +1330,65 @@ def _fallback_report_json(top35, macro_clusters, student_name):
             }
             for i, r in enumerate(top35[:20])
         ],
+        "astrological_potential_ranking": [
+            {"rank": r.get("astrological_potential_rank", i + 1), "field": label(r)}
+            for i, r in enumerate(top35[:20])
+        ],
+        "validated_recommendation_ranking": [
+            {"rank": r.get("validated_recommendation_rank"), "field": label(r)} for r in validated[:20]
+        ],
         "education_routes": [
-            _route_dict(top1, "Route A - Primary Route", "primary"),
-            _route_dict(pg_row or top1, "Route B - High-End Specialised Route", "specialised"),
-            _route_dict(top2 or top1, "Route C - Safe Practical Backup", "backup"),
+            {
+                "route_name": "Route A - Primary Route" if education_intent in {"first_ug_selection", "ug_correction"} else "Route A - Next Education/Career Route",
+                "title": label(top1),
+                "ug_options": label(top1) if education_intent in {"first_ug_selection", "ug_correction"} else "Not applicable to the resolved education intent",
+                "pg_options": f"{pg_program}: {pg_safe_route}" if pg_safe_route else pg_program,
+                "phd_options": (
+                    f"Optional PhD extension of {pg_program} only if research orientation becomes strong."
+                    if pg_row else "Optional only if research orientation becomes strong."
+                ),
+                "careers": ", ".join(outcome_core[:5]),
+                "best_for": "Students comfortable with physics, chemistry, mathematics, lab work, and engineering systems.",
+                "risk_level": edu.get("risk_level", "Medium"),
+                "long_term_value": market.get("india_2035_demand", "Medium") if isinstance(market, dict) else "Medium",
+            },
+            {
+                "route_name": "Route B - Backup Route",
+                "title": label(top2) or "",
+                "ug_options": label(top2) or "",
+                "pg_options": (
+                    f"{backup_pg_program}: {backup_safe_route}" if backup_pg_program and backup_safe_route
+                    else backup_pg_program
+                ),
+                "phd_options": (
+                    f"Optional PhD extension of {backup_pg_program} only if research orientation becomes strong."
+                    if backup_pg_program else "Optional only if research orientation becomes strong."
+                ),
+                "careers": ", ".join(backup_outcome_core[:5]),
+                "best_for": (
+                    "Students who want a genuinely different, strongly-scoring alternative to the primary "
+                    "field — worth keeping seriously in view, not just a fallback."
+                ),
+                "risk_level": backup_edu.get("risk_level", "Medium"),
+                "long_term_value": backup_market.get("india_2035_demand", "Medium") if isinstance(backup_market, dict) else "Medium",
+            },
+            {
+                "route_name": "Route C - Safe Practical Backup",
+                "title": label(alt_row) or label(top2) or "",
+                "ug_options": label(alt_row) or label(top2) or "Broad UG foundation, decide specialization later",
+                "pg_options": (
+                    f"{_registry_pg_program_label(alt_row)}: {alt_safe_route}" if alt_row and alt_safe_route
+                    else (_registry_pg_program_label(alt_row) if alt_row else "")
+                ),
+                "phd_options": "Optional only if research orientation becomes strong.",
+                "careers": ", ".join(alt_outcome_core[:5]),
+                "best_for": (
+                    "Students who want a lower-risk, well-trodden fallback distinct from the primary "
+                    "field, in case entrance rank, interest, or market conditions make Route A/B less practical."
+                ),
+                "risk_level": alt_edu.get("risk_level", "Low-Medium"),
+                "long_term_value": alt_market.get("india_2035_demand", "Medium") if isinstance(alt_market, dict) else "Medium",
+            },
         ],
         # True "avoid" list: only fields with independent, multi-dimensional
         # adverse evidence (STATUS_NOT_PRIMARY). Fields that merely need a PG
@@ -1039,11 +1446,7 @@ def _fallback_report_json(top35, macro_clusters, student_name):
                 # Align with the same route-suitability status used in
                 # fields_to_avoid so a field is never "Keep" here and "avoid"
                 # there for the same report.
-                "correct_status": (
-                    "Review"
-                    if (r.get("recommendation_assessment") or {}).get("recommendation_status") == STATUS_NOT_PRIMARY
-                    else "Keep"
-                ),
+                "correct_status": "Validated" if r.get("validated_recommendation_rank") else "Provisional/Review",
                 "action": (
                     "Keep as exploratory only"
                     if (r.get("recommendation_assessment") or {}).get("recommendation_status") == STATUS_NOT_PRIMARY
@@ -1052,9 +1455,10 @@ def _fallback_report_json(top35, macro_clusters, student_name):
             }
             for i, r in enumerate(top35[:10])
         ],
-        "engine_gap_audit": [],
+        "engine_gap_audit": _deterministic_field_audit(top35),
         "parent_summary": (
-            f"The safest education plan is {label(top1)} with {label(top2)} as backup. "
+            (f"The validated education plan is {label(top1)} with {label(top2)} as backup. " if primary_resolved else
+             f"The leading astrological potential is {label(top1)}, but no primary education route is validated yet. ") +
             f"Build strength in {', '.join(core_subjects[:4])}. "
             f"Market depth is {market.get('market_depth','not specified') if isinstance(market, dict) else 'not specified'}."
         ),
@@ -1063,13 +1467,140 @@ def _fallback_report_json(top35, macro_clusters, student_name):
             f"Try small projects in materials, manufacturing, mechanical systems, or aerospace materials."
         ),
         "final_recommendation": (
-            f"Choose {label(top1)} as the main route, keep {label(top2)} as a practical backup, "
-            f"and use {label(pg_row)} as the PG/specialization direction."
+            (f"Choose {label(top1)} as the validated main route, keep {label(top2)} as a practical backup, and pursue {pg_program} as the PG/specialization direction."
+             if primary_resolved else
+             f"Treat {label(top1)} only as provisional astrological potential until the listed mandatory academic evidence is supplied.")
         ),
     }
 
 
-def _apply_deterministic_suitability_to_report(report: Dict[str, Any], rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _enforce_deterministic_headline(report: Dict[str, Any], locked: Dict[str, Any]) -> Dict[str, Any]:
+    """Force the report's headline UG/PG/backup routes to match the
+    deterministic selection, regardless of what the LLM (or a stale fallback
+    path) produced.
+
+    This is defense-in-depth on top of the prompt instructions in
+    _build_report_user_prompt(): prompts can be ignored or mis-followed, so
+    the structured fields that a downstream renderer/consumer actually reads
+    (snapshot.*, education_routes[0]/[2], engine_output_comparison) are
+    overwritten here unconditionally. final_recommendation is only rewritten
+    if it fails to name the locked UG field, so a compliant LLM's richer
+    prose is preserved whenever possible.
+    """
+    if not locked:
+        return report
+
+    ug_label = locked.get("ug_label", "")
+    pg_label = locked.get("pg_label", "")
+    backup_label = locked.get("backup_label", "")
+    alt_backup_label = locked.get("alt_backup_label", "")
+
+    if not ug_label:
+        return report
+
+    snapshot = report.get("snapshot")
+    if not isinstance(snapshot, dict):
+        snapshot = {}
+        report["snapshot"] = snapshot
+    snapshot["best_ug_route"] = ug_label if locked.get("primary_resolved") else (
+        snapshot.get("best_ug_route") or "Unresolved pending mandatory academic validation"
+    )
+    if locked.get("primary_resolved"):
+        snapshot["best_pg_route"] = pg_label or ug_label
+        snapshot["strong_backup_route"] = backup_label
+
+    # 2026-08-18 gap fix (plumbing): _select_headline_routes() already
+    # computes pg_divergence_alert (D24/Siddhamsha independently supporting a
+    # DIFFERENT field for PG than the UG pick) and
+    # safe_backup_astrological_floor_waived (the safe-alternate backup fell
+    # back to risk-only selection because no candidate cleared the
+    # astrological floor) into the `locked` dict returned above -- but
+    # nothing downstream ever read either key out of `locked` before this
+    # fix, so both signals were computed and then silently discarded: never
+    # copied into `snapshot`, never mentioned in the LLM prompt, never
+    # visible in any exported report JSON/HTML. Confirmed on a real report
+    # (Akash Shanmugham, 2026-08-18 run): neither key appeared anywhere in
+    # the generated output despite the underlying computation running.
+    # Surfacing both here, additively, alongside the other snapshot.* keys
+    # this same function already stamps -- always attached (not just when an
+    # alert actually fired) so a consumer can distinguish "checked, nothing
+    # to flag" (None / False) from "never computed at all" (key absent).
+    snapshot["pg_divergence_alert"] = locked.get("pg_divergence_alert")
+    snapshot["safe_backup_astrological_floor_waived"] = bool(
+        locked.get("safe_backup_astrological_floor_waived")
+    )
+
+    # gap fix 2026-08-18 ("still not fixed" follow-up): field_suitability.py's
+    # annotate_field_suitability() now attaches
+    # validated_pick_pending_stronger_candidates to every row -- the list of
+    # fields that outrank the current best_ug_route on raw astrological score
+    # but are excluded from validation purely because required academic
+    # evidence (e.g. physics/math aptitude) hasn't been supplied for them yet
+    # (not because they were rejected). Confirmed live: commerce_accounting
+    # (raw rank #15) became best_ug_route while mechanical_engineering/
+    # chemical_engineering (raw ranks #1/#2) sat unresolved for exactly this
+    # reason, with no caveat anywhere in the report. Surfacing that list here
+    # so a reader sees "this is the strongest VALIDATED option, but stronger
+    # candidates are pending data" rather than an unqualified #1 claim --
+    # does not change ug_row/pg_row/backup_row selection at all.
+    _pending = (locked.get("ug_row") or {}).get("validated_pick_pending_stronger_candidates") or []
+    snapshot["best_ug_route_pending_stronger_candidates"] = _pending
+
+    routes = report.get("education_routes")
+    if isinstance(routes, list):
+        if routes and isinstance(routes[0], dict) and locked.get("primary_resolved"):
+            route_a = routes[0]
+            if ug_label not in str(route_a.get("ug_options", "")):
+                route_a["ug_options"] = ug_label
+            if pg_label and pg_label not in str(route_a.get("pg_options", "")):
+                route_a["pg_options"] = pg_label
+        if len(routes) > 1 and isinstance(routes[1], dict) and backup_label:
+            # Route B (Backup) is the strong backup FIELD (locked
+            # backup_label) — a different field from Route A, not a deeper
+            # version of it.
+            route_b = routes[1]
+            if backup_label not in str(route_b.get("ug_options", "")):
+                route_b["ug_options"] = backup_label
+        if len(routes) > 2 and isinstance(routes[2], dict) and alt_backup_label:
+            route_c = routes[2]
+            if alt_backup_label not in str(route_c.get("ug_options", "")):
+                route_c["ug_options"] = alt_backup_label
+
+    comparison = report.get("engine_output_comparison")
+    if isinstance(comparison, list) and locked.get("primary_resolved"):
+        found = False
+        for item in comparison:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("engine_field", "")) == ug_label:
+                item["correct_status"] = "Correct"
+                item["action"] = "Keep"
+                found = True
+        if not found:
+            comparison.insert(0, {
+                "engine_rank": (locked.get("ug_row") or {}).get("astrological_potential_rank")
+                or (locked.get("ug_row") or {}).get("validated_recommendation_rank")
+                or 1,
+                "engine_field": ug_label,
+                "correct_status": "Correct",
+                "action": "Keep",
+            })
+
+    if locked.get("primary_resolved"):
+        final_rec = str(report.get("final_recommendation", "") or "")
+        if ug_label not in final_rec:
+            report["final_recommendation"] = (
+                f"Choose {ug_label} as the validated main route"
+                + (f", keep {backup_label} as a practical backup" if backup_label else "")
+                + (f", and use {pg_label} as the PG/specialization direction." if pg_label else ".")
+            )
+
+    return report
+
+
+def _apply_deterministic_suitability_to_report(
+    report: Dict[str, Any], rows: List[Dict[str, Any]], locked: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Prevent either fallback prose or an LLM from reverting to the old
     parent-safe binary rule. Rankings remain unchanged; only route-status
     labels and their auditable reasons are synchronized.
@@ -1150,10 +1681,35 @@ def _apply_deterministic_suitability_to_report(report: Dict[str, Any], rows: Lis
     # flag, overriding whatever rank-based guess the LLM or fallback made —
     # this is the same fix applied to the deterministic fallback path, kept
     # authoritative here so it also corrects LLM-authored reports.
-    primary_row = rows[0] if rows else {}
-    pg_row = _select_pg_route_row(rows, primary_row=primary_row)
-    if pg_row:
-        snapshot["best_pg_route"] = _field_display_name(pg_row) or snapshot.get("best_pg_route", "")
+    #
+    # Bug fix (2026-08-17, "Best Choices/UG/PG/Backup shows wrong data"): this
+    # used to recompute pg_row relative to `rows[0]` -- the RAW rank-1 field
+    # by score -- instead of the LOCKED ug_row that _enforce_deterministic_
+    # headline() had already written into snapshot.best_ug_route a moment
+    # earlier in the same pipeline (generate_career_field_report_v2() calls
+    # _enforce_deterministic_headline() then _apply_deterministic_suitability_
+    # to_report() right after). Recomputing pg_row relative to the wrong
+    # primary field silently overwrote the correct, already-locked
+    # best_pg_route with a value inconsistent with best_ug_route -- exactly
+    # the "Best PG Route" mismatch seen in the Ramsunder run (locked
+    # pg=Computational Finance, but this block emitted Operations Research
+    # because it re-anchored PG selection to rank-1 Computational Finance
+    # itself instead of to the locked UG field). Now reuses the same `locked`
+    # selection (and its already-resolved pg_row) computed once upstream,
+    # falling back to a fresh, UG-anchored recomputation only if this
+    # function is ever called without it.
+    if locked and locked.get("pg_label"):
+        snapshot["best_pg_route"] = locked["pg_label"]
+    else:
+        # PG is the UG field's own registry PG program (see
+        # _registry_pg_program_label docstring) — not a different field.
+        _ug_label = snapshot.get("best_ug_route", "")
+        primary_row = next(
+            (r for r in rows if _field_display_name(r) == _ug_label), None,
+        ) or (rows[0] if rows else {})
+        pg_text = _registry_pg_program_label(primary_row) if primary_row else ""
+        if pg_text:
+            snapshot["best_pg_route"] = pg_text
 
     report["disclaimer"] = UNIVERSAL_DISCLAIMER
     report["validation_status"] = evidence_status(inputs_complete=True, computed=True)
@@ -1203,6 +1759,26 @@ def render_report_html_rich(
     top35 = top35 or []
     top20 = top35[:20]
     macro_clusters = macro_clusters or []
+
+    # GAP FIX (2026-08-17): Step 9 -- literal multi-method convergence.
+    # K.N. Rao / KP / D10 are already three independent evidentiary layers
+    # here (no dependency-group collapsing needed, unlike Field_Determination's
+    # nine methods), so this is a direct threshold count. Annotates each row
+    # with `step9_convergence` (Phase A: data + bounded informational tag,
+    # does NOT re-sort `top35`/`top20` or touch `final_score` -- reordering an
+    # already-ranked, already-explained list here risks the exact "displayed
+    # number disagrees with the ranking decision" bug this file's own
+    # `_macro_cluster_ranking` docstring above describes fixing for a
+    # different formula. A caller wanting the literal "convergence-first"
+    # sort can apply jyotish.step9_convergence.rank_by_strict_convergence to
+    # `top35` explicitly, using each row's `step9_convergence.convergence_count`
+    # and `final_score`).
+    for _row in top35:
+        _row["step9_convergence"] = score_convergence_simple({
+            "knrao_score": float(_row.get("knrao_score", 0) or 0),
+            "kp_score": float(_row.get("kp_score", 0) or 0),
+            "dashamsha_score": float(_row.get("dashamsha_score", 0) or 0),
+        })
     report = report or {}
 
     def score_value(row: Dict) -> float:
@@ -1379,6 +1955,38 @@ def render_report_html_rich(
                     or {}
                 ),
                 "sbc_manifestation": r.get("sbc_manifestation", {}),
+                # Gap fix (2026-08-17, transparency audit): score_confidence
+                # (absolute cross-method evidence quality, e.g. "SPECULATIVE")
+                # and confidence_band (this field's final_score rank RELATIVE
+                # to the other candidates in this one chart, e.g. "Very High
+                # (relative)") are computed by two genuinely different,
+                # uncoordinated systems (jyotish/engine.py's correlation-
+                # discounted convergence grade vs competency_ontology.py's
+                # score-threshold bands) that can legitimately disagree --
+                # see each field's own module docstring. Neither was
+                # previously exposed in this report at all, so a reader had
+                # no way to notice the two could contradict each other.
+                # score_confidence_note carries the plain-English explanation
+                # the engine itself already writes for exactly this case.
+                "score_confidence": r.get("score_confidence", ""),
+                "score_confidence_note": r.get("score_confidence_note", ""),
+                "confidence_band": r.get("confidence_band", ""),
+                "method_independence": r.get("method_independence", {}),
+                # Gap fix (2026-08-18, tiered-ranking audit): tier1/2/3_score
+                # and tier_decision_trace (from jyotish/tiered_ranking.py)
+                # were present in the deep audit export but silently absent
+                # here -- a reader had no way to see WHY the tiered ranking
+                # ordered fields the way it did (Tier 1 decided outright vs.
+                # a Tier 2/3 tie-break), only the final result. final_score
+                # is also, by construction, this field's tier1_score --
+                # final_score_legacy_blend is the retired flat-9-method-blend
+                # score, kept for audit/comparison against the pre-tiering
+                # ranking.
+                "tier1_score": r.get("tier1_score"),
+                "tier2_score": r.get("tier2_score"),
+                "tier3_score": r.get("tier3_score"),
+                "tier_decision_trace": r.get("tier_decision_trace", []),
+                "final_score_legacy_blend": r.get("final_score_legacy_blend"),
             })
         return out
 
@@ -1390,18 +1998,42 @@ def render_report_html_rich(
             for k in ("education_realism", "curriculum", "market", "risk", "routes", "career_outcomes")
         )
 
-    top1 = top35[0] if top35 else {}
-    top2 = top35[1] if len(top35) > 1 else {}
-    # PG route is NOT "whatever sits at rank 3" — it's the highest-ranked
-    # field actually flagged education_realism.pg_required_for_good_outcome.
-    # snapshot["best_pg_route"] is already recomputed this way in
-    # _apply_deterministic_suitability_to_report; fall back to a fresh
-    # selection here in case this renderer is ever called before that step.
-    pg_route_row = _select_pg_route_row(top35, primary_row=top1)
+    # Gap fix (2026-08-17): this section used to read top1/top2 straight off
+    # the raw score-rank list (top35[0]/top35[1]), completely bypassing the
+    # deterministic-suitability-adjusted selection already computed into
+    # report["snapshot"] by _select_headline_routes()/
+    # _enforce_deterministic_headline() (see career engine gap-analysis,
+    # Ramsunder run 2026-08-17 21:53 — the "Final Recommendation Snapshot"
+    # verdict card showed the raw #1-by-score field as "Best UG Route" while
+    # every other part of the same report, including this function's own
+    # top3_label a few lines below, correctly showed the suitability-adjusted
+    # pick). snapshot.best_ug_route / strong_backup_route are the single
+    # source of truth; resolve them back to their row objects (for
+    # score_value/career_archetype/etc. below) and only fall back to raw
+    # rank when the snapshot doesn't name a resolvable field (e.g. the
+    # "unresolved pending validation" case).
+    def _row_by_label(label: str, rows: List[Dict]) -> Dict:
+        if not label:
+            return {}
+        for r in rows or []:
+            if _field_display_name(r) == label:
+                return r
+        return {}
 
-    top1_label = _field_display_name(top1) if top1 else (snap.get("best_ug_route") or "Undetermined")
-    top2_label = _field_display_name(top2) if top2 else (snap.get("strong_backup_route") or "")
-    top3_label = snap.get("best_pg_route") or _field_display_name(pg_route_row) or ""
+    _snap_ug_label = snap.get("best_ug_route") or ""
+    _snap_backup_label = snap.get("strong_backup_route") or ""
+
+    top1 = _row_by_label(_snap_ug_label, top35) or (top35[0] if top35 else {})
+    top2 = _row_by_label(_snap_backup_label, top35) or (top35[1] if len(top35) > 1 else {})
+    # PG route is the UG field's OWN registry PG program (see
+    # _registry_pg_program_label docstring) — not a jump to a different
+    # field. snapshot["best_pg_route"] is already resolved this way in
+    # _apply_deterministic_suitability_to_report; fall back to a fresh,
+    # UG-anchored lookup here only in case this renderer is ever called
+    # before that step.
+    top1_label = _snap_ug_label or (_field_display_name(top1) if top1 else "Undetermined")
+    top2_label = _snap_backup_label or (_field_display_name(top2) if top2 else "")
+    top3_label = snap.get("best_pg_route") or (_registry_pg_program_label(top1) if top1 else "")
     top_cluster = macro_clusters[0] if macro_clusters else {
         "cluster": fi.get("macro_identity", ""),
         "strength_pct": 0,
@@ -1423,6 +2055,121 @@ def render_report_html_rich(
     ], "primary") + pills([p for p, _ in strengths_top3], "alt")
     avoid_pills = pills([a.get("field", "") for a in report.get("fields_to_avoid", []) if isinstance(a, dict)], "avoid")
 
+    # Stage 6 (Astro-OS v3 gap-audit implementation plan, 2026-08): surface
+    # Stage 3's career_archetype (chart-level, read-only narrative signal --
+    # see career_archetype.py's module docstring) and Stage 4's
+    # confidence_dimensions (per-field structural/educational/professional/
+    # research/leadership/timing breakdown) in the report for the first
+    # time. Both were already computed and threaded through engine.py's row
+    # builders (Stages 3/4), but nothing in the report layer read them until
+    # now -- the same "computed but never surfaced" class of gap fixed
+    # repeatedly earlier in this implementation plan, just one layer further
+    # downstream (report rendering rather than the debug-payload split).
+    # Pulled from top1 since career_archetype is identical across every row
+    # for a given chart (chart-level, not field-level) and confidence_
+    # dimensions is field-specific, so top1's copy is the one relevant to
+    # the report's own headline recommendation.
+    _archetype = (top1 or {}).get("career_archetype", {}) or {}
+    _top_arch = _archetype.get("top_archetype", {}) or {}
+    _archetype_pills_html = ""
+    if _top_arch:
+        _distinctness = _archetype.get("distinctness", "")
+        _distinctness_note = {
+            "CLEAR": "a clearly dominant signature",
+            "LEANING": "a leaning signature (a secondary type is also present)",
+            "BLENDED": "a blended signature (multiple types are close together)",
+        }.get(_distinctness, "")
+        _archetype_pills_html = f"""
+      <section class="panel">
+        <div class="section-title"><h2>Career Archetype</h2><span class="chip">Chart-level, descriptive only</span></div>
+        <div class="pill-wrap">{pills([_top_arch.get("label", "")], "primary")}</div>
+        <p class="note" style="margin-top:10px;">{_esc(_top_arch.get("description", ""))}</p>
+        <p class="note" style="margin-top:6px;">{_esc(_distinctness_note)}{f" (margin {_archetype.get('margin', 0):.1f} pts over the runner-up)" if _distinctness_note else ""}</p>
+      </section>"""
+
+    _confidence_dims = (top1 or {}).get("confidence_dimensions", {}) or {}
+    _confidence_dims_html = ""
+    if _confidence_dims:
+        _dim_order = [
+            ("structural_fit", "Structural Fit"), ("educational_fit", "Educational Fit"),
+            ("professional_fit", "Professional Fit"), ("research_fit", "Research Fit"),
+            ("leadership_fit", "Leadership Fit"), ("timing_fit", "Timing Fit"),
+        ]
+        # Display-vs-band rounding fix (2026-08-20 audit): the band label
+        # (LOW/MODERATE/etc.) is computed by confidence_dimensions.py's
+        # _band() on the true score (e.g. 49.62 -> LOW, since the threshold is
+        # >= 50 for MODERATE). Formatting the displayed number with `:.0f`
+        # rounded 49.62 up to a displayed "50", which visually contradicts the
+        # correctly-computed "LOW" band sitting right next to it. `:.1f` keeps
+        # the displayed number ("49.6") consistent with its own band without
+        # changing any underlying score/band computation.
+        _dim_rows = "".join(
+            f'<div class="metric"><b>{_esc(_confidence_dims.get(key, {}).get("band", ""))}</b>'
+            f'<span>{_esc(label)} ({_confidence_dims.get(key, {}).get("score", 0):.1f})</span></div>'
+            for key, label in _dim_order
+            if _confidence_dims.get(key)
+        )
+        _score_confidence = str((top1 or {}).get("score_confidence", "") or "")
+        _confidence_band_val = str((top1 or {}).get("confidence_band", "") or "")
+        _score_confidence_note = str((top1 or {}).get("score_confidence_note", "") or "")
+        _dual_confidence_note = ""
+        if _score_confidence and _confidence_band_val:
+            # Gap fix (2026-08-17, transparency audit): these two labels are
+            # computed by different systems and can legitimately disagree
+            # (see enriched_top20_payload() comment above) -- e.g.
+            # score_confidence="SPECULATIVE" next to
+            # confidence_band="Very High (relative)" reads as an outright
+            # contradiction unless it's explained. This makes that
+            # distinction explicit wherever both values are shown together.
+            _dual_confidence_note = (
+                f'<p class="note" style="margin-top:6px;"><strong>Two different confidence labels for this field:</strong> '
+                f'evidence-quality grade is <b>{_esc(_score_confidence)}</b> (how independently the scoring methods '
+                f'actually agree), while the rank-based confidence is <b>{_esc(_confidence_band_val)}</b> (how far ahead '
+                f'this field is of the other candidates IN THIS CHART). These answer different questions and can '
+                f'disagree -- a field can be "Very High (relative)" simply by beating weaker competitors, while its '
+                f'absolute evidence quality is still SPECULATIVE.'
+                + (f' Engine note: {_esc(_score_confidence_note)}' if _score_confidence_note else '')
+                + '</p>'
+            )
+        _confidence_dims_html = f"""
+      <section class="panel">
+        <div class="section-title"><h2>Confidence Breakdown</h2><span class="chip">{_esc(top1_label)}</span></div>
+        <div class="metric-grid">{_dim_rows}</div>
+        <p class="note" style="margin-top:10px;">Separates "does the chart structurally support this field" from "is the current dasha window favorable," etc. -- a single field can be structurally strong while its timing window is not yet ideal, or vice versa.</p>
+        {_dual_confidence_note}
+      </section>"""
+
+    # Gap fix (2026-08-17, transparency audit): confidence_dimensions is
+    # computed from the same per-method data as final_score but is a
+    # read-only diagnostic never fed back into the blend -- a field can rank
+    # #1 with a strong final_score while its classical D10/D24/D1
+    # confirmation is genuinely weak, and previously nothing surfaced that
+    # tension anywhere near the headline (the Confidence Breakdown panel
+    # with the actual VERY_LOW bands sits in the sidebar/body, well below
+    # what a parent or student reading only the top of the report would
+    # see). This builds a headline-adjacent caveat chip when 2+ of the six
+    # dimensions read VERY_LOW, pointing the reader down to the section that
+    # already existed but was too easy to miss.
+    _very_low_dims = [
+        label for key, label in [
+            ("structural_fit", "Structural Fit (D1)"), ("educational_fit", "Educational Fit (D24)"),
+            ("professional_fit", "Professional Fit (D10)"), ("research_fit", "Research Fit"),
+            ("leadership_fit", "Leadership Fit"), ("timing_fit", "Timing Fit"),
+        ]
+        if (_confidence_dims.get(key) or {}).get("band") == "VERY_LOW"
+    ]
+    _headline_tension_html = ""
+    if len(_very_low_dims) >= 2:
+        _headline_tension_html = (
+            '<div class="callout warn" style="margin-top:10px;">'
+            f'<strong>Read before trusting the score alone:</strong> {_esc(top1_label)} tops the ranking, '
+            f'but {len(_very_low_dims)} of its 6 confidence dimensions read VERY_LOW '
+            f'({_esc(", ".join(_very_low_dims))}) -- meaning the classical career/education charts '
+            'themselves are quiet on this field even though the blended score is strong. '
+            'See "Confidence Breakdown" below before treating this as a settled recommendation.'
+            '</div>'
+        )
+
     meta_chips = (
         f'<span class="chip strong">Primary identity: {_esc(fi.get("macro_identity",""))}</span>'
         f'<span class="chip blue">Career phase: {_esc(career_phase)}</span>'
@@ -1440,6 +2187,7 @@ def render_report_html_rich(
       </div>
       <p class="hero-copy">{_esc(fi.get("one_line_summary",""))}</p>
       <div class="meta-row">{meta_chips}</div>
+      {_headline_tension_html}
     </div>
     <aside class="hero-side">
       <div class="section-title"><h2>Decision Snapshot</h2></div>
@@ -1468,7 +2216,7 @@ def render_report_html_rich(
         <div class="section-title"><h2>Chart Signature</h2></div>
         <div class="pill-wrap">{signature_pills}</div>
         <p class="note" style="margin-top:10px;">These are factual chart anchors passed to the interpretation layer.</p>
-      </section>
+      </section>{_archetype_pills_html}{_confidence_dims_html}
       <section class="panel">
         <div class="section-title"><h2>Avoid As Primary</h2></div>
         <div class="pill-wrap">{avoid_pills}</div>
@@ -1476,25 +2224,66 @@ def render_report_html_rich(
       </section>
     </aside>"""
 
+    # gap fix 2026-08-18 ("still not fixed" follow-up): make
+    # best_ug_route_pending_stronger_candidates (see
+    # _enforce_deterministic_headline() / field_suitability.py) visible right
+    # on the verdict card itself, not just in the raw JSON snapshot -- a
+    # reader should not have to dig into the report's data payload to learn
+    # that astrologically-stronger fields exist but are pending academic
+    # evidence for the current headline pick.
+    _pending_candidates = snap.get("best_ug_route_pending_stronger_candidates") or []
+    _pending_stronger_note = ""
+    if _pending_candidates:
+        _pending_names = ", ".join(
+            str(c.get("field_label") or c.get("field_id") or "") for c in _pending_candidates[:3]
+        )
+        _pending_stronger_note = (
+            f" Note: {_esc(_pending_names)} rank higher astrologically but are "
+            "pending confirmed academic-aptitude evidence before they can be "
+            "validated as the primary route."
+        )
+
     section1 = f"""
       <section class="panel">
         <div class="section-title"><h2>1. Final Recommendation Snapshot</h2><span class="chip strong">Actionable</span></div>
         <div class="verdict">
-          <div class="verdict-card"><div class="label">Best UG Route</div><div class="value">{_esc(top1_label)}</div><p class="note">Main education decision.</p></div>
+          <div class="verdict-card"><div class="label">Best UG Route</div><div class="value">{_esc(top1_label)}</div><p class="note">Main education decision -- a practical-suitability recommendation (astrological alignment + academic fit + education feasibility + career viability combined), not a pure astrological verdict.{_pending_stronger_note}</p></div>
           <div class="verdict-card"><div class="label">Strong Backup</div><div class="value">{_esc(top2_label)}</div><p class="note">Keep available, but secondary to the primary identity.</p></div>
           <div class="verdict-card"><div class="label">Best PG Route</div><div class="value">{_esc(top3_label)}</div><p class="note">Specialization direction after the core UG base.</p></div>
           <div class="verdict-card"><div class="label">Career Cluster</div><div class="value">{_esc(top_cluster.get("cluster",""))}</div><p class="note">Dominant macro identity from engine cluster ranking.</p></div>
         </div>
       </section>"""
 
-    def score_rows_html(rows: List[Dict], start_rank: int) -> str:
+    # Bar-width fix (2026-08-18, tiered-ranking rollout): `final_score` is
+    # now a Tier-1-weighted average of 4 methods (see
+    # jyotish/tiered_ranking.py), which lands in a much lower/tighter
+    # absolute range (roughly 13-27 on a real chart) than the old flat
+    # 9-method blend it replaced (roughly 45-100). Rendering that raw
+    # number directly as a bar `width:%` made every field -- including
+    # rank #1 -- look like a near-empty, weak match. `_top20_max_score`
+    # is this run's OWN top final_score (matching the same
+    # self-normalizing pattern jyotish/report_utils.py already uses for
+    # macro-cluster strength_pct), so the top field's bar always reads
+    # 100% and every other bar is honestly relative to it -- the visual
+    # no longer depends on the absolute scale of whichever ranking
+    # authority (flat blend vs tiered) happens to be in charge.
+    _top20_max_score = max((score_value(r) for r in top20), default=0.0)
+
+    def _bar_pct(sc: float, top_score: float) -> float:
+        if top_score <= 0:
+            return 0.0
+        return max(0.0, min(100.0, (sc / top_score) * 100.0))
+
+    def score_rows_html(rows: List[Dict], start_rank: int, top_score: float = None) -> str:
         out = []
+        _top = top_score if top_score is not None else _top20_max_score
         for i, r in enumerate(rows, start_rank):
             sc = score_value(r)
+            bar_pct = _bar_pct(sc, _top)
             out.append(
                 f'<div class="score-row"><span class="rank">{i}</span><div>'
                 f'<div class="score-name">{_esc(_field_display_name(r))}</div>'
-                f'<div class="bar"><span style="width:{max(0,min(100,sc)):.2f}%"></span></div>'
+                f'<div class="bar"><span style="width:{bar_pct:.2f}%"></span></div>'
                 f'</div><div class="score-num">{sc:.2f}</div></div>'
             )
         return "".join(out)
@@ -1683,9 +2472,49 @@ def render_report_html_rich(
             f'<span class="method-pct">{float(r.get(key,0) or 0):.1f}%</span></div>'
             for key, name in method_labels
         )
+        # GAP FIX (2026-08-17): Step 9 convergence tag, computed above into
+        # step9_convergence -- makes the "agreement is supporting
+        # convergence" note just below this card concrete instead of purely
+        # narrative.
+        _conv = r.get("step9_convergence") or {}
+        _conv_tier = _conv.get("convergence_tier", "")
+        _conv_count = _conv.get("convergence_count", 0)
+        _conv_chip = (
+            f'<span class="chip">{_esc(_conv_tier.replace("_", " ").title())} '
+            f'({_conv_count}/3 methods)</span>' if _conv_tier else ""
+        )
+        # Gap fix (2026-08-17, transparency audit): method_independence is
+        # computed on every row (jyotish/evidence_integrity.py) and already
+        # feeds a convergence discount into final_score, but it was never
+        # rendered anywhere in the HTML -- a reader had no way to tell "9
+        # methods agree" apart from "9 methods agree, but 6 of them share
+        # the same D1 root data, so this isn't really 9 independent votes."
+        # Surfacing agreement_label/effective_independent_method_count right
+        # next to the convergence chip closes that gap with data the engine
+        # already computes -- no new scoring logic.
+        _indep = r.get("method_independence") or {}
+        _agree_label = str(_indep.get("agreement_label", "") or "")
+        _eff_count = _indep.get("effective_independent_method_count")
+        _indep_chip = (
+            f'<span class="chip{" warn" if _agree_label == "CORRELATED_CONVERGENCE" else ""}" '
+            f'title="Effective independent methods behind this score, after removing correlated/shared-input methods">'
+            f'{_esc(_agree_label.replace("_", " ").title())} '
+            f'({_eff_count} independent)</span>'
+            if _agree_label else ""
+        )
+        # Gap fix (2026-08-18, tiered-ranking audit): tier_decision_trace
+        # (jyotish/tiered_ranking.py) explains WHY this field landed where
+        # it did -- Tier 1 decided outright, or Tier 2/3 broke a near-tie --
+        # but like method_independence before it, was computed on every row
+        # and never rendered. Surfacing the first (only) trace entry here
+        # closes that gap with data the engine already computes.
+        _tier_trace = (r.get("tier_decision_trace") or [None])[0]
+        _tier_note = (
+            f'<p class="note" style="margin-top:6px;">{_esc(_tier_trace)}</p>' if _tier_trace else ""
+        )
         method_cards.append(
-            f'<div class="method-card"><div class="method-title"><span>#{i}</span>{_esc(_field_display_name(r))}</div>'
-            f'<div class="method-bars">{bars}</div></div>'
+            f'<div class="method-card"><div class="method-title"><span>#{i}</span>{_esc(_field_display_name(r))}{_conv_chip}{_indep_chip}</div>'
+            f'<div class="method-bars">{bars}</div>{_tier_note}</div>'
         )
 
     sbc_rows = []
@@ -1701,6 +2530,7 @@ def render_report_html_rich(
         )
 
     ug_start_year = chart_facts.get("ug_start_year", "")
+    education_intent = chart_facts.get("education_intent", "first_ug_selection")
     has_sbc = any((r.get("sbc_manifestation") or r.get("smi")) is not None for r in top35[:3])
     sbc_block = (
         f"""<div class="sbc-canvas">
@@ -1732,6 +2562,8 @@ def render_report_html_rich(
 
     timeline_html = ""
     try:
+        if education_intent not in {"first_ug_selection", "ug_correction"}:
+            raise ValueError("UG timeline is not applicable to the resolved education intent")
         y0 = int(ug_start_year)
         phases = [
             (y0 - 1, y0, "Strengthen fundamentals aligned with the recommended UG route."),
@@ -2022,7 +2854,13 @@ def render_report_html(
     report = report or {}
     top35 = top35 or []
     top20 = top35[:20]
-    macro_clusters = macro_clusters or {}
+    # GAP-FIX (2026-08-22, audit follow-up): defaulted to {} (dict) here while
+    # the sibling render_report_html_rich() correctly defaults to [] (list) —
+    # macro_clusters is iterated with `for c in macro_clusters` and serialized
+    # into json_schema_payload["macro_clusters"], both of which expect a list.
+    # Harmless with an empty dict (iterates/serializes as empty either way)
+    # but inconsistent typing; matched to the list default for correctness.
+    macro_clusters = macro_clusters or []
     gen_date = datetime.now().strftime("%d %b %Y, %H:%M")
 
     def score_value(row: Dict) -> float:
@@ -2472,7 +3310,7 @@ def render_report_html(
 <section id="s2">
   <h2 class="sec-title">2. Final Recommendation Snapshot</h2>
   <div class="snapshot-grid">
-    <div class="snapshot-card"><b>Best UG Route</b>{_esc(snapshot.get("best_ug_route",""))}</div>
+    <div class="snapshot-card"><b>Best UG Route</b>{_esc(snapshot.get("best_ug_route",""))}{(" (Note: " + _esc(", ".join(str(c.get("field_label") or c.get("field_id") or "") for c in (snapshot.get("best_ug_route_pending_stronger_candidates") or [])[:3])) + " rank higher astrologically but are pending confirmed academic-aptitude evidence.)") if snapshot.get("best_ug_route_pending_stronger_candidates") else ""}</div>
     <div class="snapshot-card"><b>Best PG Route</b>{_esc(snapshot.get("best_pg_route",""))}</div>
     <div class="snapshot-card"><b>Best Career Cluster</b>{_esc(snapshot.get("best_career_cluster",""))}</div>
     <div class="snapshot-card"><b>Strong Backup Route</b>{_esc(snapshot.get("strong_backup_route",""))}</div>
@@ -2553,6 +3391,7 @@ def render_report_html(
 </html>"""
     return html
 
+
 def build_career_field_report_from_chart(
     chart: Any,
     student_name: Optional[str] = None,
@@ -2562,24 +3401,10 @@ def build_career_field_report_from_chart(
     output_dir: str = "educational_records",
     force_llm_report: bool = False,
 ) -> Dict[str, Any]:
-    """API adapter: run the deterministic ``--mode field`` pipeline and return
-    the JSON bundle the astro API consumes, without writing an HTML file.
+    """API adapter: run the deterministic field pipeline and return JSON for the API.
 
-    This mirrors :func:`generate_career_field_report_v2` step-for-step (engine
-    run with ``enable_llm=False`` for field-mode parity, slim, SBC advisory,
-    v12 registry enrichment, field-suitability, macro clusters, and the
-    14-section report narrative), but returns a dict instead of a file path.
-
-    Parameters
-    ----------
-    chart:
-        Either a chart JSON ``dict`` (API path) or a path string (CLI/testing).
-    render_html:
-        When True, also renders and writes the HTML report to ``output_dir``
-        and records its path under ``bundle["html_path"]``.
-    precomputed_results:
-        Authoritative engine rows from a caller that already ran the engine;
-        reused verbatim instead of re-running (see generate_career_field_report_v2).
+    Mirrors :func:`generate_career_field_report_v2` but returns a dict instead of
+    writing HTML. Used by ``api/education_analysis.py`` (UG endpoint).
     """
     if isinstance(chart, (str, os.PathLike)):
         with open(chart, "r", encoding="utf-8") as fh:
@@ -2603,7 +3428,6 @@ def build_career_field_report_from_chart(
     elif _env_llm_consent:
         logger.info("[career_field_report_v2] LLM consent granted via LLM_REPORT_CONSENT env var.")
 
-    # Field-mode parity: the deterministic engine owns the Top-20 ranking.
     if precomputed_results is None:
         results = run_engine(payload, enable_llm=bool(enable_llm_field_explanations and _llm_consent))
     else:
@@ -2613,7 +3437,6 @@ def build_career_field_report_from_chart(
     from Field_Determination.debug_payload_split import slim_for_render
     results = slim_for_render(results)
 
-    # SBC advisory layer only — never overwrite deterministic ranking.
     try:
         from .sbc import SarvatobhadraEngine
 
@@ -2641,7 +3464,6 @@ def build_career_field_report_from_chart(
     except Exception as sbc_err:
         logger.warning("[career_field_report_v2] SBC advisory layer unavailable: %s", sbc_err)
 
-    # Professional route-suitability layer needs canonical registry metadata.
     registry_v12 = _load_course_registry()
     for row in results:
         fid = _row_field_id(row)
@@ -2743,6 +3565,7 @@ def generate_career_field_report_v2(
     enable_llm_field_explanations: bool = False,
     use_new_renderer: bool = False,
     precomputed_results: Optional[List[Dict[str, Any]]] = None,
+    peak_dasha_lord: Optional[str] = None,
 ) -> str:
     """Run the engine on a chart JSON file and write the 14-section
     Career Field Recommendation Report as a standalone HTML file.
@@ -2768,6 +3591,21 @@ def generate_career_field_report_v2(
         Optional authoritative rows from a caller that already ran the engine.
         When supplied, the report reuses them exactly instead of rerunning and
         risking a different Top 20.
+    peak_dasha_lord:
+        Bug fix (2026-08-17, user-flagged "CLI gives Saturn, HTML gives
+        Jupiter"): payload.peak_dasha_lord is set as a SIDE EFFECT inside
+        run_engine() (engine.py:1911), not by parse_json_payload(). When a
+        caller supplies `precomputed_results` (skipping the run_engine()
+        call below), this function still builds its OWN fresh `payload` from
+        chart_path just above -- a different object from whatever payload
+        the caller's own run_engine() call already computed peak_dasha_lord
+        on. That fresh payload never got peak_dasha_lord set, so line ~3199
+        silently fell back to active_lord (the CURRENT dasha, e.g. Jupiter)
+        instead of the real peak dasha (e.g. Saturn) the caller's own CLI
+        run already computed and logged as "Peak career MD". Callers that
+        already ran run_engine() themselves (e.g. education_engine.py) must
+        pass that payload's peak_dasha_lord through here explicitly so both
+        outputs describe the same chart the same way.
 
     Returns
     -------
@@ -2885,12 +3723,12 @@ def generate_career_field_report_v2(
         assessment = row.get("recommendation_assessment", {})
         logger.info(
             "[SUITABILITY] rank=%02d field=%s status=%s overall=%.2f "
-            "astro=%.2f academic=%.2f education=%.2f career=%.2f "
+            "astro=%.2f academic=%s education=%.2f career=%.2f "
             "conditions=%s contraindications=%s missing=%s",
             rank, _field_display_name(row), assessment.get("recommendation_status", ""),
             float(assessment.get("overall_suitability", 0.0)),
             float(assessment.get("astrological_alignment", 0.0)),
-            float(assessment.get("academic_fit", 0.0)),
+            "unknown" if assessment.get("academic_fit") is None else f'{float(assessment.get("academic_fit")):.2f}',
             float(assessment.get("education_feasibility", 0.0)),
             float(assessment.get("career_viability", 0.0)),
             assessment.get("conditions", []), assessment.get("contraindications", []),
@@ -2899,23 +3737,49 @@ def generate_career_field_report_v2(
 
     current_age = float(getattr(payload, "current_age", 0) or 0)
     active_lord = _get_active_dasha_lord(getattr(payload, "dasha_sequence", []), current_age)
-    peak_lord = getattr(payload, "peak_dasha_lord", "") or active_lord
+    # Prefer the caller-supplied peak_dasha_lord (from a payload that
+    # actually went through run_engine()) over this function's own fresh
+    # `payload`, which never ran run_engine() when precomputed_results is
+    # supplied and so never got peak_dasha_lord set — see the
+    # peak_dasha_lord parameter docstring above.
+    peak_lord = peak_dasha_lord or getattr(payload, "peak_dasha_lord", "") or active_lord
     age_stage = classify_age_stage(current_age, results)
     career_phase_raw = _resolve_career_phase(payload)
     career_phase = _career_phase_label(age_stage, career_phase_raw)
     chart_facts = _build_chart_signature_facts(payload, active_lord, peak_lord)
+    chart_facts["education_intent"] = _resolve_education_intent(data, current_age)
     macro_clusters = _macro_cluster_ranking(results, top_n=20)
 
-    llm_meta = {
-        "attempted": False,
-        "succeeded": False,
-        "provider": "",
-        "model": "",
-        "error_message": "LLM report not attempted (consent or API key missing)",
-    }
+    # Single source of truth for the headline UG/PG/backup/alternate-backup
+    # routes — computed once, before the LLM call, so both the LLM prompt and
+    # the deterministic fallback narrate the exact same selection. See
+    # _select_headline_routes() for the rules.
+    #
+    # Bug fix (2026-08-17, user-flagged: "Technology Consulting"/"Economics"
+    # shown as the headline UG/backup even though neither appears in the
+    # published Top 20 table): this used to pass the FULL, unsliced `results`
+    # population (every scored field in the ~205-field registry, not just
+    # the ones actually published in the report) into _select_headline_
+    # routes(). Its validated_recommendation_rank-based selection could then
+    # legitimately pick a field ranked #21 or #31 overall -- one the reader
+    # can never see or cross-check, since every other section of this report
+    # (Top 20 table, cluster panels, method-score canvas) is built from
+    # results[:20]/[:35] only. A headline pick that isn't even visible in the
+    # report it headlines is a credibility bug on its own, regardless of how
+    # defensible its suitability score is. Capping the candidate pool to the
+    # same top20 the reader actually sees guarantees the headline selection
+    # is always a field the reader can find and verify in this same report.
+    locked_routes = _select_headline_routes(results[:20])
+    logger.info(
+        "[career_field_report_v2] Locked headline selection: ug=%s pg=%s backup=%s alt_backup=%s",
+        locked_routes.get("ug_label"), locked_routes.get("pg_label"),
+        locked_routes.get("backup_label"), locked_routes.get("alt_backup_label"),
+    )
+
     if _llm_consent:
-        report, llm_meta = _call_llm_for_report(
+        report = _call_llm_for_report(
             name, career_phase, active_lord, peak_lord, chart_facts, results, macro_clusters,
+            locked=locked_routes,
         )
     else:
         logger.info("[PRIVACY] External report LLM skipped: explicit consent not supplied.")
@@ -2925,12 +3789,19 @@ def generate_career_field_report_v2(
         logger.warning(
             "[career_field_report_v2] LLM report generation failed/unavailable — using deterministic fallback."
         )
-        report = _fallback_report_json(results, macro_clusters, name)
+        report = _fallback_report_json(
+            results, macro_clusters, name, chart_facts.get("education_intent", "first_ug_selection"),
+            locked=locked_routes,
+        )
+
+    # Re-assert the locked UG/PG/backup selection regardless of what the LLM
+    # (or the fallback) actually wrote — see _enforce_deterministic_headline().
+    report = _enforce_deterministic_headline(report, locked_routes)
 
     # Deterministic policy owns status labels even when narrative text came
     # from an LLM. This prevents unsupported LLM demotions or resurrection of
     # the former parent_safe=False shortcut.
-    report = _apply_deterministic_suitability_to_report(report, results)
+    report = _apply_deterministic_suitability_to_report(report, results, locked=locked_routes)
     report["privacy"] = privacy_contract(payload)
     report["calculation_identity"] = calculation_identity(
         build_policy_json(), engine=ENGINE_VERSION, degraded=False,

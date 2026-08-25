@@ -27,9 +27,6 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
 
 
 def _flat(chart: Mapping[str, Any] | None) -> dict[str, str]:
-    if chart and chart.get("planets"):
-        from .pyhora_schema import chart_to_signs
-        return chart_to_signs(chart)
     out = {}
     for body, value in (chart or {}).items():
         sign = value.get("sign", "") if isinstance(value, Mapping) else value
@@ -77,6 +74,14 @@ def build_provenance_bundle(payload: Any, kp_audit: Mapping[str, Any]) -> dict:
     d10_conflicts = _conflicts(supplied_d10, calculated_d10, "D10")
     uncertainty_minutes = max(0, int(_get(payload, "birth_time_uncertainty_minutes", 0) or 0))
     varga_uncertainty = min(1.0, uncertainty_minutes / 10.0)
+    # GAP-FIX (P0-2, CalculationPolicy threading): single source of truth for
+    # "is birth time precise enough" instead of a local == "exact" re-derivation.
+    _policy = _get(payload, "calculation_policy", None)
+    _precise_cusps_allowed = (
+        bool(_policy.precise_cusps_allowed)
+        if _policy is not None and hasattr(_policy, "precise_cusps_allowed")
+        else _get(payload, "birth_time_precision", "unknown") == "exact"
+    )
     identity = dict(_get(payload, "calculation_identity", {}) or {})
     house_system = str(identity.get("house_system") or _get(payload, "house_system", "") or "")
 
@@ -123,7 +128,7 @@ def build_provenance_bundle(payload: Any, kp_audit: Mapping[str, Any]) -> dict:
         "chart_sources": {"D1": "upstream", "D10": "inhouse+compared", "D9": "upstream", "D24": "upstream", "KP": "upstream+audited"},
         "conflicts": d10_conflicts,
         "errors": errors,
-        "warnings": (["BIRTH_TIME_SENSITIVITY_NOT_RUN"] if uncertainty_minutes or _get(payload, "birth_time_precision", "unknown") != "exact" else []),
+        "warnings": (["BIRTH_TIME_SENSITIVITY_NOT_RUN"] if uncertainty_minutes or not _precise_cusps_allowed else []),
         "ok": not errors,
         "scoring_authority": False,
     }

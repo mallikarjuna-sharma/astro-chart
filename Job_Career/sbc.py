@@ -478,7 +478,7 @@ class SarvatobhadraEngine:
             smi_result = _domain_smi_cache[domain]
 
             extra_transit = self._check_field_ruling_planet_transit(
-                r.get("affinity_planets", {}))
+                r.get("affinity_planets", {}), domain)
             smi = round(max(0.0, min(100.0, smi_result.smi + extra_transit)), 1)
 
             # Timing band: human-readable manifestation window
@@ -584,7 +584,17 @@ class SarvatobhadraEngine:
           - Natal malefics casting direct vedha on a key nak → -15 each
           - Natal malefics casting diagonal vedha on a key nak → -10 each
           - Natal malefics casting side vedha on a key nak → -6 each
-          - Natal benefics casting vedha (protection in some traditions) → +4 each
+          - Natal benefics casting vedha → still an obstruction (strict SBC:
+            vedha = obstruction regardless of the obstructing planet's
+            nature), but at reduced severity vs a malefic vedha.
+
+        GAP-FIX (2026-08-22, audit item #21): a benefic's vedha was
+        previously treated as a *protective bonus* (+4 each). Classical SBC
+        (Sarvatobhadra Chakra) vedha is an obstruction/blocking relationship
+        by definition, independent of whether the obstructing planet is a
+        natural benefic or malefic — a benefic's vedha is a softer
+        obstruction, not a reversal into protection. Changed to a smaller
+        malus instead of a bonus.
         """
         score = 60.0
         key_naks = set(self._key_naks)
@@ -596,8 +606,10 @@ class SarvatobhadraEngine:
                 penalty_map = {1.00: 15.0, 0.75: 10.0, 0.50: 6.0}
                 score -= penalty_map.get(link.strength, 6.0)
             elif link.nature == "benefic":
-                # Benefic vedha in SBC = nuanced; partial protection
-                score += link.strength * 4.0
+                # Vedha is obstruction regardless of planet nature; a
+                # benefic's vedha is milder than a malefic's, not protective.
+                penalty_map = {1.00: 6.0, 0.75: 4.0, 0.50: 2.5}
+                score -= penalty_map.get(link.strength, 2.5)
 
         # Trikona relationship bonus: a natal benefic in trikona of key nak → protect
         for planet, pnak in self._natal_naks.items():
@@ -783,10 +795,18 @@ class SarvatobhadraEngine:
         delta = max(-25.0, min(20.0, delta))
         return round(delta, 1), acts
 
-    def _check_field_ruling_planet_transit(self, affinity_planets: Dict[str, float]) -> float:
+    def _check_field_ruling_planet_transit(self, affinity_planets: Dict[str, float],
+                                            domain: str = "") -> float:
         """
         Per-field personalisation: if this field's top affinity planet is currently
-        in one of its own career nakshatras, give a small +4 personalisation bonus.
+        in one of ITS OWN FIELD'S career nakshatras, give a small +4 personalisation
+        bonus.
+
+        GAP-FIX (2026-08-22): previously looped over ALL domains in
+        CAREER_DOMAIN_NAKSHATRAS instead of just the current field's own domain
+        (the `domain` parameter was never passed in), so a field could receive
+        the +4.0 bonus based on an unrelated domain's ruling-planet/nakshatra
+        list. Now scoped to the current field's own domain only.
         """
         if not self._transit_naks or not affinity_planets:
             return 0.0
@@ -794,11 +814,12 @@ class SarvatobhadraEngine:
         tnak = self._transit_naks.get(top_planet, "")
         if not tnak:
             return 0.0
-        # Check if transit top_planet is in its own nakshatra set
-        for _dom_data in CAREER_DOMAIN_NAKSHATRAS.values():
-            if (top_planet in _dom_data["planets"] and
-                    tnak in _dom_data["nakshatras"]):
-                return 4.0
+        _dom_data = CAREER_DOMAIN_NAKSHATRAS.get(domain)
+        if not _dom_data:
+            return 0.0
+        if (top_planet in _dom_data["planets"] and
+                tnak in _dom_data["nakshatras"]):
+            return 4.0
         return 0.0
 
 

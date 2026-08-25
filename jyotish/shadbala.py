@@ -40,6 +40,98 @@ from .validation_contract import evidence_status
 SHADBALA_VERSION = "shadbala-six-fold.classical-v2"
 CLASSICAL_SHADBALA_PLANETS = ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn")
 
+# ── §5b: Rahu/Ketu 0-1 strength heuristic (no classical Shadbala exists for
+# the lunar nodes -- BPHS explicitly excludes them, see module docstring). ──
+#
+# DOCUMENTED HEURISTIC / SCHOOL OF THOUGHT (per Full Methodology Spec §5b,
+# which explicitly asks for one school to be picked and documented, since
+# this is the least rigorous input in the model): this uses the commonly
+# cited Parashari exaltation-axis convention that treats Rahu as exalted in
+# Taurus (an earthy, Venus-owned sign) and Ketu as exalted in Scorpio (a
+# watery, Mars-owned sign) -- i.e. Rahu strong in "earthy/Venusian-adjacent"
+# signs and Ketu strong in "watery/Mars-adjacent" signs, exactly the wording
+# the spec itself uses. The opposite sign (Scorpio for Rahu, Taurus for
+# Ketu) is treated as the debilitation point. This is ONE of several
+# competing classical/modern conventions for nodal dignity -- other schools
+# use Gemini/Sagittarius or Virgo/Pisces instead. Callers should treat this
+# as an approximation, not a settled classical fact.
+_NODE_EXALT_SIGN = {"Rahu": "Taurus", "Ketu": "Scorpio"}
+_NODE_DEBIL_SIGN = {"Rahu": "Scorpio", "Ketu": "Taurus"}
+
+# House placement per spec §5b: kendra/trikona/upachaya placements strengthen;
+# dusthana 6/8/12 placements weaken -- EXCEPT the spec notes 8th/12th can
+# specifically favor research/occult/foreign significations, which is a
+# thematic (not strength) caveat surfaced separately in the trace rather than
+# changing the numeric penalty here. House 6 is upachaya (growth-through-
+# struggle) per the standard 3/6/10/11 upachaya set, so it is NOT treated as
+# a dusthana penalty here even though it's also classically a dusthana --
+# upachaya takes precedence to avoid double-counting the same house both ways.
+_NODE_STRONG_HOUSES = frozenset({1, 3, 4, 5, 6, 7, 9, 10, 11})  # kendra+trikona+upachaya
+_NODE_WEAK_HOUSES = frozenset({8, 12})  # dusthana penalty (6 excluded, see above)
+
+
+def estimate_node_strength(planet: str, sign: str, house: int) -> Dict[str, Any]:
+    """§5b: documented 0-1 strength heuristic for Rahu/Ketu (no classical
+    Shadbala exists for the lunar nodes). See module-level comment above
+    _NODE_EXALT_SIGN for the school of thought used and its explicit caveats.
+
+    Returns {"strength": 0-1 float, "sign_component": ..., "house_component":
+    ..., "trace": [...]} so callers/reports can show the heuristic's working
+    rather than a single opaque number.
+    """
+    trace = []
+    if planet not in ("Rahu", "Ketu"):
+        return {"strength": 0.5, "sign_component": 0.5, "house_component": 0.5,
+                "trace": ["estimate_node_strength called for a non-node planet; neutral default."]}
+
+    if sign and sign == _NODE_EXALT_SIGN.get(planet):
+        sign_component = 1.0
+        trace.append(f"{planet} in {sign}: treated as exalted under this heuristic's school of thought.")
+    elif sign and sign == _NODE_DEBIL_SIGN.get(planet):
+        sign_component = 0.0
+        trace.append(f"{planet} in {sign}: treated as debilitated under this heuristic's school of thought.")
+    else:
+        sign_component = 0.5
+        trace.append(f"{planet} in {sign or 'unknown sign'}: neutral (neither exalted nor debilitated point).")
+
+    if house in _NODE_STRONG_HOUSES:
+        house_component = 1.0
+        trace.append(f"{planet} in H{house}: kendra/trikona/upachaya placement, strengthens.")
+    elif house in _NODE_WEAK_HOUSES:
+        house_component = 0.0
+        trace.append(f"{planet} in H{house}: dusthana placement, weakens numerically -- though 8th/12th "
+                      "can still favor research/occult/foreign significations thematically (not a strength claim).")
+    else:
+        house_component = 0.5
+        trace.append(f"{planet} in H{house}: neutral house placement.")
+
+    strength = round(0.6 * sign_component + 0.4 * house_component, 4)
+    return {"strength": strength, "sign_component": sign_component,
+            "house_component": house_component, "trace": trace}
+
+
+def is_classical_shadbala_scope(planet: str) -> bool:
+    """True for the 7 classical grahas Shadbala applies to per BPHS; False
+    for Rahu/Ketu (and anything else). Gap-audit fix (2026-08, diagnostic
+    helper, no behavior change): the main entry point compute_shadbala_all()
+    below already correctly restricts its per-planet loop to
+    CLASSICAL_SHADBALA_PLANETS and reports classical_scope/nodes_excluded in
+    its output -- Rahu/Ketu never reach `results` there. However, several
+    lower-level per-component functions in this module (compute_dig_bala,
+    compute_total_shadbala, and the NAISARGIKA_BALA/_DIG_BALA_IDEAL_HOUSE
+    lookup tables they read) DO carry conventional, non-classical midpoint
+    entries for "Rahu"/"Ketu" (documented in-line where each table is
+    defined) so that IF some future caller invokes those lower-level
+    functions directly with a node -- bypassing compute_shadbala_all's
+    filter -- the result is a deliberate convention rather than a KeyError
+    or a silent 0. As of this fix, no caller in this codebase does that (the
+    only entry point used by the live pipeline is compute_shadbala_all,
+    which never passes a node into these functions). This helper exists so
+    any future direct caller can check first, rather than relying on
+    remembering to read the in-line comments on each lookup table.
+    """
+    return planet in CLASSICAL_SHADBALA_PLANETS
+
 _SIGNS = ("Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio",
           "Sagittarius","Capricorn","Aquarius","Pisces")
 
@@ -62,6 +154,15 @@ NAISARGIKA_BALA: Dict[str, float] = {
 # degrees away), linear in between -- this is the standard classical
 # approximation (some texts use a sine curve; BPHS's own worked examples use
 # the linear form, which this function follows).
+# MODERN HEURISTIC / practitioner-derived -- the Rahu=7/Ketu=1 entries below
+# are NOT independently classically sourced. Classical Shadbala (BPHS) is
+# defined over the 7 grahas only; nodes have no canonical Dig Bala ideal-house
+# assignment in the classical texts. "Nodes follow Saturn/Jupiter-like
+# treatment" is a common panchanga-software convention, not a cited classical
+# rule. See reports/JyotishAI_Engine_Gap_Analysis_2026-07.md sec 2.3 for
+# details; falls through to generic "SOURCE NOT ESTABLISHED" provenance
+# rather than the more precise "conventional, disputed" characterization
+# until this is registered as its own rule ID in rule_registry.py.
 _DIG_BALA_IDEAL_HOUSE: Dict[str, int] = {
     "Sun": 10, "Mars": 10, "Moon": 4, "Venus": 4,
     "Jupiter": 1, "Mercury": 1, "Saturn": 7,
@@ -112,6 +213,20 @@ def compute_saptavargaja_bala(
     and denominator rather than padded with a fabricated "neutral" score.
     Each varga contributes 0-60 by classical dignity-in-that-varga
     (own/moolatrikona/exalted = high, debilitated = low).
+
+    MODERN HEURISTIC / practitioner-derived -- not independently classically
+    sourced (2026-08 gap-audit item 2.1, see
+    reports/JyotishAI_Engine_Gap_Analysis_2026-07.md sec 2.1). The classical
+    Saptavargaja Bala (BPHS) is defined over exactly 7 fixed vargas: Rasi
+    (D1), Hora (D2), Drekkana (D3), Saptamsa (D7), Navamsa (D9), Dwadasamsa
+    (D12), Trimsamsa (D30). This function renormalizes over whatever subset
+    of {D1,D9,D10,D20,D24,D27} the payload happens to carry -- a
+    structurally DIFFERENT varga basis than the classical definition, not
+    just a lower-precision version of it. A literal classical implementation
+    exists separately as compute_classical_saptavargaja_bala() below (over
+    D1/D2/D3/D7/D9/D12/D30); this renormalized variant should be relabeled
+    in any user-facing output as an engine-specific proxy, not presented as
+    "the" Saptavargaja Bala.
     """
     _dig_score = {
         "exalted": 1.0, "moolatrikona": 0.875, "own_sign": 0.75, "own": 0.75,
@@ -271,6 +386,17 @@ def compute_dig_bala(planet: str, house_from_lagna: int) -> float:
     while keeping the same house-distance input, since exact-degree cusp
     distance would require house-cusp longitudes this engine's whole-sign
     convention doesn't carry per-planet).
+
+    PROVENANCE (2026-08 gap-audit item 2.2, see
+    reports/JyotishAI_Engine_Gap_Analysis_2026-07.md sec 2.2): the taper
+    SHAPE used here (linear, full strength at the ideal cusp down to zero
+    at the opposite cusp) is a disclosed, defensible choice consistent with
+    BPHS's own worked Dig Bala examples, but classical commentaries are not
+    unanimous -- some later/regional texts use a sine-curve taper instead
+    of a linear one. This is not independently, unambiguously classically
+    sourced as "the" correct curve shape; it is a school-dependent choice.
+    Not yet registered as a distinct rule ID in rule_registry.py, so an
+    LLM trace validator cannot currently flag this as school-dependent.
     """
     ideal = _DIG_BALA_IDEAL_HOUSE.get(planet, 1)
     dist = abs(house_from_lagna - ideal) % 12
@@ -733,22 +859,88 @@ def compute_shadbala_all(
         )
         results[planet]["drishti_bala_detail"] = drishti_detail
 
+        # GAP-FIX (P1-6, Shadbala completeness/uncertainty exposure): the only
+        # sub-components with a real "did we have the inputs to compute this
+        # rigorously" signal are Kala Bala (needs birth_date/sunrise/tropical
+        # longitude for Ayana/Paksha/Dina/Hora/Varsha bala) and Drishti Bala
+        # (needs all planet longitudes for exact-degree aspects). Surface that
+        # per-planet, not just as one all-or-nothing chart-wide flag, so a
+        # single planet with a missing input doesn't silently discard
+        # completeness information about every other planet's genuinely
+        # complete calculation.
+        _kala_complete = bool(kala.get("complete"))
+        _drishti_complete = bool(drishti_detail.get("complete"))
+        _missing_components = [
+            name for name, ok in (("kala_bala", _kala_complete), ("drishti_bala", _drishti_complete))
+            if not ok
+        ]
+        results[planet]["complete"] = _kala_complete and _drishti_complete
+        results[planet]["uncertain_components"] = _missing_components
+
     ranked = sorted(results.keys(), key=lambda p: -results[p]["total_rupa"])
+    _all_complete = bool(results) and all(p.get("complete") for p in results.values())
+    _incomplete_planets = [p for p, v in results.items() if not v.get("complete")]
+
+    # Spec fix (Full Methodology Spec §5a): base_strength[planet] =
+    # shadbala_virupas[planet] / max(shadbala_virupas.values()), normalized
+    # to the chart's strongest classical planet as 1.0. Previously this
+    # module only ever exposed raw absolute total_rupa values plus a rank
+    # ORDER -- no 0-1 comparable strength value existed anywhere, so two
+    # charts with different absolute Shadbala scales were not comparable as
+    # the spec intends, and downstream callers had to invent their own
+    # normalization (or skip it). Uses total_shashtiamsa (virupas) directly
+    # per the spec's own wording ("shadbala_virupas"), not the Rupa-converted
+    # value -- the ratio is identical either way (both are linear rescalings
+    # of the same total), but this matches the spec's literal variable name.
+    _virupas = {p: v["total_shashtiamsa"] for p, v in results.items()}
+    _max_virupas = max(_virupas.values()) if _virupas else 0.0
+    base_strength = ({p: round(v / _max_virupas, 6) for p, v in _virupas.items()}
+                      if _max_virupas > 0 else {p: 0.0 for p in _virupas})
+    for _p, _bs in base_strength.items():
+        results[_p]["base_strength"] = _bs
+
+    # §5b: extend base_strength with Rahu/Ketu via the documented node
+    # heuristic above, so callers get a complete, DIFFERENTIATED 9-planet
+    # base_strength map instead of silently omitting the nodes (previously
+    # the only node numbers anywhere were flat placeholders -- e.g. a fixed
+    # NAISARGIKA_BALA=30.0 / default virupas=300.0 -- so an exalted-in-kendra
+    # Rahu and a debilitated-in-dusthana Rahu were indistinguishable). This
+    # heuristic strength is NOT on the same physical scale as classical
+    # Shadbala virupas (it's a direct 0-1 estimate, not a ratio-to-max), so
+    # it is reported separately from `_virupas`/the classical ranking above.
+    node_strength: Dict[str, Any] = {}
+    for _node in ("Rahu", "Ketu"):
+        _ndata = (planets_d1 or {}).get(_node)
+        if isinstance(_ndata, Mapping):
+            _nsign = str(_ndata.get("sign", ""))
+            _nhouse = int(planet_house.get(_node, 0) or 0)
+            if _nsign and _nhouse:
+                _node_est = estimate_node_strength(_node, _nsign, _nhouse)
+                node_strength[_node] = _node_est
+                base_strength[_node] = _node_est["strength"]
+
     return {
         "shadbala_version": SHADBALA_VERSION,
-        "calculation_status": "COMPUTED_COMPLETE_INPUTS" if results and all(
-            p["kala_bala"].get("complete") and p["drishti_bala_detail"].get("complete")
-            for p in results.values()
-        ) else "NOT_COMPUTED_MISSING_REQUIRED_INPUTS",
+        "calculation_status": "COMPUTED_COMPLETE_INPUTS" if _all_complete
+            else "NOT_COMPUTED_MISSING_REQUIRED_INPUTS",
         "validation_status": evidence_status(
-            inputs_complete=bool(results) and all(
-                p["kala_bala"].get("complete") and p["drishti_bala_detail"].get("complete")
-                for p in results.values()
-            ),
+            inputs_complete=_all_complete,
             computed=bool(results),
         ),
+        # Per-planet completeness, additive to the aggregate status above:
+        # a chart can be "mostly reliable" (e.g. 6 of 7 planets complete)
+        # rather than only ever fully trusted or fully distrusted.
+        "completeness_ratio": round(
+            (len(results) - len(_incomplete_planets)) / len(results), 4
+        ) if results else 0.0,
+        "incomplete_planets": _incomplete_planets,
         "classical_scope": list(CLASSICAL_SHADBALA_PLANETS),
         "nodes_excluded": ["Rahu", "Ketu"],
         "planets": results,
         "ranked_strongest_to_weakest": ranked,
+        # §5a: chart-wide base_strength map (0-1, strongest classical planet = 1.0).
+        # §5b: extended with Rahu/Ketu via the documented node heuristic (see
+        # estimate_node_strength above and node_strength_detail for the working).
+        "base_strength": base_strength,
+        "node_strength_detail": node_strength,
     }

@@ -5,16 +5,32 @@ from datetime import datetime, date
 from typing import Dict, List, Tuple, Set, Any, Optional
 
 from .payload import NatalPayloadV2, logger
+from .payload_gap_audit import audit_and_fill_payload  # GAP FIX (2026-08-17): Step 1 ingestion validation
 from .constants import DOMAIN_STRATEGIES, _SIGN_LORD
 from .astro import (
     compute_dignity, _planet_abs_degree, _compute_whole_sign_houses,
     _detect_neecha_bhanga, _detect_yogas, _detect_planetary_war,
     _compute_eff_strengths, _is_vargottama, _detect_combust_planets, _calc_age,
-    get_nakshatra_from_longitude, compute_d10_chart,
+    get_nakshatra_from_longitude, compute_d10_chart, compute_d9_navamsha_chart,
 )
 from .d20_vimshamsha import compute_d20_chart  # Gap-G20 fix — see module docstring
-from .ashtakavarga import compute_bav_points_str_keys, compute_pav_data  # Ported from V1.3 merge plan item 6
-from .shadbala import compute_shadbala_all  # 2026-07 astrologer's audit: full six-fold Shadbala
+from .ashtakavarga import (
+    compute_bav_points_str_keys, compute_pav_data,  # Ported from V1.3 merge plan item 6
+    compute_bav_points_shodhita, compute_sav_points_shodhita,  # 2026-07-20 shodhana gap-fix
+)
+from .shadbala import (
+    compute_shadbala_all,  # noqa: F401 -- kept for the (currently disabled) from-scratch
+    # six-fold Shadbala path; not called anywhere as of 2026-08-20 (see the
+    # "RE-ENABLED, WIRED TO SOURCE 1" note near _shadbala_computed's construction below --
+    # that block now wires shadbala_computed from the upstream pyhora ingestion instead of
+    # calling this function). Left imported rather than removed so re-enabling that path
+    # later is a one-line change, not a re-import.
+    CLASSICAL_SHADBALA_PLANETS,  # the 7 classical grahas base_strength is normalized over
+    estimate_node_strength,  # Rahu/Ketu have no classical Shadbala -- this documented 0-1
+    # sign+house heuristic (NOT the six-fold computation) is the only source composite_v2
+    # ever used for their base_strength, even when compute_shadbala_all() itself was live.
+)
+from .dignity import panchadha_maitri_correction as _panchadha_maitri_correction  # §5e fix
 
 from .constants import (
     _NODAL_DEFAULT_VIRUPAS, _PLANET_MIN_SHADBALA, _SIGN_NUM,
@@ -24,13 +40,6 @@ from .affinity import (
     BRANCH_PLANET_AFFINITY,
     SPACE_AEROSPACE_REGISTRY_EXTENSIONS,
     LIFE_SCIENCE_REGISTRY_EXTENSIONS,
-)
-from .pyhora_schema import (
-    flat_divisional_charts,
-    get_lagna_degree,
-    get_lagna_sign,
-    get_planets_d1,
-    divisional_signs,
 )
 
 _ZODIAC_ORDER = [
@@ -150,10 +159,37 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         except Exception:
             pass  # best-effort only -- never let this safeguard break the real parse
 
-    lagna_sign = get_lagna_sign(pyh)
-    lagna_deg  = get_lagna_degree(pyh)
-    planets_d1 = get_planets_d1(pyh)
-    
+    # Gap-fix (2026-07-29, user-caught): some chart sources nest the D1
+    # (Rashi) chart under divisional_charts.D1_rashi -- {"lagna", "lagna_degree",
+    # "planets": {...}} -- the SAME shape every other divisional chart here
+    # uses (D9_navamsha, D10_dashamsha, etc.), instead of the top-level
+    # d1_lagna/d1_lagna_degree/planets_d1 keys this parser originally only
+    # read. Previously, a chart JSON using only the divisional_charts.D1_rashi
+    # shape silently produced an EMPTY D1 chart (lagna_sign="", planets_d1={})
+    # -- not an error, just quietly wrong -- which then cascaded into an
+    # almost-empty significators evidence ledger and neutral-default scoring
+    # layers with no visible sign anything had gone wrong. This falls back to
+    # divisional_charts.D1_rashi whenever the top-level keys are absent, so
+    # both schema variants produce the same correct payload.
+    # Gap-fix (2026-07-29, user-caught): some chart sources nest the D1
+    # (Rashi) chart under divisional_charts.D1_rashi -- {"lagna", "lagna_degree",
+    # "planets": {...}} -- the SAME shape every other divisional chart here
+    # uses (D9_navamsha, D10_dashamsha, etc.), instead of the top-level
+    # d1_lagna/d1_lagna_degree/planets_d1 keys this parser originally only
+    # read. Previously, a chart JSON using only the divisional_charts.D1_rashi
+    # shape silently produced an EMPTY D1 chart (lagna_sign="", planets_d1={})
+    # -- not an error, just quietly wrong -- which then cascaded into an
+    # almost-empty significators evidence ledger and neutral-default scoring
+    # layers with no visible sign anything had gone wrong. This falls back to
+    # divisional_charts.D1_rashi whenever the top-level keys are absent, so
+    # both schema variants produce the same correct payload.
+    _d1_rashi_fallback = (pyh.get("divisional_charts", {}) or {}).get("D1_rashi", {}) or {}
+    lagna_sign = pyh.get("d1_lagna") or _d1_rashi_fallback.get("lagna", "")
+    lagna_deg  = pyh.get("d1_lagna_degree")
+    if lagna_deg is None:
+        lagna_deg = _d1_rashi_fallback.get("lagna_degree", 15.0)
+    planets_d1 = pyh.get("planets_d1") or _d1_rashi_fallback.get("planets", {})
+
     planet_retrograde = {p: bool(planets_d1[p].get("is_retrograde", False)) for p in planets_d1}
     
     sun_data = planets_d1.get("Sun", {})
@@ -200,10 +236,132 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
     }
             
     kp_cusps = pyh.get("kp_cusp_data", {})
+
+    # 2026-08 gap-audit fix ("KP silent on this chart"): kp_cusp_data as
+    # ingested above is whatever the upstream chart-generation tool (pyhora)
+    # exported -- on several real charts this turned out to be Equal House
+    # cusps (every house exactly Ascendant + 30*n degrees) rather than
+    # genuine Placidus, even though the field is named "kp_cusp_data".
+    # Confirmed concretely on Charts/swastik_chart_details.json: all 12
+    # cusps sit at the identical 28.0535 deg offset, and a real Placidus
+    # computation from this chart's own birth data/lat/lon (below) puts
+    # House 2 in Sagittarius 4.00 deg and House 4 in Aquarius 2.31 deg --
+    # nowhere near the file's Scorpio 28.05 / Capricorn 28.05. jyotish/
+    # kp_audit.py already detects this pattern and correctly zeroes KP's
+    # authority weight rather than trusting bad cusps -- but nothing
+    # upstream of that ever attempted a genuine recomputation, so KP's
+    # classical timing-precision testimony was simply silent on every
+    # affected chart, not just discounted.
+    #
+    # Self-healing fix: recompute real Placidus cusps here from the chart's
+    # own birth date/time/lat/lon via jyotish/ephemeris.py (Skyfield/DE421),
+    # using an ayanamsa empirically DERIVED from this exact chart's own
+    # already-ingested sidereal Sun longitude (not a hardcoded formula) so
+    # the new cusps stay internally consistent with every other position
+    # already in this chart, regardless of which ayanamsa convention pyhora
+    # used upstream -- see ephemeris.py's derive_ayanamsa_from_known_
+    # sidereal_sun()/​_ayanamsa_deg() docstrings for the verified derivation
+    # (matched the chart's declared "Lahiri" ayanamsa to ~0.01 deg, diverged
+    # from this module's old hardcoded KP-only formula by ~4.5 arcmin).
+    #
+    # Entirely additive/best-effort: only replaces kp_cusps when (a) the
+    # ingested cusps fail the same equal-house-pattern check kp_audit.py
+    # uses, (b) birth date/time/lat/lon are all present, and (c) the
+    # Skyfield/DE421 recomputation actually succeeds and itself passes the
+    # equal-house check (i.e. produced genuinely varying cusps, not a
+    # degenerate result). Any failure at any step leaves the original
+    # ingested kp_cusps completely untouched -- same as before this fix.
+    _house_system_recomputed = False
+    try:
+        _kp_degrees_raw = [
+            round(float(v.get("degree")), 6)
+            for v in (kp_cusps or {}).values()
+            if isinstance(v, dict) and v.get("degree") is not None
+        ]
+        _kp_looks_equal_house = len(_kp_degrees_raw) >= 6 and len(set(_kp_degrees_raw)) <= 2
+        _dob_str = str(ctx.get("dob", "") or "")
+        _tob_str = str(ctx.get("tob", "") or "")
+        _lat_val = ctx.get("lat", ctx.get("latitude"))
+        _lon_val = ctx.get("lon", ctx.get("longitude"))
+        if _kp_looks_equal_house and _dob_str and _tob_str and _lat_val is not None and _lon_val is not None:
+            from . import ephemeris as _kp_ephem
+            from .kp_audit import kp_chain as _kp_chain_fn, audit_kp_cusps as _kp_audit_fn
+            _tob_norm = _tob_str if len(_tob_str) > 5 else _tob_str + ":00"
+            _birth_dt_local = datetime.strptime(f"{_dob_str[:10]} {_tob_norm}", "%Y-%m-%d %H:%M:%S")
+            _lat_f, _lon_f = float(_lat_val), float(_lon_val)
+            _tz_f = float(ctx.get("timezone_offset_hours", 5.5))
+            _sun_sign = planets_d1.get("Sun", {}).get("sign", "")
+            _sun_deg = planets_d1.get("Sun", {}).get("degree", 0.0)
+            if _sun_sign in _SIGN_NUM:
+                _known_sidereal_sun = (_SIGN_NUM[_sun_sign] - 1) * 30.0 + float(_sun_deg)
+                _derived_ayan = _kp_ephem.derive_ayanamsa_from_known_sidereal_sun(
+                    _birth_dt_local, _lat_f, _lon_f, _known_sidereal_sun, tz_offset_hours=_tz_f,
+                )
+                _real_cusps_deg = _kp_ephem.get_house_cusps_placidus(
+                    _birth_dt_local, _lat_f, _lon_f, tz_offset_hours=_tz_f,
+                    ayanamsa_deg_override=_derived_ayan,
+                ) if _derived_ayan is not None else {}
+                if _real_cusps_deg and len(_real_cusps_deg) == 12:
+                    _signs_ordered = [s for s, _ in sorted(_SIGN_NUM.items(), key=lambda x: x[1])]
+                    _recomputed_cusps = {}
+                    for _h in range(1, 13):
+                        _lon_deg = _real_cusps_deg.get(_h)
+                        if _lon_deg is None:
+                            _recomputed_cusps = {}
+                            break
+                        _sign_idx = int(_lon_deg // 30.0) % 12
+                        _deg_in_sign = _lon_deg - _sign_idx * 30.0
+                        _chain = _kp_chain_fn(_lon_deg)
+                        _recomputed_cusps[f"H{_h}"] = {
+                            "sign": _signs_ordered[_sign_idx],
+                            "degree": round(_deg_in_sign, 4),
+                            "sign_lord": _SIGN_LORD.get(_signs_ordered[_sign_idx], ""),
+                            **_chain,
+                        }
+                    if _recomputed_cusps:
+                        _recheck = _kp_audit_fn(_recomputed_cusps, "placidus")
+                        if _recheck.get("status") == "VERIFIED":
+                            logger.info(
+                                "GAP-FIX (KP self-heal): ingested kp_cusp_data looked like "
+                                "Equal House (all cusps ~%.4f deg) -- replaced with genuinely "
+                                "computed Placidus cusps (ayanamsa=%.4f deg, empirically "
+                                "derived from this chart's own Sun position), verified OK.",
+                                _kp_degrees_raw[0] if _kp_degrees_raw else 0.0, _derived_ayan,
+                            )
+                            kp_cusps_original_ingested = kp_cusps
+                            kp_cusps = _recomputed_cusps
+                            _house_system_recomputed = True
+                            # Downstream kp_audit.audit_kp_cusps() gates VERIFIED status
+                            # on house_system containing "placidus" (see kp_audit.py) --
+                            # update it here so the freshly-verified real Placidus cusps
+                            # actually get full KP authority weight in the method bundle,
+                            # not just a correct cusp set that still reads as unverified.
+                            _house_system = "placidus"
+    except Exception as _kp_heal_exc:
+        logger.warning(
+            "GAP-FIX (KP self-heal) attempt failed, keeping originally ingested "
+            "kp_cusp_data unchanged: %s", _kp_heal_exc,
+        )
+
     jaimini = pyh.get("kn_rao_jaimini_data", {})
     karakas = jaimini.get("chara_karakas", {})
-    div_charts = flat_divisional_charts(pyh)
-    _d10_upstream = divisional_signs(pyh, "D10_dashamsha")
+    div_charts = pyh.get("divisional_charts", {})
+    _d10_upstream = div_charts.get("D10_dashamsha", {})
+
+    def _flat_varga_chart(chart):
+        """Normalize flat and wrapped PyHora varga chart shapes."""
+        if not isinstance(chart, dict):
+            return {}
+        planets = chart.get("planets")
+        if isinstance(planets, dict):
+            flat = dict(planets)
+            lagna = chart.get("Lagna") or chart.get("lagna")
+            if lagna:
+                flat["Lagna"] = lagna
+            return flat
+        return dict(chart)
+
+    _d10_upstream = _flat_varga_chart(_d10_upstream)
     # Audit-2026-07 fix: D10 was previously trusted verbatim from the upstream
     # pyhora JSON with no in-repo way to verify its odd/even sign-counting —
     # a critical gap since Dashamsha carries the largest single method weight
@@ -230,8 +388,71 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
             return v.get("sign", "")
         return v if isinstance(v, str) else ""
     d10 = {p: _d10_sign_str(v) for p, v in d10_raw.items()}
-    d9 = divisional_signs(pyh, "D9_navamsha")
-    d24 = divisional_signs(pyh, "D24_siddhamsam")
+    # GAP-FIX (2026-08-01): D9 was previously trusted VERBATIM from the
+    # upstream pyhora JSON with no in-repo fallback at all -- the only one
+    # of the "big" divisional charts (D9/D10/D24/D60) without one. When a
+    # chart's upstream JSON didn't populate div_charts.D9_navamsha (empty
+    # dict), every downstream consumer of `d9` silently got no data:
+    # d9_planet_dignities came back empty, and jyotish/shadbala.py's
+    # compute_classical_saptavargaja_bala() raised "D9 sign is required for
+    # classical Saptavargaja Bala" for every planet, which
+    # compute_shadbala_all() propagated, disabling the ENTIRE six-fold
+    # Shadbala computation for that chart (not just Saptavargaja Bala) --
+    # this surfaced as a production WARNING with no visible root cause.
+    # Fixed the same way D10 already is a few lines above: compute D9
+    # in-house from D1 longitudes (compute_d9_navamsha_chart, astro.py --
+    # an UNCONTESTED classical rule, unlike D24/D60's disclosed-convention
+    # caveats) whenever every planet has a `degree` value, falling back to
+    # the upstream chart per-planet only for entries the in-house
+    # computation couldn't derive.
+    _d9_upstream = _flat_varga_chart(div_charts.get("D9_navamsha", {}))
+    _d9_inhouse = compute_d9_navamsha_chart(planets_d1, lagna_sign, lagna_deg) if planets_d1 else {}
+
+    def _d9_sign_str(v):
+        if isinstance(v, dict):
+            return v.get("sign", "")
+        return v if isinstance(v, str) else ""
+
+    d9_raw = {p: _d9_sign_str(v) for p, v in _d9_upstream.items()}
+    d9_raw.update({p: _d9_sign_str(v) for p, v in _d9_inhouse.items()})  # in-house, verifiable computation takes precedence
+    d9 = d9_raw
+    # Publish the canonical shape as well as using it locally. Method scorers
+    # read payload.divisional_charts directly after parsing.
+    div_charts = dict(div_charts)
+    div_charts["D9_navamsha"] = d9
+    div_charts["D10_dashamsha"] = d10
+    # Gap-audit fix (2026-08, round 4 -- ROOT CAUSE of the D24 data-quality
+    # investigation from earlier rounds): `_flat_varga_chart()` above already
+    # exists specifically to normalize the two shapes real pyhora exports use
+    # for a divisional chart -- flat {"Lagna": "Gemini", "Sun": "Leo", ...}
+    # vs. wrapped {"factor": 24, "name": "...", "lagna": "Gemini", "planets":
+    # {"Sun": {"sign": "Leo", ...}, ...}} -- and is already applied to D9 and
+    # D10 above. D24 was never routed through it. Confirmed directly against
+    # a real chart export (Swastik, 2026-08-14): its D24_siddhamsam is the
+    # WRAPPED shape verbatim ({"factor": 24, "name": "Siddhamsa (D24)",
+    # "lagna": "Gemini", "planets": {...}}). Without flattening,
+    # `d24.items()` never yields real planet keys at all -- only "factor"/
+    # "name"/"lagna"/"planets" -- so every downstream planet-sign lookup
+    # silently failed for EVERY planet on any chart using this shape, not
+    # just the 1-3 planets earlier rounds' investigation found missing on a
+    # different chart (which apparently used the flat shape with a few
+    # genuinely-incomplete entries -- a real but much smaller-scope problem
+    # that partially masked this one). This is the actual root cause behind
+    # the D24 house-resolution gaps, the flat-score bug, and the NEUTRAL-
+    # dignity pattern chased across the last several rounds of this audit.
+    d24_flat_raw = _flat_varga_chart(div_charts.get("D24_siddhamsam", {}))
+    # `_flat_varga_chart` only unwraps the {"factor"/"name"/"lagna"/"planets":
+    # {...}} envelope -- each per-planet value is still a dict shaped like
+    # {"sign": "Leo", "degree": ..., "is_retrograde": ...} (same as D9/D10's
+    # `_d9_upstream`/`_d10_upstream` before their own `_d9_sign_str`/
+    # `_d10_sign_str` pass above). Apply the same plain-string extraction
+    # here so every downstream D24 consumer (this function's own
+    # `d24_shaped`/`d24_planet_dignities` below, and siddhamsha.py, which
+    # both assume `d24["Sun"]` is already a bare sign string) gets a
+    # consistent shape instead of a nested dict that would silently break
+    # every `_SIGN_NUM.get(...)`-style lookup again.
+    d24 = {p: _d10_sign_str(v) for p, v in d24_flat_raw.items()}
+    div_charts["D24_siddhamsam"] = d24
     # E-1: extract D24 lagna and compute house lords for EduAlign stream score
     _D24_SIGNS = [
         "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
@@ -300,9 +521,57 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         p: compute_dignity(p, planets_d1[p]["sign"], planets_d1, planets_d1[p].get("degree"))
         for p in planets_d1 if "sign" in planets_d1[p]
     }
+
+    # §5e fix: Panchadha Maitri (five-fold relationship) correction. Spec
+    # requires a SEPARATE, small +/-5% multiplier layered on top of the base
+    # dignity multiplier (see jyotish.dignity.panchadha_maitri_correction),
+    # not folded into a single wide dignity table. compute_dignity() above
+    # only ever returns EXALTED/DEBILITATED/OWN/MOOLATRIKONA/"" -- it never
+    # reaches the natural+temporal friend/enemy grid at all, so this maitri
+    # signal was previously computed correctly elsewhere (jyotish/dignity.py's
+    # dignity_state()/_relationship()) but never actually wired into the main
+    # per-field scoring pipeline's planet strengths. Computed here (where
+    # each planet's sign, and its sign-lord's sign, are both available) and
+    # threaded through to _compute_eff_strengths via the new
+    # `maitri_correction` kwarg below.
+    _planet_signs_for_maitri = {p: v.get("sign", "") for p, v in planets_d1.items() if isinstance(v, dict)}
+    maitri_correction = {}
+    for _p in planets_d1:
+        _sign = planets_d1.get(_p, {}).get("sign", "")
+        _sign_lord = _SIGN_LORD.get(_sign, "")
+        if _sign_lord and _sign_lord != _p:
+            maitri_correction[_p] = _panchadha_maitri_correction(_p, _sign_lord, _planet_signs_for_maitri)["correction"]
     d24_shaped = {p: {"sign": s} for p, s in d24.items() if p != "Lagna"}
+    # Gap-audit fix (2026-08, D24 data-quality investigation): the previous
+    # version computed a dignity for EVERY key in d24 regardless of whether
+    # its sign string was actually present, so a planet the upstream
+    # D24_siddhamsam response left empty (partial pyhora data for that
+    # chart) got dignity="" folded in as if it were a computed value --
+    # indistinguishable downstream from a real neutral dignity, and
+    # unresolvable by _d24_planet_house() (siddhamsha.py) since an empty
+    # sign string isn't a valid house lookup. Now only planets with an
+    # actual non-empty sign get a dignity entry; the rest are recorded in
+    # d24_missing_planets so consumers can show "data unavailable" rather
+    # than a fabricated NEUTRAL reading.
+    # Refinement (2026-08, round 3 real-data validation): the first version
+    # of this fix only caught planets present as a `d24` key with a falsy
+    # value. On a live Midhula-chart run, the upstream D24_siddhamsam
+    # response for Mercury wasn't a key with an empty value -- the "Mercury"
+    # key was entirely ABSENT from d24 -- so `d24.items()` never saw it and
+    # d24_missing_planets missed it too, even though _d24_planet_house()
+    # still correctly failed to resolve Mercury's D24 house and
+    # d24_planet_dignities.get("Mercury", "NEUTRAL") fell through to the
+    # default text (confirmed: real trace showed "H5 lord Mercury ... in
+    # D24-H?" for the identical planet that showed a clean-looking "NEUTRAL"
+    # dignity elsewhere -- both are the SAME missing-data symptom, not two
+    # different findings). Compare against `planets_d1` (the canonical
+    # 9-graha set for this chart) instead of `d24`'s own keys, so a planet
+    # missing entirely from the upstream D24 response is caught too.
+    d24_missing_planets = sorted(
+        p for p in planets_d1 if p != "Lagna" and not d24.get(p, "")
+    )
     d24_planet_dignities = {
-        p: compute_dignity(p, s, d24_shaped) for p, s in d24.items() if p != "Lagna"
+        p: compute_dignity(p, s, d24_shaped) for p, s in d24.items() if p != "Lagna" and s
     }
 
     # Gap-G20 fix (2026-07 ontology audit): D20 (Vimshamsha) is referenced by
@@ -318,16 +587,29 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         p: compute_dignity(p, sd["sign"], d20_shaped) for p, sd in d20_shaped.items() if sd.get("sign")
     }
 
-    # User-reported gap fix (2026-07): house_lords_map was derived SOLELY from
-    # kp_cusps[Hn].sign_lord — if KP cuspal computation left any house's
-    # sign_lord empty (partial KP data, a missing cusp, etc.), that house's
-    # lordship silently came out as "", and downstream code/LLM narrative
-    # would report lordships as "not available" even though Lagna is known
-    # and house lordship is 100% deterministic from it (house N's sign =
-    # the sign N-1 positions after Lagna's sign; that sign's ruling planet
-    # is its lord — no computation depends on KP or any other divisional
-    # chart). Added `_derive_house_lordships_from_lagna()` as a guaranteed
-    # fallback so lordship analysis is NEVER skipped when Lagna is known.
+    # User-reported gap fix (2026-07), REVISED 2026-08-20 (gap-audit "Gap #1"):
+    # house_lords_map used to be derived PRIMARILY from kp_cusps[Hn].sign_lord
+    # (Placidus/KP cuspal lordship) and only fell back to whole-sign
+    # (`_derive_house_lordships_from_lagna`) for houses the KP cuspal data
+    # left empty. That was backwards. `calculation_identity.house_system_by_
+    # method` documents this engine's own contract: whole-sign for
+    # natal_parashari/tajika, Placidus ONLY for kp. But `house_lords_map`
+    # (aliased as payload.house_lords) is consumed as generic PARASHARI
+    # house lordship by every whole-sign method -- knrao.py, parashara.py,
+    # dashamsha.py, structural_patterns.py, plus the shared boosts.py helpers
+    # `_house_signification_bonus`/`_karakatwa_domain_bonus` -- none of which
+    # want Placidus cuspal lordship. Whole-sign house N's sign is simply the
+    # sign N-1 positions after Lagna's sign, with zero dependency on KP or
+    # any cuspal computation, so it should never have deferred to a Placidus
+    # value in the first place. Confirmed safe: genuine KP-specific logic
+    # (kp.py) reads Placidus sign/sub/star lords straight from `kp_cusps`
+    # directly (payload.kp_cusps, populated separately just below), never
+    # from house_lords_map -- so nothing downstream actually wants the old
+    # Placidus-first behavior. Fix: derive house_lords_map from Lagna FIRST
+    # (guaranteed-correct, whole-sign, matches the engine's own documented
+    # contract); only fall back to the KP cuspal sign_lord for a house if
+    # Lagna itself is somehow unresolvable (extreme edge case -- lagna_sign
+    # empty -- kept only so this never regresses to a hard crash/blank).
     def _derive_house_lordships_from_lagna(lagna_sign_name: str) -> Dict[str, str]:
         _sign_order = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
                         "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
@@ -340,12 +622,16 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
             out[str(_h)] = _SIGN_LORD.get(_sign_order[_sign_idx], "")
         return out
 
-    house_lords_map = {str(i): kp_cusps.get(f"H{i}", {}).get("sign_lord", "") for i in range(1, 13)}
-    if lagna_sign and not all(house_lords_map.get(str(i)) for i in range(1, 13)):
-        _derived_hl = _derive_house_lordships_from_lagna(lagna_sign)
-        for _h_str, _lord in _derived_hl.items():
+    house_lords_map = _derive_house_lordships_from_lagna(lagna_sign) if lagna_sign else {}
+    if not all(house_lords_map.get(str(i)) for i in range(1, 13)):
+        # Lagna-derivation left a gap (only possible if lagna_sign was empty
+        # or unrecognized) -- fall back to KP cuspal sign_lord per house so
+        # lordship is still populated where possible, same guarantee as
+        # before, just now the FALLBACK rather than the primary source.
+        for i in range(1, 13):
+            _h_str = str(i)
             if not house_lords_map.get(_h_str):
-                house_lords_map[_h_str] = _lord
+                house_lords_map[_h_str] = kp_cusps.get(f"H{i}", {}).get("sign_lord", "")
     detected_yogas = _detect_yogas(planets_d1, planet_house, planet_dignities, set(combust_planets), house_lords_map)
     
     # Apply Parivartana Dignity Upgrade BEFORE Neecha Bhanga
@@ -821,18 +1107,57 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
     # field (as opposed to one that explicitly declared an exact time).
     # "unknown" is the honest default -- matches payload.py's own field
     # default and llm_policy.py's data_quality_gate.
+    #
+    # Gap-audit fix (2026-08, round 4, real-data validation on Swastik's
+    # chart): the chart JSON's actual location for these two fields is
+    # `system_config.birth_time_uncertainty_minutes` (confirmed against a
+    # real upload: `system_config: {..., "birth_time_uncertainty_minutes":
+    # 0, ...}`) -- a THIRD top-level section (`sys_cfg`, already parsed a
+    # few lines above this function for ayanamsa/current_date/etc.) that
+    # this lookup never checked. It only ever read `ctx` (student_context)
+    # and `pyh` (pyhora_calculations), neither of which carries this field
+    # on real exports, so `_bt_uncertainty` silently fell through to its
+    # 0-default and `_birth_prec_raw` stayed "unknown" even when the source
+    # chart explicitly declared a to-the-minute birth time. Downstream,
+    # score_kp() fully zeroes its cuspal sub-lord/sub-sub-lord signal
+    # whenever birth_time_precision=="unknown" ("KP birth-time precision is
+    # 'unknown' -- cuspal signals... fully excluded") -- so this bug was
+    # silencing KP's entire vote for every chart whose birth-time quality
+    # was only ever declared in system_config, regardless of how precise
+    # the actual birth time was. Now also checks sys_cfg, and -- only when
+    # no explicit precision label was supplied anywhere but an explicit
+    # uncertainty-minutes value was -- infers a precision tier from it
+    # instead of leaving a genuinely precise chart mislabeled "unknown".
+    _precision_explicit = any(
+        "birth_time_precision" in src for src in (ctx, pyh, sys_cfg)
+    )
     _birth_prec_raw = str(
-        ctx.get("birth_time_precision", pyh.get("birth_time_precision", "unknown")) or "unknown"
+        ctx.get("birth_time_precision")
+        or pyh.get("birth_time_precision")
+        or sys_cfg.get("birth_time_precision")
+        or "unknown"
     ).strip().lower()
     if _birth_prec_raw not in ("exact", "approximate", "unknown"):
         _birth_prec_raw = "unknown"
+    _uncertainty_explicit = any(
+        "birth_time_uncertainty_minutes" in src for src in (ctx, pyh, sys_cfg)
+    )
     try:
         _bt_uncertainty = int(
             ctx.get("birth_time_uncertainty_minutes",
-                    pyh.get("birth_time_uncertainty_minutes", 0)) or 0
+                    pyh.get("birth_time_uncertainty_minutes",
+                            sys_cfg.get("birth_time_uncertainty_minutes", 0))) or 0
         )
     except (TypeError, ValueError):
         _bt_uncertainty = 0
+    if not _precision_explicit and _uncertainty_explicit:
+        if _bt_uncertainty <= 2:
+            _birth_prec_raw = "exact"
+        elif _bt_uncertainty <= 30:
+            _birth_prec_raw = "approximate"
+        # else: leave "unknown" -- a large declared uncertainty is not
+        # meaningfully different from not knowing the time at all for KP's
+        # cuspal-sublord purposes.
 
     # FIX-14: Extract pratyantar / antardasha lord if present.
     prd_lord_raw  = pyh.get("pratyantar_dasha_lord", "") or pyh.get("antardasha_lord", "")
@@ -1091,99 +1416,106 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         _bav_points = {}
         _pav_data = {}
 
-    # 2026-07 astrologer's audit: compute full six-fold Shadbala from first
-    # principles (jyotish/shadbala.py) instead of relying solely on the
-    # upstream `shadbala_virupas` single-number ingestion below. ADDITIVE --
-    # exposed as payload.shadbala_computed alongside the existing `shadbala`
-    # field; no existing consumer is switched over automatically, so this can
-    # be validated against real charts first (see shadbala.py module
-    # docstring). Degrades gracefully: uses documented neutral defaults for
-    # Kala Bala's day/night-dependent sub-components (Tribhaga, precise
-    # Nathonnata) since this pipeline ingests pre-built chart JSON without a
-    # live birth lat/lon/tz at this stage -- Sthana Bala, Dig Bala, Cheshta
-    # Bala (from planet_retrograde), Naisargika Bala, Paksha Bala, Vara Bala,
-    # and Yuddha Bala are all computed exactly; Ayana/Nathonnata/Tribhaga use
-    # documented neutral fallbacks pending lat/lon/tz plumbing into this
-    # layer (see shadbala.py's compute_kala_bala docstring for the exact gap).
+    # GAP-FIX (2026-07-20, astrological-gap pass): the two classical shodhana
+    # (reduction) processes BPHS applies to raw Ashtakavarga bindus before
+    # they're used for prediction -- Trikona Shodhana and Ekadhipatya
+    # Shodhana -- were computed nowhere in this engine; only raw BAV/SAV
+    # totals existed. ADDITIVE, same pattern as the Shadbala six-fold rollout
+    # above: exposed as new payload fields alongside the existing raw
+    # bav_points/sav_points_houses, not swapped in as the live scoring input,
+    # since the SAV confidence-multiplier thresholds in
+    # Field_Determination/field_methods/__init__.py were empirically
+    # calibrated against RAW SAV totals and shodhana reduction systematically
+    # lowers them -- see ashtakavarga.py's compute_sav_points_shodhita()
+    # docstring for the full reasoning.
     try:
-        _varga_dignities_for_shadbala = {
-            "D9": d9_planet_dignities or {},
-            # GAP-FIX (2026-07-18): d10_planet_dignities is now always computed
-            # above (was previously never defined, hence the old defensive
-            # locals().get() lookup here) -- see its computation site for the
-            # full explanation.
-            "D10": d10_planet_dignities or {},
-            "D20": d20_planet_dignities or {},
-            "D24": d24_planet_dignities or {},
-        }
-        from . import ephemeris as _sb_ephem
-        _dob = datetime.strptime(str(ctx.get("dob", ""))[:10], "%Y-%m-%d").date()
-        _tob = str(ctx.get("tob", "00:00:00") or "00:00:00")
-        if len(_tob) == 5: _tob += ":00"
-        _birth_dt = datetime.strptime(f"{_dob.isoformat()} {_tob}", "%Y-%m-%d %H:%M:%S")
-        _lat = float(ctx.get("lat", ctx.get("latitude")))
-        _lon = float(ctx.get("lon", ctx.get("longitude")))
-        _tz = float(ctx.get("timezone_offset_hours", round(_lon / 15.0)))
-        _true_speeds = _sb_ephem.get_planet_speeds(_birth_dt, _lat, _lon, tz_offset_hours=_tz)
-        _tropical_lons = _sb_ephem.get_tropical_planet_longitudes(_birth_dt, _lat, _lon, tz_offset_hours=_tz)
-        _planet_lats = _sb_ephem.get_planet_latitudes(_birth_dt, _lat, _lon, tz_offset_hours=_tz)
-        _house_cusps = _sb_ephem.get_house_cusps_placidus(_birth_dt, _lat, _lon, tz_offset_hours=_tz)
-        _sunrise_jd = _sb_ephem.get_sunrise_jd(_dob, _lat, _lon, _tz)
-        _sunset_jd = _sb_ephem.get_sunset_jd(_dob, _lat, _lon, _tz)
-        _sunrise = _sb_ephem.tt_jd_to_local_datetime(_sunrise_jd, _tz) if _sunrise_jd else None
-        _sunset = _sb_ephem.tt_jd_to_local_datetime(_sunset_jd, _tz) if _sunset_jd else None
-        _is_day = bool(_sunrise and _sunset and _sunrise <= _birth_dt < _sunset)
-        if _is_day:
-            _span_start, _span_end = _sunrise, _sunset
-        elif _sunset and _birth_dt >= _sunset:
-            _next_rise_jd = _sb_ephem.get_sunrise_jd(_dob + __import__("datetime").timedelta(days=1), _lat, _lon, _tz)
-            _span_start = _sunset
-            _span_end = _sb_ephem.tt_jd_to_local_datetime(_next_rise_jd, _tz) if _next_rise_jd else None
-        else:
-            _prev_set_jd = _sb_ephem.get_sunset_jd(_dob - __import__("datetime").timedelta(days=1), _lat, _lon, _tz)
-            _span_start = _sb_ephem.tt_jd_to_local_datetime(_prev_set_jd, _tz) if _prev_set_jd else None
-            _span_end = _sunrise
-        _hours_in_span = ((_birth_dt - _span_start).total_seconds() / 3600.0) if _span_start else None
-        _span_hours = ((_span_end - _span_start).total_seconds() / 3600.0) if _span_start and _span_end else None
-        _weekday = _dob.weekday()
-        _shadbala_computed = compute_shadbala_all(
-            planets_d1, planet_house,
-            varga_dignities=_varga_dignities_for_shadbala,
-            navamsa_signs={p: s for p, s in d9.items() if p != "Lagna"},
-            planet_longitudes=_planet_longitudes,
-            planet_speeds=_true_speeds,
-            tropical_longitudes=_tropical_lons,
-            planet_latitudes=_planet_lats,
-            is_day_birth=_is_day,
-            weekday=_weekday,
-            hours_since_sunrise=_hours_in_span,
-            day_length_hours=_span_hours,
-            birth_date=_dob,
-            house_cusps=_house_cusps,
-        )
-    except Exception as _shadbala_exc:
-        # 2026-07-19 audit: this block computes shadbala for the *natal*
-        # chart (payload.shadbala_computed) from ctx["dob"]/ctx["tob"], which
-        # only exist for natal/career/edu-mode payloads. A Prashna-only JSON
-        # (just a `prashna_details` block, no top-level dob) legitimately has
-        # no natal dob here, so `ctx.get("dob", "")` is "" and the
-        # `datetime.strptime("", "%Y-%m-%d")` above raises -- this is
-        # expected, not a bug: Prashna casts and scores its own chart
-        # entirely independently in Prashnam/prashna.py (moved from
-        # jyotish/prashna.py, 2026-07-19), which never reads
-        # payload.shadbala_computed (confirmed: no shadbala references in
-        # prashna.py). Downgrade to a one-line debug note instead of a
-        # WARNING so real shadbala failures on natal-mode payloads (where
-        # dob IS present) are still visible, without alarming Prashna users.
-        if not str(ctx.get("dob", "")).strip():
-            logger.debug(
-                "shadbala.compute_shadbala_all skipped: no top-level 'dob' in "
-                "payload (expected for Prashna-only JSON; does not affect the "
-                "Prashna chart, which is cast independently)."
-            )
-        else:
-            logger.warning("shadbala.compute_shadbala_all failed: %s", _shadbala_exc)
-        _shadbala_computed = {}
+        _bav_points_shodhita = compute_bav_points_shodhita(planet_signs_map, lagna_sign)
+        _sav_points_shodhita = compute_sav_points_shodhita(planet_signs_map, lagna_sign)
+    except Exception:
+        _bav_points_shodhita = {}
+        _sav_points_shodhita = {}
+
+    # RE-ENABLED, WIRED TO SOURCE 1 (2026-08-20, owner request): the
+    # `payload.shadbala_computed` plumbing (calculation_status marker,
+    # per-planet `total_shashtiamsa`, and the override loop that recomputes
+    # `_eff_strengths_from_shadbala`) is restored so downstream consumers
+    # that check `payload.shadbala_computed` (e.g.
+    # Field_Determination/field_methods/parashara.py's Dig Bala
+    # corroboration bonus, ~line 762) keep working -- but the six-fold
+    # from-scratch computation (jyotish/shadbala.py::compute_shadbala_all(),
+    # which needs live ephemeris lat/lon/tz plumbing and disagreed with the
+    # pyhora ingestion by ~30% on the Ramsunder chart's Mars: pyhora 408.42
+    # vs the from-scratch computation's 286.7 shashtiamsas) is NOT called.
+    # Instead, `_shadbala_computed` is built directly from the SAME upstream
+    # pyhora `shadbala_virupas` values already sitting in `shadbala`
+    # (populated at ~line 208 from planets_d1[planet]['shadbala_virupas'],
+    # plus the dispositor-proxy value for Rahu/Ketu computed just above this
+    # block) -- i.e. this is a straight wire-through, not an independent
+    # calculation. The override loop below is consequently a no-op on
+    # `shadbala` itself (computed_total == the value already there); it only
+    # exists to recompute `_eff_strengths_from_shadbala`'s ratio consistently
+    # and to give `_shadbala_computed["planets"]` the shape downstream code
+    # expects. Per-component fields (dig_bala, sthana_bala, kala_bala, etc.)
+    # that only a real compute_shadbala_all() run would produce are NOT
+    # available under this wiring -- consumers reading those specific
+    # sub-fields (rather than total_shashtiamsa) degrade gracefully to their
+    # existing empty-lookup fallback, same as when compute_shadbala_all()
+    # itself used to fail/except.
+    #
+    # BUG FIX (2026-08-20, same pass): the wiring above originally omitted
+    # `base_strength` -- the one field engine.py's
+    # `_build_composite_v2_chart_primitives()` actually reads (line ~4950:
+    # `base_strength = (payload.shadbala_computed or {}).get("base_strength", {})`;
+    # `if not base_strength: return None`). Its absence made that function
+    # return None for every chart, which cascaded into `field_score_v2_refined`
+    # never being computed for any of the 35 fields, all silently falling back
+    # to the legacy tiered-ranking score ("0 field(s) used their v2 composite
+    # directly" in the pipeline's own warning). Reproduced here from Source 1
+    # (`shadbala`, the pyhora ingestion) using the exact same normalization
+    # jyotish/shadbala.py::compute_shadbala_all() itself uses -- base_strength
+    # for the 7 classical grahas is each planet's virupas divided by the
+    # STRONGEST classical planet's virupas (never computed from scratch, only
+    # a max/ratio over values already ingested); Rahu/Ketu have no classical
+    # Shadbala at all in BPHS, so -- exactly as compute_shadbala_all() itself
+    # did -- they get shadbala.py's documented 0-1 estimate_node_strength()
+    # sign+house heuristic, NOT a virupas ratio (composite_v2.py's own
+    # cap_node_base_strength() explicitly expects that 0-1 scale for nodes).
+    _classical_virupas = {
+        _p: _sv for _p, _sv in shadbala.items() if _p in CLASSICAL_SHADBALA_PLANETS
+    }
+    _max_classical_virupas = max(_classical_virupas.values()) if _classical_virupas else 0.0
+    _base_strength = (
+        {_p: round(_sv / _max_classical_virupas, 6) for _p, _sv in _classical_virupas.items()}
+        if _max_classical_virupas > 0 else {_p: 0.0 for _p in _classical_virupas}
+    )
+    _node_strength_detail: Dict[str, Any] = {}
+    for _node in ("Rahu", "Ketu"):
+        _ndata = (planets_d1 or {}).get(_node)
+        if isinstance(_ndata, dict):
+            _nsign = str(_ndata.get("sign", ""))
+            _nhouse = int(planet_house.get(_node, 0) or 0)
+            if _nsign and _nhouse:
+                _node_est = estimate_node_strength(_node, _nsign, _nhouse)
+                _node_strength_detail[_node] = _node_est
+                _base_strength[_node] = _node_est["strength"]
+
+    _shadbala_computed = {
+        "planets": {
+            _p: {"total_shashtiamsa": _sv}
+            for _p, _sv in shadbala.items()
+        },
+        "calculation_status": "COMPUTED_COMPLETE_INPUTS",
+        "source": "upstream_shadbala_virupas_ingestion",  # NOT compute_shadbala_all()
+        "base_strength": _base_strength,
+        "node_strength_detail": _node_strength_detail,
+        # Consistency with the "COMPUTED_COMPLETE_INPUTS" status above, for
+        # run_manifest["shadbala_data_quality"] (engine.py ~line 5977-5982),
+        # which otherwise defaults completeness_ratio to 0.0 / reports every
+        # planet "incomplete" purely because these two keys were never set --
+        # misleading next to a status that says the opposite.
+        "completeness_ratio": 1.0,
+        "incomplete_planets": [],
+    }
 
     # 2026-07 astrologer's audit: wire the computed six-fold Shadbala into
     # eff_strengths (previously done blind above, purely from the upstream
@@ -1192,11 +1524,10 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
     # minimum-shadbala requirements in shashtiamsas (60 * the traditional
     # "rupa" minimums: Sun 6.5, Moon 6.0, Mars 5.0, ...), i.e. the exact same
     # scale shadbala.py's `total_shashtiamsa` uses -- this is a direct,
-    # unit-consistent swap, not a rescale.
-    #
-    # A COMPLETE classical-v2 result is authoritative for Sun..Saturn. Nodes
-    # retain the existing dispositor proxy because BPHS excludes them from
-    # Shadbala. Incomplete results never overwrite upstream chart values.
+    # unit-consistent swap, not a rescale. Under this wiring, `total_shashtiamsa`
+    # already equals `shadbala[p]` (Source 1), so this loop is purely a
+    # normalized-ratio recompute, not an overwrite from a second, genuinely
+    # different source.
     _shadbala_planets = (_shadbala_computed or {}).get("planets", {})
     if _shadbala_planets and _shadbala_computed.get("calculation_status") == "COMPUTED_COMPLETE_INPUTS":
         for _p in list(_eff_strengths_from_shadbala.keys()):
@@ -1218,6 +1549,11 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         "prashna_details": data.get("prashna_details", {}),
         "bav_points": _bav_points,
         "pav_data": _pav_data,
+        "bav_points_shodhita": {
+            target: {str(h): v for h, v in houses.items()}
+            for target, houses in _bav_points_shodhita.items()
+        },
+        "sav_points_houses_shodhita": {str(h): v for h, v in _sav_points_shodhita.items()},
         "shadbala_computed": _shadbala_computed,
         "lagna_sign": lagna_sign,
         "lagna_lord": _SIGN_LORD.get(lagna_sign, ""),
@@ -1241,7 +1577,9 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         "kp_cusps": kp_cusps,
         "planet_dignities": planet_dignities,
         "true_planet_dignities": true_planet_dignities,
+        "maitri_correction": maitri_correction,  # §5e fix: +/-5% Panchadha Maitri correction per planet
         "d24_planet_dignities": d24_planet_dignities,
+        "d24_missing_planets": d24_missing_planets,
         "d20_planet_dignities": d20_planet_dignities,
         "planet_retrograde": planet_retrograde,
         "detected_yogas": detected_yogas,
@@ -1343,6 +1681,37 @@ def parse_json_payload(data, student_name="Unknown", build_timeline: bool = Fals
         # _prashna_resp = _pfp(_payload, category=_career_cat, question=_career_q)
         # _payload.prashna_result = _prashna_resp
         pass
+
+    # GAP FIX (2026-08-17): Step 1 -- incoming JSON extraction/validation.
+    # Audits the constructed payload against the field set the 9-step
+    # framework and this session's fixes depend on, fills in the
+    # conservative safely-derivable subset (e.g. house_lords from
+    # lagna_sign) in place, and attaches the full gap report onto the
+    # payload as `gap_audit_report` for downstream visibility. Does not
+    # raise or block ingestion -- jyotish.engine._validate_payload_schema
+    # remains the hard gate for the four truly-mandatory fields
+    # (planets_d1/kp_significators/kp_cusps/dasha_sequence); this only adds
+    # visibility + best-effort repair for everything else those four don't
+    # cover.
+    _gap_report = audit_and_fill_payload(_payload)
+    if _gap_report["missing_critical"]:
+        logger.warning(
+            "parse_json_payload: %d CRITICAL field(s) missing for '%s' -- %s",
+            len(_gap_report["missing_critical"]), student_name,
+            "; ".join(f"{m['field']} ({m['impact']})" for m in _gap_report["missing_critical"]),
+        )
+    if _gap_report["missing_important"]:
+        logger.info(
+            "parse_json_payload: %d important field(s) missing for '%s': %s",
+            len(_gap_report["missing_important"]), student_name,
+            ", ".join(m["field"] for m in _gap_report["missing_important"]),
+        )
+    if _gap_report["derived_fields"]:
+        logger.info(
+            "parse_json_payload: auto-derived %d field(s) for '%s': %s",
+            len(_gap_report["derived_fields"]), student_name,
+            ", ".join(_gap_report["derived_fields"].keys()),
+        )
 
     return _payload
 

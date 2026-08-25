@@ -66,6 +66,12 @@ def _build_domain_to_stream() -> Dict[str, str]:
     return result
 
 
+# 2026-08-22 audit fix (gap 9): DISCLOSURE -- DOMAIN_TO_STREAM (derived
+# above) and its source, field_stream_mapping.py's DOMAIN_STREAM_AFFINITY,
+# are this codebase's own ENGINEERED ESTIMATES of real-world domain-to-
+# stream affinity -- not derived from classical Jyotish texts and not from
+# an official CBSE table or published statistic. See field_stream_mapping.py's
+# own module-level disclosure note for the full explanation.
 DOMAIN_TO_STREAM: Dict[str, str] = _build_domain_to_stream()
 
 

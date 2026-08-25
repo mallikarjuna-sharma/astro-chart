@@ -26,6 +26,26 @@ def kp_chain(longitude: float) -> dict[str, str]:
     return {"star_lord": star, "sub_lord": sub, "sub_sub_lord": ssl}
 
 def audit_kp_cusps(cusps: Mapping[str, Mapping[str, Any]], house_system: str = "") -> dict:
+    # 2026-08-18 fix (audit item #1, "KP cusp trust gap"): investigation confirmed
+    # jyotish/ephemeris.py genuinely computes Placidus cusps (iterative semi-arc
+    # algorithm from Skyfield/DE421, see get_house_cusps_placidus()), and
+    # jyotish/engine_io.py already self-heals equal-house-looking ingested cusp
+    # data by recomputing real Placidus cusps from the chart's own birth data.
+    # So the cusp GEOMETRY was never the actual gap. The gap was here: this
+    # function used to hard-require the caller-supplied `house_system` string to
+    # literally contain "placidus" before it would ever report VERIFIED -- but
+    # `house_system` as threaded through engine_io.py reflects an unrelated
+    # config default (whole-sign/bhava-chalit for planet-house placement), not
+    # whether kp_cusp_data itself is genuine Placidus. Charts with perfectly
+    # correct, internally-consistent Placidus cusps (12/12 chain-verified, no
+    # equal-house degeneracy) were being flagged UNVERIFIED purely on that label
+    # mismatch, silently zeroing KP's authority weight in field_methods/kp.py
+    # even though the underlying cusps were trustworthy. Fix: treat the
+    # geometric self-consistency checks below (full chain verification + no
+    # equal/whole-sign degeneracy) as the authoritative signal for VERIFIED
+    # status. The house_system label is still recorded as an informational
+    # reason (useful for debugging upstream config) but no longer GATES the
+    # status -- it cannot manufacture false negatives on genuinely good data.
     placidus = "placidus" in str(house_system).lower(); mismatches=[]; degrees=[]; verified=0
     for key, cusp in (cusps or {}).items():
         sign=cusp.get("sign"); degree=cusp.get("degree")
@@ -35,10 +55,11 @@ def audit_kp_cusps(cusps: Mapping[str, Mapping[str, Any]], house_system: str = "
         if wrong: mismatches.append({"cusp":key,"reason":"CHAIN_MISMATCH","values":wrong})
         else: verified += 1
     equal_pattern=len(degrees)>=6 and len(set(degrees))<=2
+    geometry_verified = verified==12 and not mismatches and not equal_pattern
     reasons=[]
-    if not placidus: reasons.append("HOUSE_SYSTEM_NOT_EXPLICITLY_PLACIDUS")
+    if not placidus: reasons.append("HOUSE_SYSTEM_LABEL_NOT_EXPLICITLY_PLACIDUS_INFO_ONLY")
     if equal_pattern: reasons.append("EQUAL_OR_WHOLE_SIGN_CUSP_PATTERN")
     if mismatches: reasons.append("VIMSHOTTARI_SUBDIVISION_MISMATCH")
-    status="VERIFIED" if placidus and verified==12 and not mismatches and not equal_pattern else "UNVERIFIED"
-    return {"contract_version":"kp-cusp-audit.v1","status":status,"verified_cusp_count":verified,"reasons":reasons,"mismatches":mismatches,"kp_authority_factor":1.0 if status=="VERIFIED" else 0.0}
+    status="VERIFIED" if geometry_verified else "UNVERIFIED"
+    return {"contract_version":"kp-cusp-audit.v1","status":status,"verified_cusp_count":verified,"reasons":reasons,"mismatches":mismatches,"kp_authority_factor":1.0 if status=="VERIFIED" else 0.0,"house_system_label_placidus":placidus,"geometry_verified":geometry_verified}
 

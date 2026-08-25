@@ -51,6 +51,33 @@ def _dump_job_debug(payload, out_dir):
         retro_matches = blocks[0].get("retro_matches", 0) or 0
     confidence = (blocks[0].get("confidence") if blocks else None) or {}
 
+    # GAP FIX (Phase 2 remediation, gap #8 birth-time-precision gating,
+    # deferred low-priority item B): this function assembles the KP
+    # house_lords/kp_cusp_data dict handed to downstream consumers
+    # (job_debug.json / anything else that reads it) with no indication
+    # that the same KP chain data is confidence-discounted on the scoring
+    # side when birth time precision is uncertain (see
+    # CalculationPolicy.precise_cusps_allowed in jyotish/calculation_policy.py
+    # and jyotish/kp_audit.py::audit_kp_cusps "status", the same two signals
+    # Job_Career/astro_enhancer.py and Job_Career/timeline.py already read
+    # for this exact purpose). Pure metadata add -- no scoring/ranking logic
+    # touched -- so a downstream consumer that chooses to display this dict
+    # has the caveat available; nothing here changes if it doesn't.
+    try:
+        from jyotish.kp_audit import audit_kp_cusps as _audit_kp_cusps
+        _policy = getattr(payload, "calculation_policy", None)
+        _precise_allowed = bool(getattr(_policy, "precise_cusps_allowed", True))
+        _cusp_status = _audit_kp_cusps(kp_cusps or {}, getattr(payload, "house_system", "") or "").get("status")
+        _precision_caveat = (
+            "KP sub-lord/star-lord indications in kp_cusp_data/house_lords are "
+            "shown with reduced confidence because birth time precision is "
+            "uncertain."
+            if (not _precise_allowed) or (_cusp_status != "VERIFIED")
+            else None
+        )
+    except Exception:
+        _precision_caveat = None
+
     debug_payload = {
         "name": getattr(payload, "name", "") or "Unknown",
         "career_timeline": blocks,
@@ -63,6 +90,7 @@ def _dump_job_debug(payload, out_dir):
         "fixed_karakas": fixed_karakas,
         "retro_matches": retro_matches,
         "confidence": confidence,
+        "precision_caveat": _precision_caveat,
     }
 
     out_path = os.path.join(out_dir, "job_debug.json")

@@ -21,16 +21,40 @@ _ROLE_LABEL_ASTRO: Dict[str, str] = {
     "h9":  "H9L",
 }
 
+# Bug fix (2026-08-20): these two dicts only covered 4 of the 10 canonical
+# dignity_state values dignity.py::compute_dignity() can actually return
+# (see dignity.py line ~46: DEBILITATED, NEECHA_BHANGA, GREAT_ENEMY, ENEMY,
+# NEUTRAL, FRIEND, GREAT_FRIEND, OWN_SIGN, MOOLATRIKONA, EXALTED) -- plus a
+# straight naming mismatch ("OWN" here vs. the real "OWN_SIGN" state), so a
+# planet whose top-affinity dignity was OWN_SIGN, MOOLATRIKONA, NEUTRAL,
+# FRIEND, GREAT_FRIEND, ENEMY, or GREAT_ENEMY crashed
+# _parent_explanation()'s direct dict index (KeyError) and took down the
+# entire full-trace HTML export for that report. Filled out to full
+# coverage; the lookups below were also changed from `_DICT[key]` to
+# `_DICT.get(key, ...)` as defense-in-depth so an unrecognized future
+# dignity_state degrades to a generic phrase instead of crashing the report.
 _DIGNITY_PARENT: Dict[str, str] = {
     "EXALTED":       "this planet is at peak strength (exalted)",
-    "OWN":           "this planet is in its own sign, giving it natural strength",
+    "MOOLATRIKONA":  "this planet is in its Moolatrikona sign, giving it strong, near-own-sign footing",
+    "OWN_SIGN":      "this planet is in its own sign, giving it natural strength",
+    "GREAT_FRIEND":  "this planet sits in a sign owned by a great friend, giving it comfortable support",
+    "FRIEND":        "this planet sits in a friendly sign, giving it steady support",
+    "NEUTRAL":       "this planet sits in a neutral sign, neither helped nor hindered by sign placement",
+    "ENEMY":         "this planet sits in an unfriendly sign, adding some friction to its results",
+    "GREAT_ENEMY":   "this planet sits in a sign owned by a strong adversary, adding real friction to its results",
     "DEBILITATED":   "this planet faces challenges but can still contribute",
     "NEECHA_BHANGA": "a cancellation of debility makes this planet resilient",
 }
 
 _DIGNITY_ASTRO: Dict[str, str] = {
     "EXALTED":       "uccha (exalted)",
-    "OWN":           "swa (own sign)",
+    "MOOLATRIKONA":  "moolatrikona",
+    "OWN_SIGN":      "swa (own sign)",
+    "GREAT_FRIEND":  "adhi mitra (great friend's sign)",
+    "FRIEND":        "mitra (friend's sign)",
+    "NEUTRAL":       "sama (neutral sign)",
+    "ENEMY":         "shatru (enemy's sign)",
+    "GREAT_ENEMY":   "adhi shatru (great enemy's sign)",
     "DEBILITATED":   "neecha (debilitated)",
     "NEECHA_BHANGA": "neecha bhanga (debility cancelled)",
 }
@@ -109,7 +133,7 @@ class ExplainabilityEngine:
             dig1 = digs.get(p1, "")
             roles1 = cls._planet_roles(p1, payload)
             role_str = f", who is also {_ROLE_LABEL_PARENT[roles1[0]]}" if roles1 else ""
-            dig_str = f" -- {_DIGNITY_PARENT[dig1]}" if dig1 else ""
+            dig_str = f" -- {_DIGNITY_PARENT.get(dig1, 'this sign placement shapes its results')}" if dig1 else ""
             lines.append(f"{p1}{role_str} is the strongest planet for this field ({_PLANET_TRAIT_PARENT.get(p1,'broad capability')}){dig_str}.")
 
         # Append LLM-generated astrological reasoning when present
@@ -593,6 +617,34 @@ class ExplainabilityEngine:
 </details>"""
 
     @classmethod
+    def _registry_branch_meta(cls, field_id: str) -> Optional[Dict]:
+        """Look up a field's branch metadata in the staged v12 course registry.
+
+        Reuses the engine's existing lru_cache(1)-wrapped loader
+        (engine_io._load_course_registry) rather than re-reading/parsing the
+        1.9MB india_course_registry_v12.json here — the loader already
+        guarantees a single shared in-memory dict for the process lifetime.
+        Returns None (not {}) when the registry can't be loaded at all, or
+        when field_id isn't a key in it (a genuine per-field coverage gap —
+        callers must fall back to their existing generic content for that
+        field only, not fail the whole section).
+        """
+        if not field_id:
+            return None
+        try:
+            from .engine_io import _load_course_registry
+        except ImportError:
+            try:
+                from engine_io import _load_course_registry  # type: ignore
+            except Exception:
+                return None
+        try:
+            registry = _load_course_registry()
+        except Exception:
+            return None
+        return registry.get(field_id)
+
+    @classmethod
     def _ranking_overview_html(cls, rankings: List[Dict], top_n: int, esc) -> str:
         """Ranking comparison table: all top-N fields, side-by-side key metrics."""
         rows = ""
@@ -612,6 +664,88 @@ class ExplainabilityEngine:
             mm_ok     = fc.get("mismatch_mult", 1.0) == 1.0
             gates = ("✓" if thresh_ok else "✗thresh") + " " + ("✓" if mm_ok else "✗mm") + " " + ("✓" if qa_ok else "✗qa")
             gates_col = "#2e7d32" if (thresh_ok and qa_ok and mm_ok) else "#c62828"
+
+            # ── Spec §12 item 4 extension: 4 new columns using data already
+            # computed elsewhere in the pipeline (see class-level docstrings
+            # on the §12 helper methods above for full sourcing notes). ──
+            # Recommended Stream: india_course_registry_v12.json is now staged
+            # (registry_loader_v12.py / _load_course_registry()). The registry
+            # has NO literal "stream" key (no Science/Commerce/Arts taxonomy),
+            # so a field's registry `field`/`track` label (a real, curated,
+            # more specific classification than the coarse `domain` bucket)
+            # is used as the stream label when the field_id is found in the
+            # registry; falls back to `domain` for any field_id not present
+            # in the registry (coverage gap — see _registry_branch_meta()).
+            _reg_meta = cls._registry_branch_meta(rec.get("field_id", ""))
+            if _reg_meta:
+                rec_stream = esc(_reg_meta.get("field") or _reg_meta.get("track") or rec.get("domain", "?"))
+            else:
+                rec_stream = esc(rec.get("domain", "?"))
+
+            # Peak Career Dasha Window: sourced from the per-field dasha-
+            # coverage-reject verdict stashed on the row by engine.py's
+            # §8.5 dasha_longevity integration (dasha_coverage_reject_end_age
+            # / dasha_coverage_reject_applied).
+            dc_end = rec.get("dasha_coverage_reject_end_age")
+            dc_reject = rec.get("dasha_coverage_reject_applied")
+            if dc_reject:
+                dasha_window = f"Support ends ~age {dc_end}"
+            elif dc_end is not None:
+                dasha_window = f"Sustains through ~age {dc_end}"
+            else:
+                dasha_window = "n/a"
+
+            # Wealth-Sustainability Note: sourced from boosts.py's
+            # compute_wealth_potential() result, attached per-field as
+            # rec['wealth_potential'] in engine.py.
+            wp = rec.get("wealth_potential") or {}
+            wealth_label = wp.get("wealth_potential", "—")
+            wealth_flag  = wp.get("prestige_strong_wealth_uncertain_flag")
+            wealth_note  = ("Prestige-strong, wealth-durability uncertain" if wealth_flag
+                            else wealth_label)
+
+            # Risk/Caveat: sourced from existing per-row flags already
+            # attached by engine.py's finalize step (hard_lockout,
+            # core_three_excluded_applied, dasha_coverage_reject_applied).
+            risks = []
+            if rec.get("hard_lockout"):
+                risks.append("hard-lockout")
+            if rec.get("core_three_excluded_applied"):
+                risks.append("core-3 excluded")
+            if dc_reject:
+                risks.append("dasha-coverage downrank")
+            risk_str = ", ".join(risks) if risks else "none flagged"
+            risk_col = "#c62828" if risks else "#2e7d32"
+
+            # ── Gap A fix: surface score_ceiling_tie / tier_decision_trace,
+            # which were computed by the tiered-ranking algorithm but never
+            # rendered anywhere in the HTML report. Missing on rows whose
+            # code path never populated tie-resolution data. ──
+            is_tie = bool(rec.get("score_ceiling_tie"))
+            tie_trace = rec.get("tier_decision_trace") or []
+            score_cell = f"{rec['final_score']:.2f}"
+            if is_tie:
+                trace_tip = esc(" | ".join(str(t) for t in tie_trace)) if tie_trace else "Tie resolved by Tier 2/3 mechanisms"
+                t1 = rec.get("tier1_score")
+                t2 = rec.get("tier2_score")
+                t3 = rec.get("tier3_score")
+                tier_parts = []
+                if t1 is not None:
+                    tier_parts.append(f"T1={t1:.2f}" if isinstance(t1, (int, float)) else f"T1={esc(str(t1))}")
+                if t2 is not None:
+                    tier_parts.append(f"T2={t2:.2f}" if isinstance(t2, (int, float)) else f"T2={esc(str(t2))}")
+                if t3 is not None:
+                    tier_parts.append(f"T3={t3:.2f}" if isinstance(t3, (int, float)) else f"T3={esc(str(t3))}")
+                tier_breakdown = (" <span style='display:block;font-size:.68rem;color:#555;font-family:Consolas'>"
+                                   f"{' / '.join(tier_parts)}</span>") if tier_parts else ""
+                score_cell = (
+                    f"{rec['final_score']:.2f}"
+                    f"<span title='{trace_tip}' "
+                    f"style='display:inline-block;margin-left:5px;padding:1px 5px;border-radius:8px;"
+                    f"background:#fff3e0;color:#e65100;font-size:.66rem;font-weight:700;border:1px solid #ffb74d;"
+                    f"cursor:help' >&#9878; tie-resolved</span>{tier_breakdown}"
+                )
+
             rows += (
                 f"<tr style='background:{bg}'>"
                 f"<td class='ro-rank'>{i}</td>"
@@ -622,9 +756,27 @@ class ExplainabilityEngine:
                 f"<td class='ro-num'>{n.get('blended',0):.2f}</td>"
                 f"<td class='ro-num' style='color:{gap_col};font-weight:600'>{gap_net*100:+.1f}%</td>"
                 f"<td class='ro-num' style='color:{gates_col}'>{gates}</td>"
-                f"<td class='ro-score'>{rec['final_score']:.2f}</td>"
+                f"<td class='ro-score'>{score_cell}</td>"
+                f"<td class='ro-dom'>{rec_stream}</td>"
+                f"<td class='ro-dom' style='font-size:.76rem'>{esc(dasha_window)}</td>"
+                f"<td class='ro-dom' style='font-size:.76rem'>{esc(wealth_note)}</td>"
+                f"<td class='ro-dom' style='font-size:.76rem;color:{risk_col};font-weight:600'>{esc(risk_str)}</td>"
                 f"</tr>"
             )
+
+        # ── Gap A fix: concise CLI disclosure of tie-resolved fields,
+        # built dynamically from each row's own tier_decision_trace text
+        # (not hardcoded). ──
+        tied_rows = [r for r in rankings[:top_n] if r.get("score_ceiling_tie")]
+        if tied_rows:
+            parts = []
+            for r in tied_rows:
+                trace = r.get("tier_decision_trace") or []
+                reason = trace[-1] if trace else "resolved via Tier 2/3 mechanisms"
+                parts.append(f"{r.get('field_label','?')} ({reason})")
+            print(f"[TIE-BREAK DISCLOSURE] {len(tied_rows)} field(s) had score_ceiling_tie: "
+                  + "; ".join(parts))
+
         return (
             f"<table class='ro-table'>"
             f"<thead><tr>"
@@ -634,7 +786,11 @@ class ExplainabilityEngine:
             f"<th title='0.60×Comp + 0.40×Aff'>Blended</th>"
             f"<th title='Net gap boost+penalty applied'>Gap%</th>"
             f"<th title='Threshold / Mismatch / QA gates'>Gates</th>"
-            f"<th>Score</th>"
+            f"<th title='&#9878; badge = score_ceiling_tie: near-tie resolved by Tier 2/3; hover badge for tier_decision_trace'>Score</th>"
+            f"<th title='From india_course_registry_v12.json (field/track); falls back to Domain when a field is not in the registry'>Rec. Stream</th>"
+            f"<th title='From dasha_longevity §8.5 coverage-reject verdict'>Peak Dasha Window</th>"
+            f"<th title='From compute_wealth_potential()'>Wealth Note</th>"
+            f"<th title='hard_lockout / core-3 exclusion / dasha-coverage downrank flags'>Risk/Caveat</th>"
             f"</tr></thead><tbody>{rows}</tbody></table>"
         )
 
@@ -771,9 +927,19 @@ class ExplainabilityEngine:
             )
 
             # Component rows
+            # Pre-existing gap fix: some methods (e.g. Parashara) store non-numeric
+            # narrative strings alongside numeric components in `comps`, and
+            # round(float(v), 2) crashed the whole report build on the first
+            # such string it hit. Render numeric values rounded as before;
+            # render anything that isn't float-able as plain escaped text.
+            def _comp_val_html(v):
+                try:
+                    return esc(str(round(float(v), 2)))
+                except (TypeError, ValueError):
+                    return esc(str(v))
             comp_rows = "".join(
                 f"<tr><td style=\'font-family:Consolas;font-size:.75rem;padding:2px 8px;color:#555\'>{esc(k)}</td>"
-                f"<td style=\'text-align:right;font-family:Consolas;font-size:.75rem;padding:2px 8px;font-weight:600;color:{fg}\'>{esc(str(round(float(v),2)))}</td></tr>"
+                f"<td style=\'text-align:right;font-family:Consolas;font-size:.75rem;padding:2px 8px;font-weight:600;color:{fg}\'>{_comp_val_html(v)}</td></tr>"
                 for k, v in comps.items()
             ) if comps else "<tr><td colspan=\'2\' style=\'color:#999;font-size:.75rem\'>—</td></tr>"
 
@@ -923,6 +1089,400 @@ class ExplainabilityEngine:
 </table>
 </div>"""
 
+    # ── Spec §12 sections 1,2,4-ext,5,6,7 ──────────────────────────────────
+    # Built on top of already-computed pipeline data (payload attrs, rec/
+    # calc_trace fields, rankings-level flags). No fabricated numbers.
+
+    @classmethod
+    def _chart_summary_html(cls, payload, rankings: List[Dict], esc) -> str:
+        """Spec §12 item 1 — Chart Summary: Lagna, Moon/Sun sign, career-house
+        lords, AK/AmK, birth-time confidence note.
+
+        Source: payload.lagna_sign / payload.planets_d1 (Moon/Sun sign) /
+        payload.house_lords (H1/H9/H10 lords) / payload.atmakaraka /
+        payload.amatyakaraka / payload.birth_time_precision — all already
+        populated on the NatalPayloadV2 object passed into this function.
+        """
+        lagna = getattr(payload, "lagna_sign", "") or "?"
+        planets_d1 = getattr(payload, "planets_d1", {}) or {}
+        moon_sign = (planets_d1.get("Moon", {}) or {}).get("sign", "?")
+        sun_sign  = (planets_d1.get("Sun", {}) or {}).get("sign", "?")
+        hl = getattr(payload, "house_lords", {}) or {}
+        h1_lord  = hl.get("1")  or hl.get(1)  or "?"
+        h9_lord  = hl.get("9")  or hl.get(9)  or "?"
+        h10_lord = hl.get("10") or hl.get(10) or "?"
+        ak  = getattr(payload, "atmakaraka", "") or "?"
+        amk = getattr(payload, "amatyakaraka", "") or "?"
+        btp = getattr(payload, "birth_time_precision", "unknown") or "unknown"
+        d60_allowed = None
+        cp = getattr(payload, "calculation_policy", None)
+        if cp is not None:
+            d60_allowed = getattr(cp, "d60_claims_allowed", None)
+        btp_note = {
+            "exact": "Birth time is treated as exact — full precision techniques (KP sub-lord, D60 Shashtiamsha) are applied at full weight.",
+            "approximate": "Birth time is approximate — cusp-sensitive/high-division techniques (KP sub-lord, D60) are down-weighted per calculation policy.",
+            "unknown": "Birth time precision is unknown/unrecorded — cusp-sensitive/high-division techniques (KP sub-lord, D60) are treated cautiously or excluded per calculation policy.",
+        }.get(str(btp).lower(), f"Birth-time precision recorded as '{esc(btp)}'.")
+        if d60_allowed is not None:
+            btp_note += f" D60 claims allowed by policy: {'yes' if d60_allowed else 'no'}."
+
+        n_top = len(rankings)
+        html = f"""
+<div class='phase1-block' style='background:#e3f2fd;border-color:#1565c0'>
+  <div class='phase1-hdr' style='color:#0d47a1'>SECTION 1 — Chart Summary</div>
+  <div class='phase1-meta'>
+    <span><strong>Lagna:</strong> {esc(lagna)}</span>
+    <span><strong>Moon Sign:</strong> {esc(moon_sign)}</span>
+    <span><strong>Sun Sign:</strong> {esc(sun_sign)}</span>
+    <span><strong>H1 Lord:</strong> {esc(h1_lord)}</span>
+    <span><strong>H9 Lord:</strong> {esc(h9_lord)}</span>
+    <span><strong>H10 Lord:</strong> {esc(h10_lord)}</span>
+    <span><strong>AK:</strong> {esc(ak)}</span>
+    <span><strong>AmK:</strong> {esc(amk)}</span>
+  </div>
+  <p class='ss-note'>{esc(btp_note)}</p>
+  <p class='ss-note'>{n_top} field(s) evaluated for this chart.</p>
+</div>"""
+        print(f"[SECTION 1 — CHART SUMMARY] Lagna={lagna} Moon={moon_sign} Sun={sun_sign} "
+              f"H1={h1_lord} H9={h9_lord} H10={h10_lord} AK={ak} AmK={amk} "
+              f"birth_time_precision={btp}")
+        return html
+
+    @classmethod
+    def _evidence_table_html(cls, rankings: List[Dict], _pt0: Dict, esc) -> str:
+        """Spec §12 item 2 — technique-first Evidence Table.
+
+        Rebuilt as one row per named technique (not field x method). For
+        field-scoped techniques (D1 Shadbala/Combustion/Avastha/Maitri, D9,
+        D10, D24, D60, Yogas, Jaimini, Dasha timeline, Sudarshan, K.N. Rao,
+        KP) the finding is pulled from the top-ranked field's own
+        method_log/calc_trace (already-computed real data, not fabricated),
+        since that is the strongest concrete instance of each technique
+        actually firing on this chart. Techniques that are genuinely
+        chart-level (D1 Shadbala/Combustion/Avastha/Maitri) are pulled from
+        _pt0 (planet_trace), which is shared across all fields.
+        """
+        top = rankings[0] if rankings else {}
+        ml  = top.get("method_log", {}) or {}
+        ct  = top.get("calc_trace", {}) or {}
+
+        rows = []
+
+        # D1 Shadbala / Combustion / Avastha / Maitri — chart-level, from planet_trace
+        if _pt0:
+            strongest = max(_pt0.items(), key=lambda kv: kv[1].get("eff_strength", 0.0))
+            combust = [p for p, t in _pt0.items() if t.get("combust")]
+            finding = (f"Strongest planet by adjusted shadbala: {strongest[0]} "
+                       f"(eff_strength={strongest[1].get('eff_strength',0):.3f}). "
+                       f"Combust: {', '.join(combust) if combust else 'none'}.")
+            rows.append(("D1 Shadbala / Combustion / Avastha / Maitri", finding,
+                         "Governs baseline planetary vitality driving all downstream career/wealth field scores."))
+        else:
+            rows.append(("D1 Shadbala / Combustion / Avastha / Maitri",
+                         "Not available in this report context (planet_trace empty).", "—"))
+
+        # D9 (Navamsha) — from the dedicated D9 confirmation block (navamsha.py's
+        # score_navamsha_adjustment output), stored as a sibling of method_log
+        # (not a voting method, so it is not inside `ml`/method_log at all).
+        d9_block = top.get("d9_navamsha_confirmation", {}) or {}
+        if d9_block and d9_block.get("status") == "OBSERVED":
+            rows.append(("D9 Navamsha", "; ".join(d9_block.get("trace", [])[:2]) or
+                        f"Confirmation score {d9_block.get('d9_confirmation_score', 0):.1f}/100 "
+                        f"(multiplier {d9_block.get('multiplier', 1.0)}) for top field.",
+                        f"Confirms/refines strength of {esc(top.get('field_label','top field'))} at marriage/dharma-linked maturity."))
+        else:
+            rows.append(("D9 Navamsha", "Not available in this report context (D9 dignities/field affinity missing).", "—"))
+
+        # D10 Dashamsha
+        d10_block = ml.get("dashamsha", {})
+        if d10_block:
+            rows.append(("D10 Dashamsha", "; ".join(d10_block.get("trace", [])[:2]) or f"Score {d10_block.get('score',0):.1f}/100 for top field.",
+                        f"Direct career-house divisional chart evidence for {esc(top.get('field_label','top field'))}."))
+        else:
+            rows.append(("D10 Dashamsha", "Not available in this report context.", "—"))
+
+        # D24 Siddhamsha — 7th voting method (field_methods/siddhamsha.py via
+        # compute_field_method_bundle); method_log key now reachable since
+        # siddhamsha.py/shashtiamsha.py are staged in this working copy.
+        d24_block = ml.get("siddhamsha", {})
+        if d24_block:
+            rows.append(("D24 Siddhamsha", "; ".join(d24_block.get("trace", [])[:2]) or f"Score {d24_block.get('score',0):.1f}/100 for top field.",
+                        f"Vidya-varga (learning capacity/higher study) evidence for {esc(top.get('field_label','top field'))}, from D24 lagna/4th/5th/9th-lord dignity and vidya karakas."))
+        else:
+            rows.append(("D24 Siddhamsha", "Not available in this report context.", "—"))
+
+        # D60 Shashtiamsha — 8th voting method (field_methods/shashtiamsha.py
+        # via compute_field_method_bundle, score_d60_vote wrapper), small
+        # fine-grained confirmation weight.
+        d60_block = ml.get("shashtiamsha", {})
+        if d60_block:
+            rows.append(("D60 Shashtiamsha", "; ".join(d60_block.get("trace", [])[:2]) or f"Score {d60_block.get('score',0):.1f}/100 for top field.",
+                        f"Finest-grained deity-quality confirmation on {esc(top.get('field_label','top field'))} (tiebreaker weight, not a primary vote)."))
+        else:
+            rows.append(("D60 Shashtiamsha", "Not available in this report context.", "—"))
+
+        # Yogas
+        yogas = ct.get("yogas_present", []) or []
+        if yogas:
+            rows.append(("Yogas", f"Detected: {', '.join(yogas)}.", "Raja/Dhana-type yogas strengthen the fields their significators govern."))
+        else:
+            rows.append(("Yogas", "No yogas recorded on the top field's calc_trace for this run.", "—"))
+
+        # Shadbala — same source as D1 row above, cross-referenced
+        rows.append(("Shadbala (six-fold strength)", "See D1 Shadbala row above — six-fold strength feeds eff_strength directly.", "Foundational strength ranking used across every technique below."))
+
+        # Jaimini
+        jai = ml.get("jaimini", {})
+        if jai:
+            rows.append(("Jaimini (Karakas/Chara Dasha)", "; ".join(jai.get("trace", [])[:2]) or f"Score {jai.get('score',0):.1f}/100.",
+                        f"AK/AmK-based soul-purpose and career-means signal for {esc(top.get('field_label','top field'))}."))
+        else:
+            rows.append(("Jaimini (Karakas/Chara Dasha)", "Not available in this report context.", "—"))
+
+        # Combustion/Avastha/Maitri — see D1 row (chart-level, already covered)
+        # (kept as a single combined row above per spec's grouping suggestion)
+
+        # Dasha timeline
+        dc_reject = top.get("dasha_coverage_reject_applied")
+        dc_end = top.get("dasha_coverage_reject_end_age")
+        if dc_reject is not None or dc_end is not None:
+            finding = (f"Dasha-coverage reject applied (support ends age {dc_end})" if dc_reject
+                       else "Dasha coverage sustains through the lookahead window.")
+            rows.append(("Dasha Timeline (Vimshottari sustainability)", finding,
+                        "Determines whether the top field's astrological support persists through a realistic career horizon."))
+        else:
+            rows.append(("Dasha Timeline (Vimshottari sustainability)", "Not available in this report context.", "—"))
+
+        # Sudarshana
+        sud = ml.get("sudarshana", {})
+        if sud:
+            rows.append(("Sudarshana Chakra", "; ".join(sud.get("trace", [])[:2]) or f"Score {sud.get('score',0):.1f}/100.",
+                        "Tri-lagna (Lagna/Chandra/Surya) composite cross-check on the top field."))
+        else:
+            rows.append(("Sudarshana Chakra", "Not available in this report context.", "—"))
+
+        # K.N. Rao
+        knr = ml.get("knrao", {})
+        if knr:
+            rows.append(("K.N. Rao (event-timing significators)", "; ".join(knr.get("trace", [])[:2]) or f"Score {knr.get('score',0):.1f}/100.",
+                        "Cross-validates significator strength using K.N. Rao's timing methodology."))
+        else:
+            rows.append(("K.N. Rao (event-timing significators)", "Not available in this report context.", "—"))
+
+        # KP
+        kp = ml.get("kp", {})
+        if kp:
+            rows.append(("KP (Krishnamurti Paddhati sub-lords)", "; ".join(kp.get("trace", [])[:2]) or f"Score {kp.get('score',0):.1f}/100.",
+                        "Sub-lord level precision check, gated by birth-time confidence."))
+        else:
+            rows.append(("KP (Krishnamurti Paddhati sub-lords)", "Not available in this report context.", "—"))
+
+        row_html = "".join(
+            f"<tr><td style='font-weight:700;color:#1a237e;padding:6px 10px;border-bottom:1px solid #e8e8e8'>{esc(t)}</td>"
+            f"<td style='padding:6px 10px;border-bottom:1px solid #e8e8e8;font-size:.82rem'>{esc(f)}</td>"
+            f"<td style='padding:6px 10px;border-bottom:1px solid #e8e8e8;font-size:.82rem;color:#555'>{esc(i)}</td></tr>"
+            for t, f, i in rows
+        )
+        print(f"[SECTION 2 — EVIDENCE TABLE] {len(rows)} techniques rendered; "
+              f"{sum(1 for _,f,_ in rows if f.startswith('Not available'))} marked not-available-in-context.")
+        return (f"<table class='sum-tbl'><thead><tr><th>Technique</th><th>Finding</th>"
+                f"<th>Career/Wealth Implication</th></tr></thead><tbody>{row_html}</tbody></table>")
+
+    @classmethod
+    def _grouped_stream_html(cls, rankings: List[Dict], top_n: int, esc) -> str:
+        """Spec §12 item 5 — Grouped Stream Recommendation.
+
+        Source: 'domain' on each rankings[] row (already-computed, real
+        classification — technology/engineering/medicine/etc. — used
+        elsewhere in this file, e.g. _all_fields_table_html's domain
+        colour map). No separate stream/domain registry
+        (india_course_registry_v12.json / registry_loader_v12.py) is
+        staged in this environment, so 'domain' is used as the stream
+        label rather than fabricating a finer-grained stream taxonomy.
+        """
+        from collections import Counter
+        top_rows = rankings[:top_n]
+        domain_counts = Counter(r.get("domain", "unknown") for r in top_rows)
+        grouped = {d: [r["field_label"] for r in top_rows if r.get("domain", "unknown") == d]
+                   for d, c in domain_counts.items() if c > 1}
+        if grouped:
+            parts = [f"<strong>{esc(d)}</strong> ({len(fields)} fields: {esc(', '.join(fields))})"
+                     for d, fields in sorted(grouped.items(), key=lambda kv: -len(kv[1]))]
+            narrative = (f"{len(grouped)} stream(s) have more than one Top-{top_n} field, suggesting the chart's "
+                         f"support is concentrated rather than scattered: " + "; ".join(parts) +
+                         ". Prioritising these streams over single-field domains is generally lower-risk, since "
+                         "multiple independent evidence signals converge on the same broad area.")
+        else:
+            narrative = (f"No single stream carries more than one Top-{top_n} field for this chart — the "
+                         f"astrological support is spread across distinct domains rather than concentrated in "
+                         f"one stream. Prioritisation should therefore be by individual field strength "
+                         f"(see the ranking table) rather than by stream.")
+        print(f"[SECTION 5 — GROUPED STREAM] {len(grouped)} stream(s) with >1 Top-{top_n} field: "
+              f"{', '.join(grouped.keys()) if grouped else 'none'}")
+        return f"<div class='ss-note' style='background:#fff;padding:12px 14px;border-radius:6px'>{narrative}</div>"
+
+    @classmethod
+    def _next_steps_html(cls, rankings: List[Dict], esc, n_fields: int = 5) -> str:
+        """Spec §12 item 6 — Practical Next Steps for the top 3-5 fields.
+
+        india_course_registry_v12.json is now staged and is consulted (via
+        cls._registry_branch_meta(), reusing engine_io._load_course_registry's
+        cached loader) for real per-field entrance exams / routes /
+        certifications. When a top field's field_id genuinely isn't a key in
+        the registry (a real coverage gap, not an error), that field alone
+        falls back to the prior generic template — the rest of the section
+        still renders with real registry content.
+        """
+        top = rankings[:max(3, min(n_fields, 5))]
+        blocks = []
+        registry_hits, registry_gaps = [], []
+        for i, r in enumerate(top, 1):
+            label = r.get("field_label", "?")
+            domain = r.get("domain", "")
+            meta = cls._registry_branch_meta(r.get("field_id", ""))
+            if meta:
+                registry_hits.append(label)
+                exams = meta.get("admission_exams_canonical") or meta.get("admission_exams") or []
+                exams_str = ", ".join(esc(x) for x in exams) if exams else "no canonical entrance exam listed in registry"
+                routes = meta.get("routes") or {}
+                safe_route = (routes.get("safe_route") or {}).get("path")
+                backup_route = (routes.get("backup_route") or {}).get("path")
+                career_outcomes = meta.get("career_outcomes") or {}
+                cert_targets = career_outcomes.get("government_psu") or career_outcomes.get("core") or []
+                portfolio_line = (
+                    f"Target outcomes referenced by the registry for {esc(label)}: {esc(', '.join(cert_targets))}."
+                    if cert_targets else
+                    f"Seek projects, competitions, or extracurriculars in {esc(domain) or esc(label)} that demonstrate sustained interest ahead of applications."
+                )
+                alias_note = ""
+                if meta.get("is_registry_alias"):
+                    alias_note = (f"<li style='color:#8a6100'><strong>Note:</strong> course/route details for {esc(label)} are inherited "
+                                   f"from the registry's '{esc(meta.get('alias_of') or meta.get('ontology_parent') or '?')}' entry, "
+                                   f"not independently curated for this exact field.</li>")
+                blocks.append(f"""
+<div style='border:1px solid #dde1f0;border-radius:6px;padding:10px 14px;margin-bottom:8px;background:#fff'>
+  <div style='font-weight:700;color:#1a237e'>{i}. {esc(label)} <span style='color:#777;font-weight:400;font-size:.8rem'>({esc(domain)})</span></div>
+  <ul style='margin:6px 0 0 18px;font-size:.82rem;line-height:1.6;color:#333'>
+    <li><strong>Entrance exams (registry):</strong> {exams_str}.</li>
+    <li><strong>Route:</strong> {esc(safe_route) if safe_route else 'n/a'}{f' (backup: {esc(backup_route)})' if backup_route else ''}</li>
+    <li><strong>Portfolio/target outcomes:</strong> {portfolio_line}</li>
+    <li><strong>Certifications:</strong> Look for recognised introductory certifications or foundation courses in {esc(label)} to validate interest before committing.</li>
+    {alias_note}
+  </ul>
+</div>""")
+            else:
+                registry_gaps.append(label)
+                blocks.append(f"""
+<div style='border:1px solid #dde1f0;border-radius:6px;padding:10px 14px;margin-bottom:8px;background:#fff'>
+  <div style='font-weight:700;color:#1a237e'>{i}. {esc(label)} <span style='color:#777;font-weight:400;font-size:.8rem'>({esc(domain)})</span></div>
+  <ul style='margin:6px 0 0 18px;font-size:.82rem;line-height:1.6;color:#333'>
+    <li><strong>Entrance exams:</strong> Consult current entrance-exam requirements for {esc(label)} — this field is not present in the staged course registry, so this report does not source live exam data for it.</li>
+    <li><strong>Portfolio/extracurricular actions:</strong> Seek projects, competitions, or extracurriculars in {esc(domain) or esc(label)} that demonstrate sustained interest ahead of applications.</li>
+    <li><strong>Certifications:</strong> Look for recognised introductory certifications or foundation courses in {esc(label)} to validate interest before committing.</li>
+  </ul>
+</div>""")
+        print(f"[SECTION 6 — NEXT STEPS] Registry-backed guidance for {len(registry_hits)}/{len(top)} field(s): "
+              f"{', '.join(registry_hits) or 'none'}. Generic fallback (registry coverage gap) for: "
+              f"{', '.join(registry_gaps) or 'none'}.")
+        return "".join(blocks)
+
+    @classmethod
+    def _caveats_html(cls, payload, rankings: List[Dict], evidence_gaps: int, esc) -> str:
+        """Spec §12 item 7 — Caveats & Confidence Notes.
+
+        Source: payload.birth_time_precision (same signal used in the Chart
+        Summary section), plus each Top-N row's own score_confidence /
+        score_confidence_note (already computed in engine.py's finalize
+        step), plus the count of 'not available' rows surfaced by the new
+        Evidence Table (conflicting/incomplete-data signal), plus a
+        hardcoded standard vocational-counseling disclaimer (spec calls for
+        exactly this fixed sentence).
+        """
+        btp = getattr(payload, "birth_time_precision", "unknown") or "unknown"
+        low_conf = [r for r in rankings if str(r.get("score_confidence", "")).upper() in ("LOW", "WEAK")]
+        low_conf_str = ", ".join(r.get("field_label", "?") for r in low_conf[:5]) if low_conf else "none"
+
+        # ── Gap B fix: confidence_dimensions (structural/educational/
+        # professional/research/leadership/timing fit bands) were computed
+        # per-field but never rendered anywhere. Build a compact per-field
+        # "weakest dimensions" summary for the visible Top-N, plus an
+        # explicit relative-vs-absolute framing note for confidence_band.
+        # Missing on rows whose code path never populated the dict. ──
+        dim_rows_html = ""
+        dim_cli_parts = []
+        DIM_LABELS = {
+            "structural_fit": "Structural", "educational_fit": "Educational",
+            "professional_fit": "Professional", "research_fit": "Research",
+            "leadership_fit": "Leadership", "timing_fit": "Timing",
+        }
+        BAND_COLOR = {"VERY_LOW": "#c62828", "LOW": "#ef6c00", "MODERATE": "#f9a825",
+                      "HIGH": "#2e7d32", "VERY_HIGH": "#1b5e20"}
+        for r in rankings[:5]:
+            cdims = r.get("confidence_dimensions") or {}
+            if not cdims:
+                continue
+            cband = r.get("confidence_band", "n/a")
+            # sort by score ascending -> weakest first
+            sortable = [(k, v) for k, v in cdims.items() if isinstance(v, dict)]
+            sortable.sort(key=lambda kv: kv[1].get("score", 100))
+            weakest = sortable[:2]
+            weakest_str = ", ".join(
+                f"{DIM_LABELS.get(k, k)}={v.get('band','?')} ({v.get('score',0):.1f})"
+                for k, v in weakest
+            )
+            all_bands_str = " &nbsp; ".join(
+                f"<span style='color:{BAND_COLOR.get(v.get('band',''), '#555')};font-weight:600'>"
+                f"{DIM_LABELS.get(k,k)}:{esc(str(v.get('band','?')))}</span>"
+                for k, v in sortable
+            )
+            dim_rows_html += (
+                f"<tr><td style='font-weight:700'>{esc(r.get('field_label','?'))}</td>"
+                f"<td style='font-size:.78rem'>{esc(str(cband))}</td>"
+                f"<td style='font-size:.76rem'>{all_bands_str}</td></tr>"
+            )
+            dim_cli_parts.append(f"{r.get('field_label','?')}: band={cband}, weakest: {weakest_str}")
+
+        dims_block = ""
+        if dim_rows_html:
+            dims_block = f"""
+  <div class='ss-note' style='background:#ffebee;border:1px solid #ef9a9a;border-radius:6px;padding:10px 12px;margin-top:10px'>
+    <p style='margin:0 0 6px 0;font-size:.82rem;color:#333'>
+      <strong>Relative vs. absolute confidence:</strong> the headline <code>confidence_band</code>
+      shown for each field (e.g. "High (relative)") is scored <em>relative to the other candidate
+      fields evaluated in this run</em> — it is NOT an absolute confidence level. A field can be
+      top-ranked and still show LOW/VERY_LOW on most individual <code>confidence_dimensions</code>
+      below; this is expected when the whole candidate pool is weak on a given dimension (e.g. the
+      chart-wide Mercury-combustion effect already noted elsewhere in this report depresses
+      educational_fit for every field, not just this one).
+    </p>
+    <table class='ro-table' style='width:100%'>
+      <thead><tr><th>Field</th><th>confidence_band (relative)</th><th>confidence_dimensions (structural/educational/professional/research/leadership/timing)</th></tr></thead>
+      <tbody>{dim_rows_html}</tbody>
+    </table>
+  </div>"""
+
+        html = f"""
+<div class='ss-note' style='background:#fff8e1;border:1px solid #f9a825;border-radius:6px;padding:12px 14px'>
+  <ul style='margin:0 0 0 18px;line-height:1.7;font-size:.84rem;color:#333'>
+    <li><strong>Birth-time reliability:</strong> recorded precision is '{esc(btp)}' — techniques sensitive to
+      exact birth time (KP sub-lords, D60 Shashtiamsha) are weighted/gated accordingly (see Chart Summary above).</li>
+    <li><strong>Low-confidence fields:</strong> {esc(low_conf_str)} carry a LOW/WEAK score_confidence label from
+      cross-method agreement scoring — treat their ranking with extra caution.</li>
+    <li><strong>Data-completeness gaps:</strong> {evidence_gaps} technique(s) in the Evidence Table above were
+      marked "not available in this report context" — their absence is disclosed rather than backfilled with
+      assumed findings.</li>
+    <li><strong>Standard disclaimer:</strong> This report is an astrological input, not a substitute for
+      standard vocational counseling — families should supplement it with a qualified vocational/career
+      counselor's assessment before making final education or career decisions.</li>
+  </ul>
+</div>{dims_block}"""
+        dims_cli = ("; confidence_dimensions (relative-band caveat): " + " | ".join(dim_cli_parts)
+                    if dim_cli_parts else "; confidence_dimensions: not populated for these rows")
+        print(f"[SECTION 7 — CAVEATS] birth_time_precision={btp}; low-confidence fields: {low_conf_str}; "
+              f"evidence gaps disclosed: {evidence_gaps}; vocational-counseling disclaimer included"
+              + dims_cli)
+        return html
+
     @classmethod
     def export_html_full_trace(cls, rankings: List[Dict], payload, active_lord: str,
                                 peak_lord: str, student_name: str,
@@ -1030,6 +1590,17 @@ class ExplainabilityEngine:
 
         # ── All-fields scores table ────────────────────────────────────────────
         all_fields_tbl  = cls._all_fields_table_html(rankings, esc)
+
+        # ── Spec §12 sections: 1 Chart Summary, 2 Evidence Table, 5 Grouped
+        # Stream, 6 Next Steps, 7 Caveats. (Section 3 raw-vs-adjusted
+        # planetary strength stays as the existing print()-only block below;
+        # section 4 Top-N extension is already inside ranking_table above.)
+        chart_summary_html = cls._chart_summary_html(payload, rankings, esc)
+        evidence_table_html = cls._evidence_table_html(rankings, _pt0, esc)
+        _evidence_gap_count = evidence_table_html.count("Not available in this report context")
+        grouped_stream_html = cls._grouped_stream_html(rankings, top_n, esc)
+        next_steps_html = cls._next_steps_html(rankings, esc)
+        caveats_html = cls._caveats_html(payload, rankings, _evidence_gap_count, esc)
 
         gen_date = datetime.now().strftime("%d %b %Y, %H:%M")
         name_str = esc(student_name)
@@ -1195,10 +1766,19 @@ table.aff-table td{{padding:4px 10px;border-bottom:1px solid #eee}}
 
 <div id="panel-trace" class="tab-panel">
   <p class="panel-title">Two-phase architecture: Phase 1 computed once for the chart, Phase 2 applied per branch.</p>
+  {chart_summary_html}
+  <div class='phase2-hdr'>SECTION 2 — Evidence Table (technique-first)</div>
+  {evidence_table_html}
   {phase1_html}
   <div class='phase2-hdr'>PHASE 2 — Per-Branch Scoring (affinity weighting applied to Phase 1 strengths)</div>
-  <div class='phase2-sub'>Ranking overview — all {n_shown} fields compared side-by-side</div>
+  <div class='phase2-sub'>Ranking overview — all {n_shown} fields compared side-by-side (Section 4: incl. Recommended Stream / Peak Dasha Window / Wealth Note / Risk-Caveat)</div>
   {ranking_table}
+  <div class='phase2-hdr'>SECTION 5 — Grouped Stream Recommendation</div>
+  {grouped_stream_html}
+  <div class='phase2-hdr'>SECTION 6 — Practical Next Steps (Top fields)</div>
+  {next_steps_html}
+  <div class='phase2-hdr'>SECTION 7 — Caveats &amp; Confidence Notes</div>
+  {caveats_html}
   <div class='phase2-sub' style='margin-top:18px'>Detailed trace per field — click to expand</div>
   {trace_blocks}
 </div>
@@ -1232,6 +1812,53 @@ function sortTbl(col){{
         with open(fp, "w", encoding="utf-8") as fh:
             fh.write(html)
         logger.info(f"Full trace HTML exported --> {fp}")
+
+        # ── FINAL REPORT ASSEMBLY: planetary-strength ranking + narrative ──
+        # export_html_full_trace() is the true "last mile" top-level function:
+        # it is the only place in the pipeline that consumes rankings + payload
+        # + active_lord/peak_lord together and assembles the complete published
+        # report (Parent / Astrologer / Debug Trace tabs) to a single output file.
+        # Section 3 of the spec ("final composite planetary-strength ranking,
+        # raw base strength AND fully adjusted strength side by side") is printed
+        # here from _pt0 (planet_trace), which is computed once per chart and is
+        # already available in scope — raw_shadbala/min_v give the raw base ratio,
+        # eff_strength gives the fully-adjusted value. Printed unconditionally,
+        # matching the print() convention used elsewhere in this pipeline
+        # (e.g. astro.py's "Final planetary strengths" block).
+        print("\n[FINAL REPORT] Composite planetary-strength ranking (raw base vs fully adjusted):")
+        print(f"  {'Planet':<8} {'Raw Base (shadbala/min)':>24} {'Adjusted (eff_strength)':>26}")
+        _ranked_planets = sorted(_pt0.items(), key=lambda kv: -kv[1].get("eff_strength", 0.0)) if _pt0 else []
+        for _pname, _pt in _ranked_planets:
+            _raw_base = _pt.get("raw_ratio", (_pt.get("raw_shadbala", 0.0) / _pt.get("min_v", 1.0)) if _pt.get("min_v") else 0.0)
+            print(f"  {_pname:<8} {_raw_base:>24.4f} {_pt.get('eff_strength', 0.0):>26.4f}")
+
+        _n_top = len(rankings[:top_n])
+        _top_rec = rankings[0] if rankings else {}
+        _top_ct = _top_rec.get("calc_trace", {})
+        _top_boosts = _top_ct.get("gap_boosts", {}) or {}
+        _top_pens = _top_ct.get("gap_penalties", {}) or {}
+        _dom_evidence = max(_top_boosts.items(), key=lambda kv: kv[1])[0] if _top_boosts else None
+        _dom_evidence_label = cls._GAP_BOOST_LABELS.get(_dom_evidence, _dom_evidence) if _dom_evidence else "no single dominant boost"
+        _hard_lockouts = [r.get("field_label", r.get("field_id", "?")) for r in rankings[:top_n] if r.get("hard_lockout")]
+        _dasha_downranks = [r.get("field_label", r.get("field_id", "?")) for r in rankings[:top_n]
+                             if any("dasha" in str(k).lower() and v < 0 for k, v in (r.get("calc_trace", {}).get("gap_penalties", {}) or {}).items())]
+        _strongest_planet = _ranked_planets[0][0] if _ranked_planets else "?"
+        _strongest_val = _ranked_planets[0][1].get("eff_strength", 0.0) if _ranked_planets else 0.0
+        _report_narrative = (
+            f"[FINAL REPORT NARRATIVE] For {student_name}, {_n_top} field(s) made the Top-{top_n} list out of "
+            f"{len(rankings)} evaluated. The top result, '{_top_rec.get('field_label', '?')}' "
+            f"(score {_top_rec.get('final_score', 0):.2f}), was most influenced by "
+            f"'{_dom_evidence_label}' among its fired evidence signals, with active dasha lord {active_lord or '?'} "
+            f"and peak career MD {peak_lord or '?'} as the chart's dasha context. "
+            + (f"{len(_hard_lockouts)} field(s) in the Top-{top_n} carried a hard-lockout flag ({', '.join(_hard_lockouts)}). "
+               if _hard_lockouts else "No Top-N field carried a hard-lockout exclusion flag. ")
+            + (f"{len(_dasha_downranks)} field(s) showed a dasha-related downrank penalty ({', '.join(_dasha_downranks)}). "
+               if _dasha_downranks else "No Top-N field showed a dasha-related downrank penalty. ")
+            + f"Overall, the chart's single strongest astrological signal is {_strongest_planet} at "
+            f"eff_strength={_strongest_val:.2f}, the dominant planetary driver behind this report's rankings."
+        )
+        print(_report_narrative)
+
         return fp
 
     @classmethod

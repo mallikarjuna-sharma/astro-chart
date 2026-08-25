@@ -37,6 +37,13 @@ from .astro_enhancer import (
     build_enhancer_input_from_payload, enhancer_score_delta,
     _jupiter_aspect_houses_set, _saturn_aspect_houses_set, _mars_aspect_houses,
 )
+# GAP FIX (2026-08-21, remediation plan item 2.3, FINAL_VS_V13_ASTROLOGICAL_
+# COVERAGE_AUDIT.md P0 #1): reuse the SAME cusp-verification check
+# Field_Determination/field_methods/kp.py already gates its KP score with,
+# so this module's own KP career-cusp field-ranking signal
+# (_kp_career_cusp_score, called below) doesn't grant unverified KP cusps
+# full authority either.
+from jyotish.kp_audit import audit_kp_cusps
 # C-1: Shadbala-SBC manifestation modifier (lazy import to avoid circular deps)
 def _compute_sbc_natal_mod(chart: Any) -> float:
     """Return a Shadbala Chakra natal strength modifier in [0.90, 1.10].
@@ -451,6 +458,24 @@ def _dasha_calendar(dasha_seq: List[Dict], dob: date) -> List[Dict]:
             # No antardasha data — compute proportionally
             result.extend(_expand_antardashas(md_lord, md_start, md_end))
     return result
+
+
+# Stable public cross-package adapters. Domain packages must import these
+# names rather than the underscored implementation helpers above.
+def build_dasha_calendar(dasha_seq: List[Dict], dob: date) -> List[Dict]:
+    return _dasha_calendar(dasha_seq, dob)
+
+
+def expand_pratyantardashas(md_lord: str, ad_lord: str, ad_start: date, ad_end: date) -> List[Dict]:
+    return _expand_pratyantardashas(md_lord, ad_lord, ad_start, ad_end)
+
+
+def get_dynamic_transits(period_start: date, period_end: date, chart: Any, lagna_sign: str, today: date) -> List[str]:
+    return _get_dynamic_transits(period_start, period_end, chart, lagna_sign, today)
+
+
+def jaimini_career_score(md_lord: str, ad_lord: str, payload: Any):
+    return _jaimini_career_score(md_lord, ad_lord, payload)
 
 
 def _expand_antardashas(md_lord: str, md_start: date, md_end: date) -> List[Dict]:
@@ -1197,6 +1222,14 @@ def _score_period(
     # 6. NEW: KP career-cusp sub-lord alignment
     kp_cusps = getattr(payload, "kp_cusps", {}) or {}
     kp_cusp_score = _kp_career_cusp_score(md_lord, ad_lord, kp_cusps)
+    # GAP FIX (2026-08-21, item 2.3): this cusp-derived score previously had
+    # no cusp-chain verification at all, unlike the Field_Determination KP
+    # scorer. Same conservative discount-not-zero philosophy as that call
+    # site: an UNVERIFIED chain is not necessarily wrong, so this discounts
+    # confidence rather than eliminating the signal.
+    _kp_cusp_audit = audit_kp_cusps(kp_cusps, getattr(payload, "house_system", "") or "")
+    if _kp_cusp_audit.get("status") != "VERIFIED":
+        kp_cusp_score *= 0.5
 
     # 7. NEW: KN Rao Jaimini AmK/AK alignment
     jaimini_score, _jai_role = _jaimini_career_score(md_lord, ad_lord, payload)
@@ -1347,7 +1380,15 @@ def _score_period(
             ad_change_dates=ad_change_dates or [],
         )
         _enh_result: Optional[EnhancerResult] = AstroEnhancer.run(_enh_inp)
-        _enh_delta  = enhancer_score_delta(_enh_result)
+        # GAP FIX (2026-08-21, remediation plan item 2.4): thread the same
+        # `btu` (birth_time_uncertainty_minutes) already computed above in
+        # this function (FIX 1) into enhancer_score_delta so its Tier 6 KP
+        # sub-scores (kp_ssl_score, kp_nakshatra_chain_score,
+        # kp_ruling_planets_score and the VIM-KP co-activation bonus) degrade
+        # with the same curve as this module's own KP/D10 weights, instead of
+        # being applied at full, ungated weight regardless of birth-time
+        # precision.
+        _enh_delta  = enhancer_score_delta(_enh_result, birth_time_uncertainty_minutes=btu)
 
         # Phase 3 (2026-07-05, item #6/#9): D60 Shashtiamsha is the most
         # birth-time-sensitive varga in the system — BPHS calls it the most
@@ -1361,9 +1402,22 @@ def _score_period(
         # possibly-unreliable D60 read as equally trustworthy as D1/D9.
         _btu_d60 = getattr(payload, "birth_time_uncertainty_minutes", 0) or 0
         _birth_precision_d60 = str(getattr(payload, "birth_time_precision", "unknown") or "unknown")
+        # GAP-FIX (P0-2/P0-4, CalculationPolicy threading): D60 is the varga
+        # CalculationPolicy.d60_claims_allowed exists specifically to gate.
+        # Defer the hard "is D60 usable at all" question to the single
+        # declared policy; the graduated fade-by-uncertainty curve below
+        # still applies within whatever band the policy allows, so a chart
+        # near the policy's own exactness threshold doesn't jump straight
+        # from full confidence to zero.
+        _policy_d60 = getattr(payload, "calculation_policy", None)
+        _d60_allowed = (
+            bool(_policy_d60.d60_claims_allowed)
+            if _policy_d60 is not None and hasattr(_policy_d60, "d60_claims_allowed")
+            else _birth_precision_d60 == "exact"
+        )
         _d60_confidence = (
             (1.0 if _btu_d60 <= 5 else max(0.0, 1.0 - (_btu_d60 - 5) / 30.0))
-            if _birth_precision_d60 == "exact" else 0.0
+            if _d60_allowed else 0.0
         )
         # Global policy: D60 is observation/confirmation only and never changes
         # a field or event score. Preserve the raw value and confidence for the
@@ -2804,19 +2858,23 @@ def _sade_sati_phase(sat_h: int, moon_h: int) -> str:
 
 
 def _jupiter_aspect_houses(house: int) -> frozenset:
-    """Jupiter aspects 5th, 7th, 9th from itself (classical)."""
+    """Jupiter aspects 5th, 7th, 9th from itself (classical).
+    GAP-FIX (2026-08-22): offsets were N-1 (off-by-one); corrected to N-2,
+    matching this module's own _compute_arudha convention
+    ((lord_house + steps - 1) % 12 + 1)."""
     return frozenset([
-        ((house + 4) % 12) + 1,
-        ((house + 6) % 12) + 1,
-        ((house + 8) % 12) + 1,
+        ((house + 3) % 12) + 1,
+        ((house + 5) % 12) + 1,
+        ((house + 7) % 12) + 1,
     ])
 
 
 def _saturn_aspect_houses(house: int) -> frozenset:
-    """Saturn's special aspects: 3rd and 10th from itself."""
+    """Saturn's special aspects: 3rd and 10th from itself.
+    GAP-FIX (2026-08-22): offsets were N-1 (off-by-one); corrected to N-2."""
     return frozenset([
-        ((house + 2) % 12) + 1,   # 3rd aspect
-        ((house + 9) % 12) + 1,   # 10th aspect
+        ((house + 1) % 12) + 1,   # 3rd aspect
+        ((house + 8) % 12) + 1,   # 10th aspect
     ])
 
 
@@ -2826,11 +2884,12 @@ def _mars_aspect_houses(house: int) -> frozenset:
     corruption pattern as several other reconstructions this session.
     Mars's special aspects: 4th, 7th, 8th from itself (classical Vedic
     drishti rule), matching the exact sibling convention immediately above
-    (_jupiter_aspect_houses / _saturn_aspect_houses already in this file)."""
+    (_jupiter_aspect_houses / _saturn_aspect_houses already in this file).
+    GAP-FIX (2026-08-22): offsets were N-1 (off-by-one); corrected to N-2."""
     return frozenset([
-        ((house + 3) % 12) + 1,   # 4th aspect
-        ((house + 6) % 12) + 1,   # 7th aspect (universal)
-        ((house + 7) % 12) + 1,   # 8th aspect
+        ((house + 2) % 12) + 1,   # 4th aspect
+        ((house + 5) % 12) + 1,   # 7th aspect (universal)
+        ((house + 6) % 12) + 1,   # 8th aspect
     ])
 
 

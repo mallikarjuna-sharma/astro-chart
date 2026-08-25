@@ -8,11 +8,38 @@ SECONDARY_RESIDUAL_SHARE = 0.25
 ADDITIONAL_RESIDUAL_SHARE = 0.10
 
 METHOD_DEPENDENCY_GROUPS: dict[str, tuple[str, ...]] = {
-    "d1_synthesis": ("parashara", "knrao"),
+    # 2026-08-18 fix (audit item #10): Jaimini reads chara-karaka placements
+    # derived directly from the natal D1 (Rasi) chart -- the same underlying
+    # data source Parashara's yoga/strength model and K.N. Rao's whole-sign+
+    # karaka-role hierarchy read, and the same one structural_patterns' D1
+    # house-occupancy clustering reads. It was previously left out of
+    # d1_synthesis in its own "jaimini_identity" singleton group below, which
+    # meant it accumulated full independent weight in the primary blend's
+    # correlation dampening (_CORRELATION_GROUP_DAMPENING in
+    # field_methods/__init__.py) even though it is not truly an independent
+    # witness of D1 facts. Folding it into d1_synthesis applies the exact
+    # same bounded dampening already used for parashara/knrao/
+    # structural_patterns. jaimini_identity below is left in place
+    # (now a redundant singleton once jaimini is a d1_synthesis member) so
+    # any code keying off that group id by name is unaffected.
+    "d1_synthesis": ("parashara", "knrao", "structural_patterns", "jaimini"),
     "d10_vocation": ("dashamsha",),
     "kp_corroboration": ("kp",),
     "jaimini_identity": ("jaimini",),
     "sudarshana_confirmation": ("sudarshana",),
+    # GAP FIX (2026-08-17): siddhamsha (D24) and shashtiamsha (D60) were
+    # absent from this map entirely -- meaning their votes were invisible to
+    # build_signal_lineage()'s effective_independent_method_count AND, more
+    # importantly, to the new Step-9 convergence scoring in
+    # field_methods/__init__.py's compute_field_convergence(), which groups
+    # by this dict. Each is its own distinct varga/technique, not a sibling
+    # of any existing group, so each gets its own singleton group (same
+    # treatment as d10_vocation/kp_corroboration/jaimini_identity above).
+    # structural_patterns joins d1_synthesis above (D1 house-occupancy
+    # clustering shares the same D1_PLANETS/D1_LORDSHIPS root as
+    # parashara/knrao per METHOD_SIGNAL_ROOTS below).
+    "d24_specialization": ("siddhamsha",),
+    "d60_confirmation": ("shashtiamsha",),
 }
 
 
@@ -55,6 +82,12 @@ METHOD_SIGNAL_ROOTS: dict[str, tuple[str, ...]] = {
     "jaimini": ("D1_PLANETS", "D9", "KARAKAS"),
     "kp": ("D1_PLANETS", "KP_CUSPS", "NAKSHATRA", "DASHA"),
     "sudarshana": ("D1_PLANETS", "D1_LORDSHIPS", "SUN_MOON_REFERENCE"),
+    # GAP FIX (2026-08-17): added so these three methods are visible to
+    # build_signal_lineage() and to Step-9 convergence grouping (see
+    # METHOD_DEPENDENCY_GROUPS above) -- previously absent entirely.
+    "structural_patterns": ("D1_PLANETS", "D1_LORDSHIPS"),
+    "siddhamsha": ("D24", "D1_LORDSHIPS", "DIGNITY"),
+    "shashtiamsha": ("D60", "D1_LORDSHIPS", "DIGNITY"),
 }
 
 

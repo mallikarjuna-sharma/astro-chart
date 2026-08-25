@@ -15,6 +15,19 @@ from dataclasses import dataclass, field as dc_field
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple, Set, Any
 
+from jyotish.kp_subfield_hint import narrow_field_specialization  # GAP FIX (2026-08-17): Step 6 sub-field narrowing
+# GAP FIX (2026-08-21, remediation plan item 2.3, FINAL_VS_V13_ASTROLOGICAL_
+# COVERAGE_AUDIT.md P0 #1): reuse the same cusp-verification check
+# Field_Determination/field_methods/kp.py already gates its KP score with,
+# so this module's Tier 6 KP functions (which read inp.kp_cusps_full for
+# field-ranking purposes) don't grant unverified KP cusps full authority.
+from jyotish.kp_audit import audit_kp_cusps
+from jyotish.dasha_longevity import score_dasha_longevity  # GAP FIX (2026-08-17): Step 7 Vimshottari longevity filter
+# GAP FIX (2026-08-21, Gap_Analysis_2026-07 §1.1/§1.2): reuse the canonical, chart-sensitive
+# Jaimini Chara Dasha sequence (direction + per-sign duration both derived from the actual
+# chart) instead of this module's own forward-only, fixed-duration-table reimplementation.
+from jyotish.astro import compute_chara_dasha_sequence
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared constants
 # ─────────────────────────────────────────────────────────────────────────────
@@ -173,6 +186,9 @@ class EnhancerInput:
 
     # Jaimini
     atmakaraka: str = ""
+    amatyakaraka: str = ""  # GAP FIX (2026-08-17): AmK — often more precise than
+                             # the 10th lord for career per Jaimini; was defined
+                             # nowhere in this module prior to this fix.
     jaimini_chara_lagna_sign: str = ""  # AK sign in D9 = Karakamsha Lagna
 
     # Transit projected positions
@@ -191,6 +207,9 @@ class EnhancerInput:
     # Rahu house (for Ashtottari condition check)
     rahu_house: int = 0
     moon_house: int = 0
+
+    # Full Vimshottari MD sequence (GAP FIX 2026-08-17, Step 7 longevity filter)
+    dasha_sequence: List[Dict] = dc_field(default_factory=list)
 
 
 @dataclass
@@ -234,12 +253,22 @@ class EnhancerResult:
     surya_lagna_bonus: float = 0.0            # G22
     arudha_bonus: float = 0.0                 # G23
     karakamsha_bonus: float = 0.0             # G24
+    amatyakaraka_score: float = 0.5           # G24b (GAP FIX 2026-08-17)
 
     # Tier 6 — KP precision
     kp_ssl_score: float = 0.0                 # G25
     kp_weighted_score: float = 0.0            # item #5 (2026-07-07): multi-level KP scoring
     kp_ruling_planets_score: float = 0.5     # G26
     kp_nakshatra_chain_score: float = 0.0    # G27
+    kp_subfield_hint: str = ""  # GAP FIX (2026-08-17): Step 6 sub-field narrowing, advisory only
+    dasha_longevity_score: float = 0.5  # GAP FIX (2026-08-17): Step 7 Vimshottari longevity filter
+    # GAP FIX (2026-08-21, remediation plan item 2.3): whether inp.kp_cusps_full
+    # passed the same cusp-chain verification (jyotish/kp_audit.py::audit_kp_cusps)
+    # Field_Determination/field_methods/kp.py already gates its KP score with.
+    # Defaults True so any caller that never populates it (there should be none
+    # after this fix, since AstroEnhancer.run() always sets it) doesn't get a
+    # false discount.
+    kp_cusp_verified: bool = True
 
     # Tier 8 — Aspect flags (G32–G34, used by transit layer)
     mars_aspect_flags: List[str] = dc_field(default_factory=list)
@@ -296,18 +325,25 @@ from jyotish.constants import _COMBUST_ORB as _CANONICAL_COMBUST_ORB
 _COMBUSTION_ORBS: Dict[str, float] = dict(_CANONICAL_COMBUST_ORB)
 
 
-def _is_combust(planet: str, natal_degs: Dict[str, float]) -> bool:
+def _is_combust(planet: str, natal_degs: Dict[str, float], retrograde: bool = False) -> bool:
     sun_deg = natal_degs.get("Sun")
     p_deg = natal_degs.get(planet)
-    return _dignity_is_combust(planet, p_deg, sun_deg)
+    return _dignity_is_combust(planet, p_deg, sun_deg, retrograde=retrograde)
 
 
 def _g1_combustion(inp: EnhancerInput) -> Tuple[float, List[str]]:
+    # 2026-08-17 combustion-rule unification: retrograde Mercury/Venus now use
+    # jyotish/dignity.py's narrower classical orb here too (previously this
+    # call never passed retrograde status through, even though EnhancerInput
+    # already tracks it in retrograde_planets), and a cazimi dasha lord (see
+    # is_cazimi() in dignity.py) is no longer misclassified as combust. See
+    # md/ENGINE_SIMPLIFICATION_2026-08-17_combustion_unify.md.
     degs = inp.planet_natal_degrees
+    retro_set = inp.retrograde_planets
     modifier = 0.0
     notes: List[str] = []
     for pl, penalty in [(inp.md_lord, -0.08), (inp.ad_lord, -0.04)]:
-        if pl and _is_combust(pl, degs):
+        if pl and _is_combust(pl, degs, retrograde=pl in retro_set):
             modifier += penalty
             notes.append(
                 f"{pl} is combust (within {_COMBUSTION_ORBS.get(pl, 10):.0f}° of Sun) — "
@@ -776,9 +812,25 @@ _KAKSHA_DEGREES = 30.0 / 8  # 3.75° per kaksha
 
 
 def _g14_kaksha_activation(inp: EnhancerInput) -> bool:
-    """True if MD lord's kaksha is activated by any slow transiting planet."""
+    """True if MD lord's kaksha is activated by a slow transiting planet.
+
+    GAP-FIX (2026-08-22, audit item #18): previously "activation" only
+    checked that the transiting planet's *name* matched the kaksha lord and
+    that SOME transit-degree entry existed for it (`transit.get(t_planet) is
+    not None`) — never the transiting planet's actual degree/position. Per
+    Kakshya theory (each 30° sign divides into 8 kakshyas of 3°45' each,
+    ruled in sequence Saturn-Jupiter-Mars-Sun-Venus-Mercury-Moon-Lagna, a
+    sequence this module already uses correctly), activation is explicitly
+    degree-dependent: a kakshya's effects trigger only when a planet is
+    actually positioned within that kakshya's arc, not by name-match alone.
+    Now requires genuine "own kakshya" (swakakshya) positional confirmation:
+    the candidate planet must itself be transiting through a kakshya slot
+    that IT rules (computed the same way the MD lord's natal kakshya lord is
+    derived below), not merely be present in the transit-degree table.
+    """
     natal = inp.planet_natal_degrees
     transit = inp.planet_transit_degrees
+    transit_houses = inp.transit_projected
 
     md_deg = natal.get(inp.md_lord)
     if md_deg is None:
@@ -792,9 +844,22 @@ def _g14_kaksha_activation(inp: EnhancerInput) -> bool:
     rotated_idx = (kaksha_idx + (h - 1)) % 8
     kaksha_lord = _KAKSHA_SEQUENCE[rotated_idx]
 
-    # Check if any slow transit planet is the kaksha lord
+    # Check if any slow transit planet is the kaksha lord AND is itself
+    # currently positioned in a kakshya slot it rules (own-kakshya/
+    # swakakshya) — genuine positional activation, not name-match alone.
     for t_planet in _SLOW_PLANETS:
-        if t_planet == kaksha_lord and transit.get(t_planet) is not None:
+        if t_planet != kaksha_lord:
+            continue
+        t_deg = transit.get(t_planet)
+        if t_deg is None:
+            continue
+        t_house = transit_houses.get(t_planet) if transit_houses else None
+        if not t_house:
+            continue  # can't verify degree-position without a transit house
+        t_sign_deg = t_deg % 30.0
+        t_kaksha_idx = int(t_sign_deg / _KAKSHA_DEGREES)
+        t_rotated_idx = (t_kaksha_idx + (t_house - 1)) % 8
+        if _KAKSHA_SEQUENCE[t_rotated_idx] == t_planet:
             return True
     return False
 
@@ -803,34 +868,54 @@ def _g14_kaksha_activation(inp: EnhancerInput) -> bool:
 # G15 — Jaimini Chara Dasha
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Simplified Chara Dasha years (classical determination is complex;
-# here we use the standard Parasara scheme for sign duration)
-_CHARA_DASHA_YEARS: Dict[str, int] = {
-    "Aries": 7,  "Taurus": 6,  "Gemini": 5,  "Cancer": 4,
-    "Leo": 3,    "Virgo": 2,   "Libra": 1,   "Scorpio": 12,
-    "Sagittarius": 11, "Capricorn": 10, "Aquarius": 9, "Pisces": 8,
-}
+# GAP FIX (2026-08-21, Gap_Analysis_2026-07 §1.1/§1.2): the previous
+# `_CHARA_DASHA_YEARS` fixed lookup table (Aries=7, Taurus=6, ... keyed only by
+# sign name) ignored the chart entirely, and the walk below always advanced
+# forward through the zodiac regardless of lord placement -- both contradict
+# the classical technique's chart-sensitivity. Removed in favor of
+# jyotish.astro.compute_chara_dasha_sequence(), the canonical "Standard Jaimini
+# (Parashara-compatible)" implementation already used elsewhere in this
+# codebase (see that function's docstring for the odd/even-count direction
+# rule and the count-to-own-lord duration rule, including the count==1 -> 12
+# year exception). Kept here only as a historical note, not read anywhere.
 
 
 def _g15_chara_dasha_score(inp: EnhancerInput) -> float:
-    """Career affinity score from the current Jaimini Chara Dasha sign."""
+    """Career affinity score from the current Jaimini Chara Dasha sign.
+
+    GAP FIX (2026-08-21, Gap_Analysis_2026-07 §1.1/§1.2): direction and
+    per-sign duration now come from jyotish.astro.compute_chara_dasha_sequence
+    (chart-sensitive, odd/even-count direction rule), not the old forward-only
+    walk over a fixed duration table."""
     if not inp.dob or not inp.period_start or not inp.lagna_sign:
         return 0.5
     if inp.lagna_sign not in _SIGN_SEQ:
         return 0.5
 
+    # planets_d1 shape expected by compute_chara_dasha_sequence: {planet: {"sign": str}}.
+    # This scorer only needs sign-level lordship, so degree is omitted.
+    planets_d1 = {p: {"sign": s} for p, s in inp.planet_sign.items() if s}
+    sequence = compute_chara_dasha_sequence(inp.lagna_sign, planets_d1)
+    if not sequence:
+        # Unresolvable chart (e.g. insufficient lord-placement data) -- neutral score,
+        # same fallback behavior as the previous implementation's early-outs.
+        return 0.5
+
     age = (inp.period_start - inp.dob).days / 365.25
-    lagna_idx = _SIGN_SEQ.index(inp.lagna_sign)
     cumulative = 0.0
     current_sign = inp.lagna_sign
-
-    for i in range(12):
-        sign = _SIGN_SEQ[(lagna_idx + i) % 12]
-        years = _CHARA_DASHA_YEARS.get(sign, 6)
+    for entry in sequence:
+        years = entry["years"]
         if cumulative + years > age:
-            current_sign = sign
+            current_sign = entry["sign"]
             break
         cumulative += years
+    else:
+        # Age exceeds the full 12-sign cycle length (rare, but the fixed 66-year
+        # forward-only table could never reach this branch); fall back to the
+        # last sign in the sequence rather than leaving the Lagna sign stale.
+        if sequence:
+            current_sign = sequence[-1]["sign"]
 
     ak = inp.atmakaraka
     if not ak:
@@ -852,6 +937,51 @@ def _g15_chara_dasha_score(inp: EnhancerInput) -> float:
     elif dist in _DUSTHANA:
         return 0.30
     return 0.45
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# G15b — Vimshottari Dasha Longevity Filter
+# GAP FIX (2026-08-17): Step 7 asks whether this period's MD lord has "long,
+# stable" career-relevant support ahead, vs. being about to hand off from a
+# strong career significator to a weak one. astro_enhancer.py previously had
+# no Vimshottari-longevity concept at all (only Yogini/Chara/Ashtottari
+# sub-systems, and a per-period read, never a forward-looking one). Reuses
+# the shared jyotish.dasha_longevity module built for Field_Determination,
+# with a career-house-lordship-derived affinity dict standing in for
+# Field_Determination's field_affinity (Job_Career has no per-field
+# affinity concept — it scores career events generally, not field choice —
+# so "affinity" here means "is this planet a career-house lord").
+# ─────────────────────────────────────────────────────────────────────────────
+
+_CAREER_LORDSHIP_HOUSES: Dict[int, float] = {10: 0.32, 11: 0.20, 2: 0.15, 6: 0.13, 9: 0.12, 7: 0.08}
+
+
+def _career_lordship_affinity(inp: EnhancerInput) -> Dict[str, float]:
+    """Build a lightweight 'career affinity' dict from house lordships, for
+    reuse with the shared dasha-longevity scorer (which was designed for
+    Field_Determination's per-field affinity weights)."""
+    affinity: Dict[str, float] = {}
+    for h, wt in _CAREER_LORDSHIP_HOUSES.items():
+        lord = inp.house_lords.get(str(h), "")
+        if lord:
+            affinity[lord] = affinity.get(lord, 0.0) + wt
+    return affinity
+
+
+def _g15b_dasha_longevity(inp: EnhancerInput) -> float:
+    """Return a 0-1 score (0.5 = neutral/no data) from the shared Vimshottari
+    longevity filter's bounded multiplier."""
+    if not inp.dasha_sequence or not inp.dob or not inp.period_start:
+        return 0.5
+    age_at_period = (inp.period_start - inp.dob).days / 365.25
+    affinity = _career_lordship_affinity(inp)
+    if not affinity:
+        return 0.5
+    result = score_dasha_longevity(inp.dasha_sequence, age_at_period, affinity)
+    multiplier = result.get("multiplier", 1.0)
+    # multiplier is bounded [0.90, 1.10]; map to a 0-1 score around 0.5 the
+    # same way the rest of this module's sub-scores are expressed.
+    return round(min(1.0, max(0.0, 0.5 + (multiplier - 1.0) * 5.0)), 3)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -881,7 +1011,22 @@ def _g16_yogini_dasha(inp: EnhancerInput) -> Tuple[str, str, float]:
     if not inp.dob or not inp.period_start or inp.moon_nakshatra_pada_num == 0:
         return "", "", 0.5
 
-    start_idx = (inp.moon_nakshatra_pada_num - 1) % 8
+    # GAP-FIX (2026-08, astrological audit): the STARTING Yogini lord is
+    # classically determined by birth NAKSHATRA alone -- every pada of a
+    # given nakshatra shares the same starting Yogini. The previous
+    # `(pada_num - 1) % 8` derived the start index from the absolute
+    # 0-based pada number (nak_idx*4 + pada_offset, see EnhancerInput
+    # construction), which rotates the starting Yogini across the four
+    # padas of the SAME nakshatra instead of giving them all the one
+    # classically-correct lord. moon_nakshatra_pada_num is built as
+    # `nak_idx * 4 + (pada - 1)`, so integer-dividing by 4 recovers the
+    # nakshatra index exactly (the pada offset is always 0-3, i.e. always
+    # < 4), letting the start index be derived from nakshatra alone without
+    # needing a new field on EnhancerInput. Same fix, same reasoning, as
+    # Field_Determination/field_methods/yogini_dasha.py's
+    # get_current_yogini() -- this function is that module's sibling
+    # implementation and had the identical bug.
+    start_idx = (inp.moon_nakshatra_pada_num // 4) % 8
     elapsed = (inp.period_start - inp.dob).days / 365.25
     total_years = sum(y for _, _, y in _YOGINI_DATA)  # 36
     elapsed_in_cycle = elapsed % total_years
@@ -972,7 +1117,7 @@ def _g18_d10_full(inp: EnhancerInput) -> float:
         score += 0.10
 
     # House occupancy bonus
-    career_wts = {10: 0.40, 11: 0.25, 2: 0.20, 6: 0.15}
+    career_wts = {10: 0.32, 11: 0.20, 2: 0.15, 6: 0.13, 9: 0.12, 7: 0.08}
     for h, wt in career_wts.items():
         occupants = occ.get(str(h), []) or []
         if inp.md_lord in occupants:
@@ -988,6 +1133,24 @@ def _g18_d10_full(inp: EnhancerInput) -> float:
             score += 0.06
         elif dig in ("debilitated", "fallen"):
             score -= 0.04
+
+    # GAP FIX (2026-08-17): D10 kendra/trikona placement of D10 lagna lord and
+    # H10 lord — the framework's Step 4 "planets in D10 kendras/trikonas" check
+    # was previously absent; D10 was reduced to a lordship/dignity scalar only.
+    d10_ll_house = 0
+    if d10_ll:
+        # Find which D10 house the D10 lagna lord itself occupies.
+        for h_str, occupants in occ.items():
+            if d10_ll in (occupants or []):
+                try:
+                    d10_ll_house = int(h_str)
+                except ValueError:
+                    pass
+                break
+    if d10_ll_house in _KENDRA:
+        score += 0.05
+    elif d10_ll_house in _TRIKONA:
+        score += 0.07
 
     return round(min(1.0, max(0.0, score)), 3)
 
@@ -1037,10 +1200,24 @@ def _g20_d27_modifier(inp: EnhancerInput) -> float:
 # G21 — Vimsopaka Bala (aggregate varga strength)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_VIMSOPAKA_WEIGHTS: Dict[str, int] = {
-    "D1": 6, "D2": 2, "D3": 4, "D4": 1, "D7": 1, "D9": 3,
-    "D10": 5, "D12": 2, "D16": 2, "D20": 2, "D24": 2, "D27": 3,
-    "D30": 5, "D40": 4, "D45": 3, "D60": 5,
+# GAP-FIX (2026-08-22, audit item — Vimshopaka weight proportions): replaced
+# with the classical Shodasha Varga ("sixteen-fold") weight table per BPHS —
+# Rasi 3.5, Hora 1, Drekkana 1, Shodasamsa(D16) 2, Navamsa 3, Shashtiamsa(D60)
+# 4, Trimsamsa(D30) 1, remaining nine divisions 0.5 each (9 x 0.5 = 4.5);
+# 3.5+1+1+2+3+4+1+4.5 = 20 exactly, matching the "twenty units" the technique
+# is named for. The prior table (D1=6, D9=3, D10=5, D60=5, sum 50) did not
+# match any published classical scheme: it overweighted D10 (career-relevant
+# Dasamsa) roughly 4x versus tradition (0.5/20, since Vimshopaka Bala measures
+# GENERAL planetary strength, not career-specific strength) and understated
+# D60 (Shashtiamsa), classically the single heaviest varga at 4/20 (20%) for
+# its fine-grained decisiveness. _g21_vimsopaka_bala() below renormalizes by
+# present_weight (the sum of only the vargas actually populated), so an
+# absolute total of exactly 20 is not functionally required for scoring to
+# work, but the RELATIVE proportions between vargas now match BPHS.
+_VIMSOPAKA_WEIGHTS: Dict[str, float] = {
+    "D1": 3.5, "D2": 1.0, "D3": 1.0, "D4": 0.5, "D7": 0.5, "D9": 3.0,
+    "D10": 0.5, "D12": 0.5, "D16": 2.0, "D20": 0.5, "D24": 0.5, "D27": 0.5,
+    "D30": 1.0, "D40": 0.5, "D45": 0.5, "D60": 4.0,
 }
 
 _DIG_SCORE_MAP = {
@@ -1188,12 +1365,71 @@ def _g24_karakamsha_bonus(inp: EnhancerInput) -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# G24b — Amatyakaraka (Jaimini)
+# GAP FIX (2026-08-17): the framework's Step 5 calls the Amatyakaraka "often
+# more precise than the 10th lord" for career, but it was never scored by
+# this module (only Atmakaraka fed G15/G24). AmK is a real field on the
+# shared jyotish.engine payload — this wires it into the career blend here.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_CAREER_HOUSES_AMK = {2, 6, 9, 10, 11}
+
+
+def _g24b_amatyakaraka_score(inp: EnhancerInput) -> float:
+    """Career-alignment score (0-1, 0.5=neutral) from the Amatyakaraka's
+    house placement, dasha-lordship, and dignity."""
+    amk = inp.amatyakaraka
+    if not amk:
+        return 0.5
+
+    score = 0.5
+    amk_house = inp.planet_house.get(amk, 0)
+    if amk_house in _CAREER_HOUSES_AMK:
+        score += 0.15
+    elif amk_house in _DUSTHANA:
+        score -= 0.10
+
+    if amk == inp.md_lord:
+        score += 0.15
+    elif amk == inp.ad_lord:
+        score += 0.08
+
+    amk_sign = inp.planet_sign.get(amk, "")
+    if amk_sign:
+        # Reuse whatever dignity data is already tracked for D1 via varga_dignities
+        # keyed "D1" if present; otherwise skip (no dignity source duplicated here).
+        d1_dig = inp.varga_dignities.get("D1", {})
+        dig = str(d1_dig.get(amk, "")).lower()
+        if dig in ("exalted", "own", "moolatrikona"):
+            score += 0.05
+        elif dig in ("debilitated", "fallen"):
+            score -= 0.05
+
+    return round(min(1.0, max(0.0, score)), 3)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # G25 — KP Sub-Sub-Lord (4th level)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _g25c_kp_subfield_hint(inp: EnhancerInput) -> str:
+    """Advisory sub-field narrowing (GAP FIX 2026-08-17, Step 6) — derives a
+    specialization orientation from the H10 cuspal chain, e.g. distinguishing
+    a Mars-ruled (interventional) vs Mercury-ruled (diagnostic) orientation
+    within a broad field like medicine. Does not affect any score/ranking."""
+    h10 = inp.kp_cusps_full.get("H10", {}) or {}
+    result = narrow_field_specialization(
+        field_label="",
+        sub_lord=h10.get("sub_lord", ""),
+        sub_sub_lord=h10.get("sub_sub_lord", ""),
+        star_lord=h10.get("star_lord", ""),
+    )
+    return result["sub_field_hint"]
+
+
 def _g25_kp_ssl_score(inp: EnhancerInput) -> float:
     """KP 4th-level (sub-sub-lord) alignment for career cusps."""
-    career_wts = {"H10": 0.40, "H11": 0.25, "H6": 0.20, "H2": 0.15}
+    career_wts = {"H10": 0.32, "H11": 0.20, "H2": 0.15, "H6": 0.13, "H9": 0.12, "H7": 0.08}  # GAP FIX (2026-08-17): added H9/H7
     score = 0.0
     for cusp, wt in career_wts.items():
         cusp_data = inp.kp_cusps_full.get(cusp, {}) or {}
@@ -1228,7 +1464,7 @@ def _g25_kp_weighted_score(inp: EnhancerInput) -> float:
     }
     _REDIST_FACTOR = 1.0 / 0.95   # redistribute the reserved 0.05 ruling-planet slot
     level_wts = {k: v * _REDIST_FACTOR for k, v in _LEVEL_WEIGHTS_NOMINAL.items()}
-    career_wts = {"H10": 0.40, "H11": 0.25, "H6": 0.20, "H2": 0.15}
+    career_wts = {"H10": 0.32, "H11": 0.20, "H2": 0.15, "H6": 0.13, "H9": 0.12, "H7": 0.08}  # GAP FIX (2026-08-17): added H9/H7
 
     score = 0.0
     for cusp, cusp_wt in career_wts.items():
@@ -1271,7 +1507,7 @@ def _g26_kp_ruling_planets(inp: EnhancerInput) -> float:
 # G27 — KP Nakshatra Significator Chain (full 4-level)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_CAREER_HOUSES = {2, 6, 10, 11}
+_CAREER_HOUSES = {2, 6, 7, 9, 10, 11}  # GAP FIX (2026-08-17): added 7th/9th (Step 2)
 
 
 def _g27_nakshatra_chain_score(planet: str, inp: EnhancerInput) -> float:
@@ -1387,10 +1623,21 @@ def _g28_to_g31_hints(inp: EnhancerInput, is_sandhi: bool) -> List[str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _mars_aspect_houses(house: int) -> frozenset:
-    """Mars aspects 4th and 8th house from its position."""
+    """Mars aspects 4th and 8th house from its position.
+
+    GAP-FIX (2026-08, astrological audit): to count the Nth house from a
+    base house, the offset added before the mod must be N-2 (base house
+    itself is offset 0 = "1st from itself"), i.e. `(house + N - 2) % 12 + 1`
+    -- this file's own G23 `_compute_arudha` uses exactly that pattern
+    (`(lord_house + steps - 1) % 12 + 1` for a 1-based `steps`). This
+    function used `house + (N-1)` -- one too many -- so every aspect house
+    landed one sign later than the classical target (e.g. Mars in house 1
+    aspecting its 4th/8th should hit houses 4 and 8, but returned 5 and 9).
+    Fixed to `house + N - 2`.
+    """
     return frozenset([
-        (house + 3) % 12 + 1,  # 4th aspect
-        (house + 7) % 12 + 1,  # 8th aspect
+        (house + 2) % 12 + 1,  # 4th aspect
+        (house + 6) % 12 + 1,  # 8th aspect
     ])
 
 
@@ -1454,19 +1701,27 @@ def _g33_natal_aspect_modifier(inp: EnhancerInput) -> float:
 
 
 def _jupiter_aspect_houses_set(house: int) -> frozenset:
-    """Jupiter aspects 5th, 7th, 9th from its position."""
+    """Jupiter aspects 5th, 7th, 9th from its position.
+
+    GAP-FIX (2026-08, astrological audit): same off-by-one as
+    _mars_aspect_houses above -- offset must be N-2, not N-1.
+    """
     return frozenset([
-        (house + 4) % 12 + 1,
-        (house + 6) % 12 + 1,
-        (house + 8) % 12 + 1,
+        (house + 3) % 12 + 1,
+        (house + 5) % 12 + 1,
+        (house + 7) % 12 + 1,
     ])
 
 
 def _saturn_aspect_houses_set(house: int) -> frozenset:
-    """Saturn aspects 3rd and 10th from its position."""
+    """Saturn aspects 3rd and 10th from its position.
+
+    GAP-FIX (2026-08, astrological audit): same off-by-one as
+    _mars_aspect_houses above -- offset must be N-2, not N-1.
+    """
     return frozenset([
-        (house + 2) % 12 + 1,
-        (house + 9) % 12 + 1,
+        (house + 1) % 12 + 1,
+        (house + 8) % 12 + 1,
     ])
 
 
@@ -1592,6 +1847,7 @@ class AstroEnhancer:
 
         # ── Tier 3: Alternative dasha systems ────────────────────────────────
         r.chara_dasha_score = _g15_chara_dasha_score(inp)
+        r.dasha_longevity_score = _g15b_dasha_longevity(inp)
 
         yog_name, yog_planet, yog_score = _g16_yogini_dasha(inp)
         r.yogini_name = yog_name
@@ -1612,12 +1868,22 @@ class AstroEnhancer:
         r.arudha_bonus, arudha_notes = _g23_arudha_bonus(inp)
         r.yoga_notes.extend(arudha_notes)
         r.karakamsha_bonus = _g24_karakamsha_bonus(inp)
+        r.amatyakaraka_score = _g24b_amatyakaraka_score(inp)
 
         # ── Tier 6: KP precision ──────────────────────────────────────────────
         r.kp_ssl_score             = _g25_kp_ssl_score(inp)
         r.kp_weighted_score        = _g25_kp_weighted_score(inp)
         r.kp_ruling_planets_score  = _g26_kp_ruling_planets(inp)
         r.kp_nakshatra_chain_score = _g27_combined_chain(inp)
+        r.kp_subfield_hint         = _g25c_kp_subfield_hint(inp)
+        # GAP FIX (2026-08-21, item 2.3): cusp-chain verification for the
+        # Tier 6 KP scores above. house_system label is passed empty since
+        # EnhancerInput doesn't carry it and audit_kp_cusps treats geometric
+        # self-consistency (not the label) as authoritative anyway (see
+        # kp_audit.py's own 2026-08-18 fix comment).
+        r.kp_cusp_verified = (
+            audit_kp_cusps(inp.kp_cusps_full, "").get("status") == "VERIFIED"
+        )
 
         # ── Tier 7 (G28–G31): Event type hints ───────────────────────────────
         r.event_hints = _g28_to_g31_hints(inp, is_sandhi)
@@ -1649,21 +1915,33 @@ class AstroEnhancer:
 #   CHARA_DASHA 0.01 → 0.00   (-0.01, rebalance)
 #   D10_FULL    0.01 → 0.00   (-0.01, rebalance)
 #   Net change: 0 (weight envelope preserved)
-_W_ENHANCER_VIMSOPAKA   = 0.10   # G21 (v6: 0.12→0.10 to fund KP_SSL + SOOKSHAM)
+_W_ENHANCER_VIMSOPAKA   = 0.06   # G21 (GAP FIX 2026-08-17: 0.10→0.06, trimmed to help
+                                  # fund the D10_FULL restoration below)
 _W_ENHANCER_KP_CHAIN    = 0.01   # G27 (v6: 0.03→0.01 to fund KP_SSL + SOOKSHAM)
 _W_ENHANCER_CHARA_DASHA = 0.00   # G15 (v6: 0.01→0.00)
-_W_ENHANCER_KP_SSL      = 0.06   # G25 (Step 4: 0.03→0.06 — primary AD-window discriminator)
-_W_ENHANCER_D10_FULL    = 0.00   # G18 (v6: 0.01→0.00)
+_W_ENHANCER_KP_SSL      = 0.05   # G25 (GAP FIX 2026-08-17: 0.06→0.05, trimmed slightly
+                                  # to help fund the D10_FULL restoration below)
+_W_ENHANCER_D10_FULL    = 0.10   # G18 (GAP FIX 2026-08-17: restored from 0.00 —
+                                  # D10/Dashamsha is the classical career-specialization
+                                  # chart; funded by trimming VIMSOPAKA and KP_SSL above)
 _W_ENHANCER_KP_RULING   = 0.00   # G26 (dropped earlier)
 _W_SOOKSHAM_TIMING      = 0.03   # G10 (Step 5: dedicated Sooksham timing bonus)
 _W_VIM_KP_ALIGN         = 0.02   # Step 3: co-activation bonus when Vimsopaka AND KP-SSL both HIGH
+_W_ENHANCER_AMATYAKARAKA = 0.05  # GAP FIX (2026-08-17): Jaimini Amatyakaraka — the
+                                  # framework notes AmK is "often more precise than
+                                  # 10th lord" for career; previously computed nowhere
+                                  # in this module's scoring path.
+_W_ENHANCER_DASHA_LONGEVITY = 0.04  # GAP FIX (2026-08-17): Step 7 Vimshottari longevity
+                                  # filter — is the active MD lord a career-house lord
+                                  # with long, stable support ahead, or about to hand off
+                                  # to a weak one? Funded by trimming KP_CHAIN below.
 # GAP FIX (2026-07-05): PAV (Ashtakavarga bindu) transit scores were computed
 # but never fed into the final score — reporting only. Wired in below.
 _W_ENHANCER_PAV_DASHA   = 0.04   # G13: MD/AD lord's own PAV transit strength
 _W_ENHANCER_PAV_SLOW    = 0.04   # G13b: Jupiter/Saturn/Rahu/Ketu PAV, dasha-independent
 
 
-def enhancer_score_delta(result: EnhancerResult) -> float:
+def enhancer_score_delta(result: EnhancerResult, birth_time_uncertainty_minutes: int = 0) -> float:
     """
     Compute the net score delta contributed by the enhancer to add onto
     the base career_score from _score_period.
@@ -1675,22 +1953,49 @@ def enhancer_score_delta(result: EnhancerResult) -> float:
               + vimsopaka×KP co-activation bonus (Step 3)
 
     Returns a float, typically in range [-0.20, +0.20].
+
+    GAP FIX (2026-08-21, remediation plan item 2.4): the four Tier 6 KP
+    functions (_g25_kp_ssl_score, _g25_kp_weighted_score,
+    _g26_kp_ruling_planets, _g27_combined_chain -> kp_ssl_score,
+    kp_weighted_score is unused in this formula, kp_ruling_planets_score,
+    kp_nakshatra_chain_score) fed into this delta with NO birth-time
+    precision gating, unlike Job_Career/timeline.py's sibling KP/D10
+    degradation (see that module's "FIX 1: Birth-time uncertainty ->
+    degrade KP/D10 weights" comment), which applies full weight at <=5min
+    uncertainty, decaying linearly to 0.3x by 60+min. KP sub-lords are
+    exactly the fast-moving, birth-time-sensitive chain these Tier 6
+    functions consume, so they need the same curve. Reusing the identical
+    formula here (not inventing a new one) keeps the two modules'
+    degradation behavior consistent for the same underlying KP signal.
     """
+    btu = birth_time_uncertainty_minutes or 0
+    _kp_deg = max(0.3, 1.0 - (btu - 5) / 60.0) if btu > 5 else 1.0
+    # GAP FIX (2026-08-21, item 2.3): fold the cusp-chain-verification
+    # discount (conservative 0.5x, same factor kp.py uses for UNVERIFIED
+    # cusps, not a hard zero) into the same combined KP degradation factor
+    # as the birth-time-precision curve above, since both discount the same
+    # Tier 6 KP signal for the same reason (untrustworthy cusp-derived data).
+    _kp_deg *= 1.0 if result.kp_cusp_verified else 0.5
+    _kp_ssl_eff = result.kp_ssl_score * _kp_deg
     weighted = (
         _W_ENHANCER_VIMSOPAKA   * (result.vimsopaka_score - 0.5)
-        + _W_ENHANCER_KP_CHAIN  * (result.kp_nakshatra_chain_score - 0.5)
+        + _W_ENHANCER_KP_CHAIN  * (result.kp_nakshatra_chain_score * _kp_deg - 0.5 * _kp_deg)
         + _W_ENHANCER_CHARA_DASHA * (result.chara_dasha_score - 0.5)
-        + _W_ENHANCER_KP_SSL    * (result.kp_ssl_score - 0.5)        # Step 4: raised weight
+        + _W_ENHANCER_KP_SSL    * (_kp_ssl_eff - 0.5 * _kp_deg)        # Step 4: raised weight
         + _W_ENHANCER_D10_FULL  * (result.d10_full_score - 0.33)
-        + _W_ENHANCER_KP_RULING * (result.kp_ruling_planets_score - 0.5)
+        + _W_ENHANCER_KP_RULING * (result.kp_ruling_planets_score * _kp_deg - 0.5 * _kp_deg)
         + _W_SOOKSHAM_TIMING    * (result.sooksham_timing_score - 0.5)  # Step 5: timing precision
         + _W_ENHANCER_PAV_DASHA * (result.pav_transit_score - 0.5)       # G13: MD/AD lord PAV transit
         + _W_ENHANCER_PAV_SLOW  * (result.pav_slow_planet_score - 0.5)  # G13b: Jup/Sat/Rahu/Ketu PAV
+        + _W_ENHANCER_AMATYAKARAKA * (result.amatyakaraka_score - 0.5)  # G24b: Amatyakaraka (GAP FIX 2026-08-17)
+        + _W_ENHANCER_DASHA_LONGEVITY * (result.dasha_longevity_score - 0.5)  # G15b: Vimshottari longevity (GAP FIX 2026-08-17)
     )
-    # Step 3: VIM-KP co-activation bonus — fires when BOTH Vimsopaka AND KP-SSL are HIGH
+    # Step 3: VIM-KP co-activation bonus — fires when BOTH Vimsopaka AND KP-SSL are HIGH.
+    # Gated by the same _kp_deg curve (via _kp_ssl_eff) since this bonus is itself
+    # a KP-derived signal (GAP FIX 2026-08-21, item 2.4).
     _vim_kp_align = (
-        _W_VIM_KP_ALIGN
-        if result.vimsopaka_score >= 0.65 and result.kp_ssl_score >= 0.65
+        _W_VIM_KP_ALIGN * _kp_deg
+        if result.vimsopaka_score >= 0.65 and _kp_ssl_eff >= 0.65
         else 0.0
     )
     return round(result.total_bonus + weighted + _vim_kp_align, 4)
@@ -1810,6 +2115,7 @@ def build_enhancer_input_from_payload(
         moon_sub_lord=moon_sub_lord,
         day_lord="",
         atmakaraka=g("atmakaraka", "") or "",
+        amatyakaraka=g("amatyakaraka", "") or "",  # GAP FIX (2026-08-17)
         jaimini_chara_lagna_sign=jaimini_chara_lagna_sign,
         transit_projected=transit_projected or {},
         md_change_dates=md_change_dates or [],
@@ -1818,4 +2124,5 @@ def build_enhancer_input_from_payload(
         moon_nakshatra_lord=moon_nakshatra_lord_val,
         rahu_house=g("rahu_house", 0) or 0,
         moon_house=planet_house.get("Moon", 0),
+        dasha_sequence=g("dasha_sequence", []) or [],  # GAP FIX (2026-08-17)
     )

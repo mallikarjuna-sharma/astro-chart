@@ -34,11 +34,29 @@ def apply_release_4_7(rows: list[dict], canonical_report: Mapping[str, Any], pay
         row["navamsha_confirmation"] = score_navamsha_confirmation(payload, propositions) if payload is not None else {"status":"MISSING","independent_vote":False}
         registry = row.get("registry_v12") or {}
         field_entry = {"field_id": row.get("field_id"), "curriculum": row.get("curriculum") or registry.get("curriculum") or {}}
-        row["siddhamsha_education"] = score_siddhamsha(payload, field_entry, affinity) if payload is not None else {"status":"MISSING","permanent_vote":False}
+        # Bug fix (2026-08 gap-audit, found via cross-referencing *_engine_reference.json
+        # against the main audit's method_log): score_siddhamsha's signature changed under
+        # Phase-1 remediation from the old (payload, field_entry, field_affinity) 3-arg
+        # legacy contract to (payload, domain, field_affinity, field_id, field_entry) --
+        # this call site was never updated, so `field_entry` (a dict) landed positionally
+        # in the `domain` slot and the real `field_entry` argument was silently None. That
+        # dropped the curriculum-match component entirely, producing a score 10 points
+        # lower here than in the main ranking pipeline for the identical field -- e.g.
+        # ceramic_engineering showed 9.92 here vs. 19.92 in method_log.siddhamsha.score on
+        # a live Midhula-chart run (2026-08-14). Fixed to call with keyword args matching
+        # the real signature, and to also use the new method_result contract's
+        # "normalized_score" (0-100) instead of the old stub's "educational_suitability"
+        # key, which no longer exists on score_siddhamsha's return value (it silently
+        # evaluated to None below before this fix, feeding None into
+        # compute_broad_domain_promise's d24 argument on every single field/run).
+        row["siddhamsha_education"] = score_siddhamsha(
+            payload, domain=row.get("domain") or "", field_affinity=affinity,
+            field_id=row.get("field_id") or "", field_entry=field_entry,
+        ) if payload is not None else {"status": "MISSING", "score": 0.0, "normalized_score": 0.0}
         row["shashtiamsha_confirmation"] = score_shashtiamsha(payload, affinity) if payload is not None else {"status":"MISSING","independent_vote":False}
         row["d10_chart_native_archetypes"] = d10_archetypes
         row["d10_verification"] = d10_verification
-        d1=float(methods.get("parashara",0) or 0); d10=float(methods.get("dashamsha",0) or 0); d24=row["siddhamsha_education"].get("educational_suitability")
+        d1=float(methods.get("parashara",0) or 0); d10=float(methods.get("dashamsha",0) or 0); d24=row["siddhamsha_education"].get("normalized_score")
         row["broad_domain_promise"] = compute_broad_domain_promise(d1,d10,d24)
         kp_audit=canonical_report.get("kp_cusp_audit") or {}
         row["kp_authority_audit"] = kp_audit
@@ -105,5 +123,25 @@ def evaluate_benchmark(path: Path) -> dict:
     if not path.exists():
         return {"contract_version": READINESS_VERSION, "promotion_authorized": False, "status": "BLOCKED_MISSING_BENCHMARK"}
     data = json.loads(path.read_text(encoding="utf-8"))
-    ok = data.get("status") == "FROZEN_REVIEWED" and bool(data.get("labels")) and bool(data.get("preregistered_metrics"))
-    return {"contract_version": READINESS_VERSION, "promotion_authorized": bool(ok), "status": "READY_FOR_HOLDOUT_EVALUATION" if ok else "BLOCKED_INVALID_BENCHMARK"}
+    labels = data.get("labels") or []
+    metrics = data.get("preregistered_metrics") or []
+    review = data.get("review") or {}
+    required_label_keys = {"case_id", "observed_mode", "observation_date", "source_type"}
+    labels_valid = bool(labels) and all(
+        isinstance(row, dict) and required_label_keys.issubset(row) for row in labels
+    )
+    review_valid = bool(review.get("reviewer_id") and review.get("reviewed_at") and review.get("approval_sha256"))
+    frozen_hash_present = bool(data.get("dataset_sha256"))
+    ok = (
+        data.get("status") == "FROZEN_REVIEWED"
+        and labels_valid and bool(metrics) and review_valid and frozen_hash_present
+    )
+    return {
+        "contract_version": READINESS_VERSION,
+        "promotion_authorized": bool(ok),
+        "status": "READY_FOR_HOLDOUT_EVALUATION" if ok else "BLOCKED_INVALID_BENCHMARK",
+        "label_count": len(labels),
+        "labels_valid": labels_valid,
+        "review_valid": review_valid,
+        "frozen_hash_present": frozen_hash_present,
+    }

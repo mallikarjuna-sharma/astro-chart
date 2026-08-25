@@ -13,7 +13,13 @@ from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ENGINE_VERSION = "v11.3-llm"
+# Kept in sync with jyotish/__init__.py's __version__ (currently "11.2.0").
+# Gap-audit fix (2026-08): this constant is stamped into run manifests /
+# provenance records as the authoritative engine version, but had drifted
+# two minor releases behind __init__.py's __version__ ("11.2.0"), which
+# would have made any provenance record trusting ENGINE_VERSION report a
+# stale version. Update BOTH constants together going forward.
+ENGINE_VERSION = "v11.2.0-llm"
 
 _log_level = getattr(logging, _os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
 logging.basicConfig(level=_log_level, format="%(levelname)s: %(message)s")
@@ -103,6 +109,14 @@ class NatalPayloadV2(BaseModel):
     # Consumed by boosts.py's R3-13 _bav_individual_boost (previously always
     # inert because bav_scores was never populated — see md/DEEP_AUDIT_GAPS_2026-07.md).
     bav_points: Dict[str, Dict[str, int]] = Field(default_factory=dict)
+    # 2026-07-20 astrological-gap-fix: classical Trikona+Ekadhipatya shodhana
+    # (reduction) applied to bav_points/sav_points_houses above -- see
+    # jyotish/ashtakavarga.py::compute_bav_points_shodhita/
+    # compute_sav_points_shodhita for the algorithm and honesty notes on
+    # provenance. ADDITIVE: not yet consumed by the live SAV confidence
+    # multiplier, which was calibrated against the raw (unreduced) totals.
+    bav_points_shodhita: Dict[str, Dict[str, int]] = Field(default_factory=dict)
+    sav_points_houses_shodhita: Dict[str, int] = Field(default_factory=dict)
     d10_house_occupancy: Dict[str, List[str]] = Field(default_factory=dict)
     # 2026-07 astrologer's audit: full six-fold Shadbala (Sthana/Dig/Kala/
     # Cheshta/Naisargika/Drishti Bala), computed from first principles by
@@ -116,6 +130,15 @@ class NatalPayloadV2(BaseModel):
     # ── Planetary state ───────────────────────────────────────────────────────
     combust_planets: List[str] = Field(default_factory=list)
     cazimi_planets: List[str] = Field(default_factory=list)   # v8.7 ASTRO-2
+    # Phase B (shadow composite v2 migration): per-planet multiplicative
+    # combustion/avastha factors captured from the SAME computations already
+    # feeding the live score (astro.py::_compute_eff_strengths' internal
+    # `trace[p]["combustion_mod"]`, and boosts.py's Baladi Avastha degree-band
+    # classification) instead of being recomputed. 1.0 = neutral/no effect.
+    # Empty dict is a safe default -- Tier-2 falls back to neutral (1.0) for
+    # any planet missing an entry. Not used by the live final_score.
+    combustion_mult: Dict[str, float] = Field(default_factory=dict)
+    avastha_mult: Dict[str, float] = Field(default_factory=dict)
     risk_appetite: str = "MODERATE"
     kp_significators: Dict[str, Dict] = Field(default_factory=dict)
     kp_cusps: Dict[str, Dict] = Field(default_factory=dict)
@@ -133,6 +156,22 @@ class NatalPayloadV2(BaseModel):
     true_planet_dignities: Dict[str, str] = Field(default_factory=dict)
     parivartana_pairs: Dict[str, str] = Field(default_factory=dict)
     d24_planet_dignities: Dict[str, str] = Field(default_factory=dict)
+    # Gap-audit fix (2026-08, D24 data-quality investigation): D24 dignity
+    # readings were widely "NEUTRAL" for the Midhula chart, and
+    # _d24_planet_house() (Field_Determination/field_methods/siddhamsha.py)
+    # could not resolve a house for Sun/Mercury/Saturn despite
+    # d24_planet_dignities appearing to have entries for them. Root cause
+    # (see engine_io.py's d24_planet_dignities construction): the upstream
+    # D24_siddhamsam chart can carry a planet key with an EMPTY sign string
+    # (pyhora returned partial data for that chart), and the old dignity
+    # loop unconditionally computed a dict entry for every key regardless of
+    # whether its sign was present -- so a genuinely-missing sign silently
+    # produced dignity="" (numerically treated as neutral downstream) with
+    # no way to distinguish it from a real, chart-confirmed neutral dignity.
+    # d24_missing_planets now records which planets had no resolvable D24
+    # sign, so consumers (siddhamsha.py, reports) can show "D24 data
+    # unavailable" instead of fabricating a NEUTRAL reading.
+    d24_missing_planets: List[str] = Field(default_factory=list)
     planet_retrograde: Dict[str, bool] = Field(default_factory=dict)
     retrograde_planets: Set[str] = Field(default_factory=set)   # C-2: set of currently retrograde planets
     detected_yogas: List[str] = Field(default_factory=list)

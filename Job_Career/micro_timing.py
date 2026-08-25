@@ -176,6 +176,47 @@ except ImportError:
         return _lon_to_sign(_planet_lon_approx("Rahu", d))
 
 
+# GAP FIX (2026-08-21, Gap_Analysis_2026-07 §1.3/§1.6): the true lunar node
+# (Rahu) fallback above is a linear drift model seeded at a single fixed date
+# (2025-01-01) that ignores the real ~18.6-year nodal precession cycle's
+# periodic (non-linear) perturbation terms -- error grows the farther a query
+# date is from that seed in either direction. The engine already has a real
+# ephemeris-based true-node calculation (jyotish/ephemeris.py::_true_node_
+# longitude, via Skyfield/DE421, computing the Moon's actual osculating
+# ascending node geometrically from position+velocity -- see that module's
+# module-level docstring, "Rahu/Ketu (true node)" section). Node longitude is
+# a purely geometric/time-dependent quantity (not observer-location-dependent
+# the way house cusps are), so it is safe to call the canonical path here
+# with placeholder lat/lon=0.0 exactly as _get_all_planet_positions() already
+# does above for the same reason. Rebind _get_rahu_sign to prefer the
+# canonical ephemeris and only fall back to the seed/drift approximation --
+# with an explicit warning log, per the remediation brief's instruction not
+# to silently return a degraded-accuracy number -- when Skyfield/DE421 is
+# unavailable in this environment.
+_get_rahu_sign_seed_drift_fallback = _get_rahu_sign
+
+
+def _get_rahu_sign(d: date) -> str:  # noqa: F811 -- deliberate override, see comment above
+    try:
+        from jyotish.ephemeris import get_planet_longitude
+        from jyotish.llm_policy import AYANAMSHA
+        dt = datetime(d.year, d.month, d.day, 12)
+        lon = get_planet_longitude("Rahu", dt, 0.0, 0.0, AYANAMSHA, 0.0)
+        if lon is not None:
+            return _lon_to_sign(lon)
+    except Exception:
+        pass
+    import logging
+    logging.getLogger(__name__).warning(
+        "micro_timing._get_rahu_sign: canonical Skyfield/DE421 ephemeris unavailable "
+        "or returned no data; falling back to the linear nodal seed/drift "
+        "approximation (degraded accuracy away from the 2025-01-01 seed date, "
+        "does not model the ~18.6-year nodal precession cycle's periodic terms) "
+        "per Gap_Analysis_2026-07 §1.6."
+    )
+    return _get_rahu_sign_seed_drift_fallback(d)
+
+
 # ---------------------------------------------------------------------------
 # Class-12 transit helper
 # ---------------------------------------------------------------------------
@@ -382,8 +423,17 @@ def compute_negotiation_heatmap(
     """
     windows      = []
     caution      = []
-    current_sign_start: Optional[date] = None
-    current_moon_sign:  Optional[str]  = None
+    current_sign_start:   Optional[date] = None
+    current_moon_sign:    Optional[str]  = None
+    # GAP-FIX (2026-08-22, audit item #22): window_mercury_house/window_venus_house
+    # snapshot Mercury/Venus's house AT THE START of the closing Moon window,
+    # not the house on the day the *next* window begins. Previously the flush
+    # calls below used `mercury_house`/`venus_house` from the loop's current
+    # iteration (the first day of the NEXT window) to score the window that
+    # just ENDED, which is the wrong date range whenever Mercury or Venus
+    # changes sign at a different cadence than the Moon.
+    window_mercury_house: int = 0
+    window_venus_house:   int = 0
 
     for offset in range(days):
         d = today + timedelta(days=offset)
@@ -391,7 +441,6 @@ def compute_negotiation_heatmap(
         mercury_sign = _get_mercury_sign(d)
         venus_sign   = _get_venus_sign(d)
 
-        moon_house    = _sign_to_house(moon_sign, lagna_sign)
         mercury_house = _sign_to_house(mercury_sign, lagna_sign)
         venus_house   = _sign_to_house(venus_sign, lagna_sign)
 
@@ -400,16 +449,22 @@ def compute_negotiation_heatmap(
             if current_moon_sign is not None and current_sign_start is not None:
                 _flush_window(
                     windows, caution, current_sign_start, d - timedelta(days=1),
-                    _sign_to_house(current_moon_sign, lagna_sign), mercury_house, venus_house,
+                    _sign_to_house(current_moon_sign, lagna_sign),
+                    window_mercury_house, window_venus_house,
                 )
             current_moon_sign  = moon_sign
             current_sign_start = d
+            # Snapshot Mercury/Venus houses as of THIS window's start date,
+            # to be used when this window is flushed later.
+            window_mercury_house = mercury_house
+            window_venus_house   = venus_house
 
     # Flush final window
     if current_moon_sign and current_sign_start:
         _flush_window(
             windows, caution, current_sign_start, today + timedelta(days=days - 1),
-            _sign_to_house(current_moon_sign, lagna_sign), mercury_house, venus_house,
+            _sign_to_house(current_moon_sign, lagna_sign),
+            window_mercury_house, window_venus_house,
         )
 
     # Sort by score desc for best_window
@@ -1131,25 +1186,32 @@ def compute_all_micro_timing(
     result: Dict = {}
 
     # 1. Negotiation Heatmap
+    # GAP-FIX (2026-08-22): call previously passed planet_house/house_lords/
+    # active_ad_lord kwargs that don't exist in compute_negotiation_heatmap's
+    # signature (today, lagna_sign, days) — every call raised TypeError and
+    # was silently swallowed by the except-Exception below, so this feature
+    # never produced output. Corrected to match the real signature.
     try:
         result["negotiation_heatmap"] = compute_negotiation_heatmap(
             today=today,
             lagna_sign=lagna_sign,
-            planet_house=planet_house,
-            house_lords=house_lords,
-            active_ad_lord=active_ad_lord,
         )
     except Exception:
         result["negotiation_heatmap"] = {}
 
     # 2. Stakeholder Radar
+    # GAP-FIX (2026-08-22): call previously passed lagna_sign/active_ad_lord as
+    # keyword args in the wrong position relative to compute_stakeholder_radar's
+    # actual signature (today, planet_house, house_lords, lagna_sign) and
+    # included an active_ad_lord kwarg that doesn't exist — every call raised
+    # TypeError and was silently swallowed. Corrected to match the real
+    # signature.
     try:
         result["stakeholder_radar"] = compute_stakeholder_radar(
             today=today,
-            lagna_sign=lagna_sign,
             planet_house=planet_house,
             house_lords=house_lords,
-            active_ad_lord=active_ad_lord,
+            lagna_sign=lagna_sign,
         )
     except Exception:
         result["stakeholder_radar"] = {}

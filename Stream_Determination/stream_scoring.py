@@ -72,7 +72,10 @@ from Field_Determination.field_methods.common import (
     rubric_section,
 )
 
-from .subject_registry import STREAM_META, SUBJECT_REGISTRY, SCIENCE_SUBJECT_BUNDLES, SUBJECT_SUB_ARCHETYPES
+from .subject_registry import (
+    STREAM_META, SUBJECT_REGISTRY, SCIENCE_SUBJECT_BUNDLES, SUBJECT_SUB_ARCHETYPES,
+    STREAM_SCIENCE, STREAM_COMMERCE, STREAM_HUMANITIES,
+)
 from .calibration import calibration_state
 # GAP-FIX (field-derived-evidence, optional 8th rubric section, default off):
 # only the cap constant is imported at module load time -- the actual
@@ -80,6 +83,13 @@ from .calibration import calibration_state
 # lazily inside compute_stream_determination() so importing stream_scoring.py
 # never has an import-time dependency on the adult engine being importable.
 from .field_derived_stream import FIELD_DERIVED_EVIDENCE_CAP
+
+# Round 4 addition (classical yoga-pattern detection, flagged absent across
+# all four audit rounds) -- detection logic itself lives in yoga_detection.py
+# (kept separate so it can be unit-exercised/read independently of this
+# already-4000+-line file); this module only wires its bounded, capped
+# contribution into score_stream (see `_yoga_pattern_bonus` below).
+from .yoga_detection import detect_all_yogas, YOGA_STREAM_RELEVANCE
 
 # GAP-FIX (2026-07-22h, audit gaps 2/3/5, CONFIRMED real problem): a report
 # claiming "stream-scoring-contract.2026-07-22g" only proves what STRING the
@@ -261,7 +271,27 @@ CALCULATION_PROFILE = "D1_TREE_D24_FRUIT_CLASSICAL_PRECEDENCE"
 # 19 real production charts changed, both from "still_tied_after_full_chain"
 # to a resolved "jaimini_akamk" stage -- see the doc above); v7 and v8
 # reports are NOT guaranteed to agree on Stage 3/Stage 4 outcomes.
-SCORING_CONTRACT_VERSION = "stream-scoring-contract.2026-07-24-v8"
+# 2026-08-22 audit fix (round 3): rubric-shape change per this module's own
+# versioning policy (see header above) -- bumped from v8 to v9 to cover (1)
+# the naisargika-karaka bonus/exclusivity split (only the positive dignity
+# bonus is routed through _planet_exclusivity; a real affliction penalty
+# now applies at full, undiscounted value to every stream the planet is
+# karaka-relevant to), (2) the cross-section discount ceiling raised in the
+# prior round, and (3) _mandatory_ceiling_multiplier gaining the same
+# eff_strengths-conjunctive Neecha-Bhanga-aware debilitation check already
+# used by _naisargika_karaka_strength_bonus. v8 and v9 reports are NOT
+# guaranteed to agree on scores for charts involving afflicted/debilitated
+# karaka or mandatory planets.
+# 2026-08-22 audit fix (round 4, NEW FUNCTIONALITY): rubric-shape change per
+# this module's own versioning policy -- bumped v9 to v10 for the addition of
+# a new, bounded "yoga_patterns" bonus section (see yoga_detection.py and
+# `_yoga_pattern_bonus` below), which nudges total_raw by up to
+# +/-_YOGA_BONUS_CAP_FRACTION of its pre-yoga value when a classical yoga
+# (Budha-Aditya / Saraswati / Dharma-Karmadhipati / Gaja-Kesari / Dhana) is
+# detected as relevant to a given stream. v9 and v10 reports are NOT
+# guaranteed to agree on scores for any chart carrying one of these five
+# yoga patterns.
+SCORING_CONTRACT_VERSION = "stream-scoring-contract.2026-08-22-v10"
 
 _ALL_PLANETS = ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu")
 
@@ -305,6 +335,177 @@ def _stream_planet_strengths(payload: Any) -> Dict[str, float | None]:
     return {p: _planet_strength(payload, p) for p in _ALL_PLANETS}
 
 
+# 2026-08-22 audit fix (gap 3): the engine's karaka weighting was Jaimini
+# AK/AmK only -- no explicit naisargika (natural, BPHS-fixed) karaka-strength
+# test for Budha (Mercury, vidya/buddhi karaka), Guru (Jupiter, higher
+# wisdom/jnana karaka), or Shukra (Venus, fine-arts/kala karaka). This is a
+# SUPPLEMENTARY, dignity-aware REFINEMENT of the planet's existing weight
+# contribution in _sections_planets/score_stream below -- NOT a new
+# independent evidence channel and NOT a re-implementation of eff_strengths
+# (which already folds dignity/combustion into _planet_strength above; see
+# that function's own GAP-FIX comment about not double-counting dignity).
+# It reuses the same dignity/combustion/kendra-trikona data already computed
+# elsewhere in this file (true_planet_dignities, combust_planets,
+# house_lords/planet_house for kendra-trikona-from-lagna, and
+# _get_planetary_aspects for a benefic-aspect check) rather than
+# re-implementing any dignity logic of its own.
+_NAISARGIKA_KARAKA_BONUS_CAP = 0.15  # +/-15% of the planet's existing weight contribution, per audit spec
+
+
+def _naisargika_karaka_strength_bonus(planet: str, chart_data: Any, eff_strengths: Dict[str, float] | None = None) -> float:
+    """Bounded +/- multiplier (e.g. 0.12 means +12%) reflecting this
+    naisargika karaka planet's classical dignity/placement strength, for use
+    ONLY on Mercury/Jupiter/Venus where they are karaka-relevant for a
+    stream (Mercury->Science/Commerce as buddhi karaka, Jupiter->Humanities/
+    higher-ed as jnana karaka, Venus->Humanities/arts as kala karaka).
+    Returns 0.0 (no adjustment) if dignity/placement data is unavailable --
+    this is a refinement on top of existing signal, never a source of new
+    signal on its own, so missing data degrades gracefully to "no bonus."
+
+    2026-08-22 audit fix (gap: raw-dignity debilitation vs. eff_strengths):
+    debilitation is now checked against the chart engine's already
+    Neecha-Bhanga-aware eff_strengths (1.0 = minimum viable strength) when
+    available, rather than raw true_planet_dignities alone -- a debilitated
+    planet whose debilitation has been classically cancelled should not take
+    this penalty a second time. `eff_strengths` may be passed explicitly by
+    the caller (preferred); if not supplied, it falls back to
+    getattr(chart_data, "eff_strengths", {}) since chart_data is typically
+    the same payload object that carries it. If neither is available, this
+    falls back to the raw true_planet_dignities check below, which is less
+    accurate (it does not know about Neecha Bhanga cancellation).
+    """
+    combust_planets = set(getattr(chart_data, "combust_planets", []) or [])
+    true_dignities = getattr(chart_data, "true_planet_dignities", {}) or {}
+    house_lords = getattr(chart_data, "house_lords", {}) or {}
+    planet_house = getattr(chart_data, "planet_house", {}) or {}
+    if eff_strengths is None:
+        eff_strengths = getattr(chart_data, "eff_strengths", None) or {}
+
+    dignity = true_dignities.get(planet, "")
+    is_combust = planet in combust_planets
+
+    eff_strength_value = eff_strengths.get(planet)
+    if eff_strength_value is not None:
+        # eff_strengths already folds Neecha Bhanga cancellation in -- a
+        # cancelled debilitation shows up as a normal-or-better strength, so
+        # only treat the planet as effectively debilitated if its resolved
+        # strength is still at/under the engine's minimum-viable baseline.
+        try:
+            is_debilitated = float(eff_strength_value) <= 1.0 and dignity == "DEBILITATED"
+        except (TypeError, ValueError):
+            is_debilitated = dignity == "DEBILITATED"
+    else:
+        # Fallback: no eff_strengths available, less accurate (cannot detect
+        # Neecha Bhanga cancellation), so treat any raw DEBILITATED dignity
+        # as a full penalty as before.
+        is_debilitated = dignity == "DEBILITATED"
+
+    # Penalty branch first (combust/debilitated overrides any positive placement).
+    if is_combust or is_debilitated:
+        penalty = 0.0
+        if is_debilitated:
+            penalty += _NAISARGIKA_KARAKA_BONUS_CAP
+        if is_combust:
+            penalty += _NAISARGIKA_KARAKA_BONUS_CAP * 0.5
+        return -min(_NAISARGIKA_KARAKA_BONUS_CAP, penalty)
+
+    bonus = 0.0
+    if dignity in ("EXALTED", "MOOLATRIKONA", "OWN_SIGN"):
+        bonus += _NAISARGIKA_KARAKA_BONUS_CAP * 0.7
+    own_house = planet_house.get(planet)
+    if own_house in _KENDRA_HOUSES or own_house in _TRIKONA_HOUSES:
+        bonus += _NAISARGIKA_KARAKA_BONUS_CAP * 0.3
+    # Benefic-aspect check: is this planet aspected by a natural benefic
+    # (Jupiter/Venus/Mercury, excluding itself) via classical Parashari
+    # aspect? Reuses the already-computed planet_house map + the shared
+    # _get_planetary_aspects helper used elsewhere in this file for D24
+    # role-lord aspect checks -- deliberately not re-deriving aspect rules.
+    try:
+        aspects = _get_planetary_aspects(planet_house)
+        if own_house is not None:
+            for benefic in ("Jupiter", "Venus", "Mercury"):
+                if benefic == planet:
+                    continue
+                benefic_house = planet_house.get(benefic)
+                if benefic_house is not None and own_house in aspects.get(benefic, []):
+                    bonus += _NAISARGIKA_KARAKA_BONUS_CAP * 0.2
+                    break
+    except Exception:
+        pass
+
+    return min(_NAISARGIKA_KARAKA_BONUS_CAP, bonus)
+
+
+# Round 4 addition (classical yoga-pattern detection). Bounded, disclosed
+# bonus section following the same pattern as
+# `_naisargika_karaka_strength_bonus` above: a capped multiplier on the
+# stream's own pre-yoga total, not an independent evidence channel, and
+# routed through the SAME `_planet_exclusivity` mechanism that section uses
+# -- a yoga whose contributing planets are shared across multiple streams'
+# signature-planet lists (e.g. Mercury in Budha-Aditya touching both Science
+# and Commerce) is discounted per-stream rather than credited at full
+# strength everywhere, for the same "non-discriminating shared signal"
+# reason documented on `_planet_exclusivity` itself.
+_YOGA_BONUS_CAP_FRACTION = 0.10  # +/-10% of the stream's pre-yoga total_raw
+_YOGA_PER_YOGA_CAP_FRACTION = 0.05  # a single yoga can contribute at most 5%
+
+
+def _yoga_pattern_bonus(
+    payload: Any, stream_id: str, yoga_results: Dict[str, Dict[str, Any]],
+    cross_section_factor: float, stream_signature_planets: set,
+) -> Dict[str, Any]:
+    """Bounded fractional bonus (e.g. 0.07 means +7% of pre-yoga total_raw)
+    from classically-detected yoga patterns relevant to this stream.
+
+    Each relevant, present yoga contributes
+    yoga.strength * YOGA_STREAM_RELEVANCE[yoga][stream_id] * _planet_exclusivity-
+    averaged-over-contributing-planets, capped per-yoga at
+    _YOGA_PER_YOGA_CAP_FRACTION, then the sum across all yogas is capped at
+    _YOGA_BONUS_CAP_FRACTION overall. Also multiplied by the same
+    `cross_section_factor` already computed for role_placement/
+    d24_confirmation/relational_d1/jaimini_apparatus in score_stream -- these
+    yogas draw on the same small set of house-lord/karaka planets those
+    sections do (9th/10th lords, 2nd/11th lords, Moon/Jupiter/Mercury/Venus/
+    Sun), so a chart where that credit is already concentrated in a few
+    planets should not additionally receive an undiscounted yoga bonus on
+    top of it -- this reuses the existing cross-section double-counting
+    guard rather than reintroducing the problem it was built to prevent.
+    """
+    total_fraction = 0.0
+    matches: List[str] = []
+    planets_credited: set = set()
+    for name, result in yoga_results.items():
+        if not result.get("present"):
+            continue
+        relevance = YOGA_STREAM_RELEVANCE.get(name, {}).get(stream_id, 0.0)
+        if relevance <= 0.0:
+            continue
+        contributing = result.get("contributing_planets") or []
+        excl_values = [_planet_exclusivity(p) for p in contributing if p in stream_signature_planets]
+        # Planets not on this stream's own signature-planet list (e.g. a
+        # yoga's house-lord planet that happens not to itself be a stream
+        # signature planet) are treated as fully exclusive to this
+        # detection -- they are not shared/discounted the way a listed
+        # signature planet is.
+        excl = (sum(excl_values) / len(excl_values)) if excl_values else 1.0
+        raw = result.get("strength", 0.0) * relevance * excl * cross_section_factor
+        capped = max(-_YOGA_PER_YOGA_CAP_FRACTION, min(_YOGA_PER_YOGA_CAP_FRACTION, raw))
+        if capped == 0.0:
+            continue
+        total_fraction += capped
+        planets_credited.update(p for p in contributing if p in stream_signature_planets)
+        matches.append(
+            f"{name} (strength={result['strength']:.2f}, relevance={relevance:.2f}, "
+            f"precision={result.get('precision', 'coarse')}): {result.get('notes', '')}"
+        )
+    total_fraction = max(-_YOGA_BONUS_CAP_FRACTION, min(_YOGA_BONUS_CAP_FRACTION, total_fraction))
+    return {
+        "fraction": total_fraction,
+        "matches": matches,
+        "planets_credited": planets_credited,
+    }
+
+
 # GAP-FIX (2026-07-22g, audit gaps 10/12/13/14): a planet like Mercury sits on
 # 2-3 streams' signature-planet lists at once (Science, Commerce, and
 # implicitly touching Humanities' subject registry too), so any bounded
@@ -319,6 +520,19 @@ def _stream_planet_strengths(payload: Any) -> Dict[str, float | None]:
 # evidence.
 def _planet_exclusivity(planet: str) -> float:
     count = sum(1 for meta in STREAM_META.values() if planet in meta["planets"])
+    return 1.0 / count if count else 0.0
+
+
+# AUDIT-FIX 2026-08-15: companion to _planet_exclusivity above, for the case
+# where a connection's only relevance to a stream is that one of its two
+# houses sits in that stream's house list, not that either planet is itself
+# a stream-signature planet. The formula is the same "1.0 / (count of
+# streams this belongs to)" shape, just counted over STREAM_META's house
+# lists instead of its planet lists -- replaces a previously hardcoded 0.6
+# fallback constant that had no relationship to the actual cross-stream
+# sharing of that house.
+def _house_exclusivity(house_number: int) -> float:
+    count = sum(1 for meta in STREAM_META.values() if house_number in meta["houses"])
     return 1.0 / count if count else 0.0
 
 
@@ -1018,8 +1232,17 @@ def _d24_confirmation_section(payload: Any, stream_id: str, meta: Dict[str, Any]
                     continue
                 seen_d24_pairs.add(pair_key)
                 relation = "conjunction" if conjunct else "aspect"
-                excl_a = _planet_exclusivity(planet_a) if planet_a in stream_planets else 0.6
-                excl_b = _planet_exclusivity(planet_b) if planet_b in stream_planets else 0.6
+                # AUDIT-FIX 2026-08-15: replaced hardcoded 0.6 exclusivity fallback
+                # with principled 1/count-of-streams-sharing-this-house formula
+                # (see _house_exclusivity). Here neither planet need be a D1
+                # stream-signature planet -- relevance to this stream comes only
+                # from house_a/house_b overlapping this stream's D24 houses
+                # (already required above), so fall back to house exclusivity
+                # for whichever of the pair's D24 houses is one of this
+                # stream's own houses.
+                _fallback_house = house_a if house_a in houses else house_b
+                excl_a = _planet_exclusivity(planet_a) if planet_a in stream_planets else _house_exclusivity(_fallback_house)
+                excl_b = _planet_exclusivity(planet_b) if planet_b in stream_planets else _house_exclusivity(_fallback_house)
                 exclusivity = max(excl_a, excl_b)
                 contribution = 1.5 * exclusivity
                 relational_raw += contribution
@@ -1225,10 +1448,24 @@ def _subject_evidence_section(stream_id: str, subjects_ranked: List[Dict[str, An
             # Shrink the best-of-bundles result toward the complete core mean.
             # This preserves real PCM/PCB choice without giving Science a free
             # multiple-comparisons advantage over Commerce's fixed bundle.
-            core_avg = all_core_avg + 0.50 * (selected_core_avg - all_core_avg)
+            # AUDIT-FIX 2026-08-15 (D1 audit finding #5): a flat 0.50 shrink
+            # only removes HALF of the "pick the best of N candidates" upward
+            # selection bias -- it does not zero it out, and it does not scale
+            # with how many candidates were actually compared. This is a
+            # pragmatic, approximate bias correction (NOT an exact debiasing):
+            # shrink further toward the unbiased mean as more candidates were
+            # considered. `candidates_considered` here = the number of
+            # complete named bundles actually compared (typically 3:
+            # PCM/PCB/PCMB). See the analogous Humanities branch below, which
+            # uses a larger candidate count (its search space is materially
+            # bigger) and therefore shrinks further, up to the same 0.75 cap.
+            candidates_considered = len(bundle_scores)
+            shrink_toward_mean = min(0.75, 0.50 + 0.05 * max(0, candidates_considered - 1))
+            core_avg = all_core_avg + shrink_toward_mean * (selected_core_avg - all_core_avg)
             core_labels = [m["label"] for m in best_members]
             used_core_subjects = best_members
             bundle_note = (f"best-fit bundle {best_bundle_name}, selection-adjusted "
+                           f"(shrink={shrink_toward_mean:.2f}, {candidates_considered} bundles compared) "
                            f"from {selected_core_avg:.1f} toward all-core mean {all_core_avg:.1f}")
         else:
             core_avg = sum(s["score"] for s in core) / len(core)
@@ -1242,10 +1479,23 @@ def _subject_evidence_section(stream_id: str, subjects_ranked: List[Dict[str, An
         # advantage unrelated to chart evidence.
         top_subset = sorted(core, key=lambda s: -s["score"])[: min(3, len(core))]
         selected_core_avg = sum(s["score"] for s in top_subset) / len(top_subset)
-        core_avg = all_core_avg + 0.50 * (selected_core_avg - all_core_avg)
+        # AUDIT-FIX 2026-08-15 (D1 audit finding #5): same pragmatic,
+        # approximate bias-correction as Science's branch above, but scaled
+        # to Humanities' larger search space. Humanities picks the best 3 of
+        # up to 6 core subjects -- the number of distinct 3-subject subsets
+        # actually compared is C(len(core), 3) (e.g. C(6,3)=20), a materially
+        # bigger multiple-comparisons search than Science's 3 named bundles,
+        # so this should shrink further toward the unbiased mean than
+        # Science's typical case. Using true C(N,3) (not just N) as the
+        # candidate count is the more faithful proxy for the actual selection
+        # search space, and it's cheap to compute exactly here.
+        candidates_considered = math.comb(len(core), 3) if len(core) >= 3 else 1
+        shrink_toward_mean = min(0.75, 0.50 + 0.05 * max(0, candidates_considered - 1))
+        core_avg = all_core_avg + shrink_toward_mean * (selected_core_avg - all_core_avg)
         core_labels = [s["label"] for s in top_subset]
         used_core_subjects = top_subset
         bundle_note = (f"best {len(top_subset)}-of-{len(core)} core subset, selection-adjusted "
+                       f"(shrink={shrink_toward_mean:.2f}, {candidates_considered} subsets compared) "
                        f"from {selected_core_avg:.1f} toward all-core mean {all_core_avg:.1f}")
     elif core:
         core_avg = sum(s["score"] for s in core) / len(core)
@@ -1357,7 +1607,20 @@ def _relational_d1_section(payload: Any, stream_id: str, meta: Dict[str, Any]) -
             role_a, planet_a = roles[i]
             role_b, planet_b = roles[j]
             if planet_a == planet_b:
-                continue  # same planet holding two roles is already scored via role_placement
+                # AUDIT-FIX 2026-08-15 (finding #4): explicit trace entry instead
+                # of a bare `continue`, mirroring the "explicit checked-no-match"
+                # convention used elsewhere in this file (e.g.
+                # _d24_confirmation_section's 2026-07-22l fix) -- so a report
+                # reader can distinguish "this stream's lords are unified in one
+                # planet, correctly excluded here (already credited via
+                # role_placement)" from "there was simply no connection to
+                # check". Scoring behavior is unchanged: still no `raw`
+                # contribution for this pair.
+                matches.append(
+                    f"{role_a}={planet_a} and {role_b}={planet_b} are the same planet -- "
+                    f"already credited once via role_placement, no additional relational_d1 credit"
+                )
+                continue
             pair_key = tuple(sorted((planet_a, planet_b)))
             if pair_key in seen_pairs:
                 continue
@@ -1391,7 +1654,15 @@ def _relational_d1_section(payload: Any, stream_id: str, meta: Dict[str, Any]) -
             excl_a = _planet_exclusivity(planet_a) if planet_a in stream_planets else 0.0
             excl_b = _planet_exclusivity(planet_b) if planet_b in stream_planets else 0.0
             house_only = house_a in houses or house_b in houses
-            exclusivity = max(excl_a, excl_b) if (excl_a or excl_b) else (0.6 if house_only else 1.0)
+            # AUDIT-FIX 2026-08-15: replaced hardcoded 0.6 exclusivity fallback
+            # with principled 1/count-of-streams-sharing-this-house formula
+            # (see _house_exclusivity) for the case where neither planet is a
+            # direct stream-signature planet but the connection is relevant
+            # only via house membership.
+            exclusivity = (
+                max(excl_a, excl_b) if (excl_a or excl_b)
+                else (_house_exclusivity(house_a if house_a in houses else house_b) if house_only else 1.0)
+            )
             contribution = _RELATIONAL_D1_PAIR_WEIGHT * exclusivity
             raw += contribution
             if planet_a in stream_planets:
@@ -1873,6 +2144,10 @@ def _stream_contraindication_section(
     weakness among mandatory core planets, combustion of an education lord,
     and placement of the 5th/9th lord in D1 dusthanas. It does not interpret a
     missing field as weakness.
+
+    AUDIT-FIX 2026-08-15 (D1 audit finding #3): this section is "mostly D1,
+    not purely D1" -- see the documented, intentional exception at the
+    `d24_planet_dignities` compound check below.
     """
     penalty = 0.0
     notes: List[str] = []
@@ -1941,6 +2216,11 @@ def _stream_contraindication_section(
                 f"showing up in two independent tests -> -1.50"
             )
 
+    # AUDIT-FIX 2026-08-15 (D1 audit finding #3): documented, intentional
+    # exception to this section's otherwise-D1-only scope -- this compound
+    # check legitimately reads D24 dignity data (D1-strong-but-D24-
+    # debilitated is real, valuable evidence), so `contraindications` is
+    # "mostly D1, not purely D1" when summed into _d1_promise_score().
     d24_dignities = getattr(payload, "d24_planet_dignities", {}) or {}
     meta = STREAM_META.get(stream_id, {})
     stream_planets = meta.get("planets", {})
@@ -1976,22 +2256,26 @@ def score_stream(
     """Score one broad stream (Science/Commerce/Humanities) for this chart.
 
     Rubric (mirrors Field_Determination/field_methods method files' shape so
-    downstream report code can render it the same way); caps sum to 100.
+    downstream report code can render it the same way); caps sum to 100 in
+    the default case (field_derived_evidence=None).
     GAP-FIX (2026-07-22m): this docstring's per-section cap numbers had
-    drifted out of sync with the actual rubric_section() calls below --
-    still showing (cap 28)/(cap 13) from an earlier rebalancing pass after
-    later passes moved those to 19/16 (2026-07-22j/k) -- the same kind of
-    stale-label bug already caught once in role_placement's own note text
-    (2026-07-22l). Corrected below to match the CURRENT values, which are
-    the actual rubric_section() cap arguments a few lines down, not this
-    docstring:
-      planetary_strength (cap 19) -- weighted planetary strength across the
-                                      stream's signature planets
-      house_support      (cap  6) -- house-weighted occupancy/lordship bonus
+    drifted out of sync with the actual rubric_section() calls below.
+    GAP-FIX (AUDIT-FIX 2026-08-15): the 2026-07-22m "correction" itself was
+    already stale again (it still showed 19/6/12) -- re-synced below to the
+    values actually passed to rubric_section() a few dozen lines down, which
+    are the only source of truth for these numbers:
+      planetary_strength (cap 24, or 18 when field_derived_evidence is not
+                                      None -- see _planetary_strength_cap,
+                                      which shrinks this section to make room
+                                      for the field-derived-evidence section)
+                                      -- weighted planetary strength across
+                                      the stream's signature planets
+      house_support       (cap  8) -- house-weighted occupancy/lordship bonus
                                       for those same signature planets
-      role_placement      (cap 12) -- 5th(vidya)/9th(higher-learning) lord /
-                                      10th lord / AK / AmK placement, deduped
-                                      per planet (see _role_placement_bonus)
+      role_placement       (cap 15) -- 4th(basic schooling)/5th(vidya)/
+                                      9th(higher-learning) lord / 10th lord /
+                                      AK / AmK placement, deduped per planet
+                                      (see _role_placement_bonus)
        subject_evidence    (cap 20) -- bundle-aware core-subject evidence +
                                       best non-shared elective, discounted
                                       for circularity (see _subject_evidence_section)
@@ -2002,10 +2286,10 @@ def score_stream(
                                       combustion affliction check on the D24
                                       lords, with an in-house D24 construction
                                       cross-check (see _d24_confirmation_section)
-      relational_d1       (cap  8) -- 5th/9th/10th lord conjunction/aspect
+      relational_d1        (cap  8) -- 5th/9th/10th lord conjunction/aspect
                                       connections relevant to this stream
                                       (see _relational_d1_section)
-       jaimini_apparatus    (cap 7) -- karakamsha sign-lord + occupants +
+       jaimini_apparatus    (cap  7) -- karakamsha sign-lord + occupants +
                                       5th/9th/10th-from-karakamsha lords +
                                       Arudha Lagna/A10/Upapada Lagna sign-lord
                                       + Karakamsha rasi-drishti onto D1 lagna +
@@ -2014,14 +2298,22 @@ def score_stream(
                                       soft-capped rather than hard-clipped
                                       (see _jaimini_apparatus_section, _soft_cap)
 
+    In the default case (field_derived_evidence=None) these caps sum to
+    24+8+15+20+18+8+7 = 100. When field_derived_evidence IS supplied,
+    planetary_strength drops to 18 (a field-derived-evidence section absorbs
+    the other 6 points elsewhere in the total), so the sum is still 100 but
+    the planetary_strength/field_derived_evidence split changes -- see
+    _planetary_strength_cap below for the exact conditional.
+
     Cap-history summary (for anyone reading old trace text/reports against
     this code): 2026-07-22e introduced relational_d1/jaimini_apparatus at
     8/8 (taking planetary_strength 35->28, subject_evidence 22->18);
     2026-07-22j raised d24_confirmation/jaimini_apparatus to 25/13 (taking
     planetary_strength 28->22, subject_evidence 18->14); 2026-07-22k raised
-    jaimini_apparatus again to 16 (taking planetary_strength 22->19).
-    Nothing has changed the cap since 22k -- only this docstring's own
-    numbers needed catching up.
+    jaimini_apparatus again to 16 (taking planetary_strength 22->19); a
+    later, undocumented pass (prior to this audit) is what actually produced
+    the current 24-or-18/8/15/20/18/8/7 values -- this docstring had simply
+    never been updated to reflect it until this AUDIT-FIX.
     """
     meta = STREAM_META[stream_id]
     weights: Dict[str, float] = meta["planets"]
@@ -2032,8 +2324,52 @@ def score_stream(
     available_weight = sum(available_weights.values())
     configured_weight = sum(weights.values()) or 1.0
     planet_data_coverage = available_weight / configured_weight
+
+    # 2026-08-22 audit fix (gap 3): apply the naisargika-karaka dignity bonus
+    # (see _naisargika_karaka_strength_bonus's own docstring) ONLY to the
+    # streams/planets where that planet is classically karaka-relevant --
+    # Mercury (buddhi karaka) for Science/Commerce, Jupiter (jnana karaka)
+    # and Venus (kala karaka) for Humanities. This is applied as a bounded
+    # multiplier on that planet's own strength term BEFORE the weighted
+    # average, not as a separate additive section -- so it can only ever
+    # nudge that planet's existing contribution, never add independent score.
+    _KARAKA_RELEVANT_PLANETS = {
+        STREAM_SCIENCE: ("Mercury",),
+        STREAM_COMMERCE: ("Mercury",),
+        STREAM_HUMANITIES: ("Jupiter", "Venus"),
+    }.get(stream_id, ())
+    # 2026-08-22 audit fix (gap: non-discriminating shared naisargika bonus):
+    # Mercury sits on both Science's and Commerce's karaka-relevant list, so
+    # applying its dignity bonus at full strength to both streams rewards a
+    # fact common to multiple streams rather than discriminating between
+    # them -- exactly the failure mode _planet_exclusivity was built to
+    # correct for other shared signals elsewhere in this file. Route the
+    # bonus through that same exclusivity discount (1.0 if the planet is
+    # unique to one stream's list, 0.5 if shared by two, etc.) before it is
+    # allowed to nudge this stream's score.
+    #
+    # 2026-08-22 audit fix (round 3, gap: exclusivity diluting real
+    # affliction penalties): only the POSITIVE branch of the bonus
+    # (classical strength placing a karaka planet favorably) is
+    # discriminating evidence that should be split across the streams this
+    # planet is shared between. The NEGATIVE branch (combust /
+    # uncancelled-debilitated -- a real affliction on the planet itself) is
+    # not shared evidence to divide up; it is bad news for every stream this
+    # planet is karaka-relevant to, independently, and must apply at full
+    # value, undiscounted.
+    _eff_strengths_for_bonus = getattr(payload, "eff_strengths", {}) or {}
+
+    def _karaka_bonus_multiplier(p: str) -> float:
+        _bonus = _naisargika_karaka_strength_bonus(p, payload, _eff_strengths_for_bonus)
+        return 1.0 + (_bonus * _planet_exclusivity(p) if _bonus > 0 else _bonus)
+
     weighted_strength = (
-        sum(float(planet_strengths[p]) * w for p, w in available_weights.items()) / available_weight
+        sum(
+            float(planet_strengths[p])
+            * (_karaka_bonus_multiplier(p) if p in _KARAKA_RELEVANT_PLANETS else 1.0)
+            * w
+            for p, w in available_weights.items()
+        ) / available_weight
         if available_weight else 0.0
     )
     # Missing planets do not become synthetic strength=1.0. Coverage scales
@@ -2068,7 +2404,20 @@ def score_stream(
                                     "the experimental field_determination_evidence section]"
                                     if field_derived_evidence is not None else "")))
 
-    house_bonus_raw = sum(_house_support(payload, p, houses, house_weights) for p in weights) * 1.6
+    # AUDIT-FIX 2026-08-15 (D1 audit finding #6): track which planets actually
+    # contributed non-zero credit to house_support, so that credit set can be
+    # folded into _sections_planets below -- house_support draws from the same
+    # planet universe (a stream's own signature planets) that frequently
+    # overlaps with role-lords credited by role_placement, but was previously
+    # excluded from the cross-section correlation discount entirely.
+    _house_support_planets_credited: set = set()
+    _house_support_per_planet = {}
+    for p in weights:
+        contrib = _house_support(payload, p, houses, house_weights)
+        _house_support_per_planet[p] = contrib
+        if contrib > 0:
+            _house_support_planets_credited.add(p)
+    house_bonus_raw = sum(_house_support_per_planet.values()) * 1.6
     support = rubric_section("house_support", house_bonus_raw, 8.0,
                               note=f"House-weighted occupancy/lordship of {houses} by {meta['label']}'s signature planets.")
 
@@ -2093,8 +2442,28 @@ def score_stream(
     relational = _relational_d1_section(payload, stream_id, meta)
     jaimini = _jaimini_apparatus_section(payload, stream_id, meta)
 
-    _CROSS_SECTION_MAX_DISCOUNT = 0.20
+    # 2026-08-22 audit fix (gap 7): 0.20 capped the discount so that even at
+    # PERFECT overlap (Jaccard=1.0 -- the same planets doing double/triple/
+    # quadruple duty across role_placement/d24_confirmation/relational_d1/
+    # jaimini_apparatus) up to 80% of that overlapping credit was still
+    # double-counted. Raised to 0.65 so full overlap now discounts much more
+    # aggressively (this section's raw contribution is cut to 35% of its
+    # pre-discount value at Jaccard=1.0), while the interpolation shape
+    # itself (discount scales smoothly with _avg_overlap, 0 at no overlap)
+    # is unchanged -- partial overlaps still get a proportionally smaller cut.
+    _CROSS_SECTION_MAX_DISCOUNT = 0.65
+    # AUDIT-FIX 2026-08-15 (D1 audit finding #6): house_support now
+    # participates in the overlap computation (though its own raw score is
+    # NOT multiplied by _cross_section_factor -- house_support is a fixed,
+    # separately-capped section; only role_placement/d24_confirmation/
+    # relational_d1/jaimini_apparatus receive the discount below). Including
+    # house_support's credited planets here means a stream whose signature
+    # planet is ALSO a role lord placed in a stream house now correctly
+    # shrinks the discount applied to role_placement/d24_confirmation/
+    # relational_d1/jaimini_apparatus, addressing the previously-unaddressed
+    # double-count between house_support and role_placement.
     _sections_planets = [
+        _house_support_planets_credited,
         role.get("planets_credited") or set(),
         d24.get("planets_credited") or set(),
         relational.get("planets_credited") or set(),
@@ -2220,6 +2589,19 @@ def score_stream(
     # the single source of truth for the score that feeds ranking/close-call.
     total_raw = rubric["display_total"]
 
+    # Round 4 addition: classical yoga-pattern bonus, bounded to
+    # +/-_YOGA_BONUS_CAP_FRACTION of total_raw (see _yoga_pattern_bonus's own
+    # docstring for why it is routed through _planet_exclusivity and the
+    # same cross_section_factor already computed above for role_placement/
+    # d24_confirmation/relational_d1/jaimini_apparatus).
+    _yoga_results = detect_all_yogas(payload)
+    _yoga_bonus = _yoga_pattern_bonus(
+        payload, stream_id, _yoga_results, _cross_section_factor, set(weights),
+    )
+    _yoga_fraction = _yoga_bonus["fraction"]
+    total_raw_before_yoga = total_raw
+    total_raw = total_raw + total_raw * _yoga_fraction
+
     _trace = [
         f"{meta['label']}: planetary_strength={core['actual']:.2f}/{_planetary_strength_cap:.0f}, "
         f"house_support={support['actual']:.2f}/8, "
@@ -2235,6 +2617,11 @@ def score_stream(
         _trace.append(
             f"field_determination_evidence={field_derived_section['actual']:.2f}/"
             f"{FIELD_DERIVED_EVIDENCE_CAP:.0f} ({field_derived_section['note']})"
+        )
+    if _yoga_bonus["matches"]:
+        _trace.append(
+            f"yoga_patterns bonus={_yoga_fraction:+.3f} of pre-yoga total "
+            f"({total_raw_before_yoga:.2f} -> {total_raw:.2f}): " + "; ".join(_yoga_bonus["matches"])
         )
 
     result = method_result(
@@ -2276,6 +2663,28 @@ def score_stream(
     result["jaimini_apparatus_data_status"] = jaimini["data_status"]
     result["contraindication_data_status"] = contraindication["data_status"]
     result["planet_data_coverage"] = round(planet_data_coverage, 3)
+    # Round 4 addition: expose which classical yogas contributed to this
+    # stream's score, and by how much, so report/narrative code can surface
+    # it (see stream_report.py's "yoga_detection" wiring, mirroring how
+    # "rahu_ketu_caveat" was wired in round 2).
+    result["yoga_detection"] = {
+        "bonus_fraction_applied": round(_yoga_fraction, 4),
+        "total_raw_before_yoga": round(total_raw_before_yoga, 2),
+        "contributing_yogas": [
+            {
+                "yoga_name": name,
+                "present": r.get("present", False),
+                "strength": r.get("strength", 0.0),
+                "contributing_planets": r.get("contributing_planets", []),
+                "classical_citation": r.get("classical_citation", ""),
+                "precision": r.get("precision", "coarse"),
+                "notes": r.get("notes", ""),
+                "relevant_to_this_stream": YOGA_STREAM_RELEVANCE.get(name, {}).get(stream_id, 0.0) > 0.0,
+            }
+            for name, r in _yoga_results.items()
+            if r.get("present")
+        ],
+    }
     if field_derived_section is not None:
         result["field_determination_evidence_data_status"] = field_derived_evidence.get("data_status", "UNAVAILABLE")
 
@@ -2315,17 +2724,79 @@ def score_stream(
 # to its floor, instead of a token few points either way.
 _MANDATORY_FLOOR_MULT_AT_ZERO = 0.55
 _MANDATORY_SHORTFALL_SCALE = 3.0
+# 2026-08-22 audit fix (gap 5): the plain floor (0.55) treated a mild
+# scalar-strength shortfall the same as a shortfall driven by the planet
+# being genuinely afflicted (combust or debilitated) -- classically these
+# are not equivalent severities. When affliction is present, the floor is
+# lowered further (down to this value at full affliction severity),
+# proportional to how afflicted the planet is, rather than a single flat
+# floor for every shortfall regardless of cause.
+_MANDATORY_FLOOR_MULT_AFFLICTED = 0.40
 
 
-def _mandatory_ceiling_multiplier(mandatory_strength: float) -> float:
+def _mandatory_ceiling_multiplier(
+    mandatory_strength: float, *, planet: str | None = None, chart_data: Any = None,
+) -> float:
+    """Bounded ceiling multiplier for a subject's mandatory-planet shortfall.
+
+    `planet`/`chart_data` are optional (default None, preserving the
+    original scalar-only signature/behavior for any existing caller that
+    does not pass them) -- when supplied, reuses the same dignity/combustion
+    data as _naisargika_karaka_strength_bonus (true_planet_dignities,
+    combust_planets) to check whether the shortfall is caused by the planet
+    being combust or debilitated, and if so lowers the floor from
+    _MANDATORY_FLOOR_MULT_AT_ZERO toward _MANDATORY_FLOOR_MULT_AFFLICTED,
+    scaled by affliction severity (both flags present -> full extra drop;
+    one flag -> half). Still always returns a multiplier in
+    [_MANDATORY_FLOOR_MULT_AFFLICTED, 1.0].
+
+    2026-08-22 audit fix (round 3, gap: raw-dignity debilitation check with
+    no Neecha Bhanga awareness): mirrors the conjunctive check already used
+    in _naisargika_karaka_strength_bonus -- debilitation only counts as an
+    affliction here if the chart engine's Neecha-Bhanga-aware eff_strengths
+    (read off chart_data, same payload object _naisargika_karaka_strength_bonus
+    reads it from) is ALSO at/under the engine's minimum-viable baseline
+    (<= 1.0). A cancelled debilitation resolves to a normal-or-better
+    eff_strength and must not trip this floor drop a second time. Falls back
+    to the raw true_planet_dignities check when eff_strengths is unavailable.
+    """
     if mandatory_strength >= 1.0:
         return 1.0
     shortfall = (1.0 - mandatory_strength) * _MANDATORY_SHORTFALL_SCALE
-    return max(_MANDATORY_FLOOR_MULT_AT_ZERO, 1.0 - shortfall)
+    floor = _MANDATORY_FLOOR_MULT_AT_ZERO
+    if planet and chart_data is not None:
+        combust_planets = set(getattr(chart_data, "combust_planets", []) or [])
+        true_dignities = getattr(chart_data, "true_planet_dignities", {}) or {}
+        eff_strengths = getattr(chart_data, "eff_strengths", None) or {}
+        is_combust = planet in combust_planets
+        dignity = true_dignities.get(planet, "")
+        eff_strength_value = eff_strengths.get(planet)
+        if eff_strength_value is not None:
+            try:
+                is_debilitated = float(eff_strength_value) <= 1.0 and dignity == "DEBILITATED"
+            except (TypeError, ValueError):
+                is_debilitated = dignity == "DEBILITATED"
+        else:
+            is_debilitated = dignity == "DEBILITATED"
+        affliction_severity = (0.5 if is_combust else 0.0) + (0.5 if is_debilitated else 0.0)
+        if affliction_severity > 0:
+            floor = _MANDATORY_FLOOR_MULT_AT_ZERO - affliction_severity * (
+                _MANDATORY_FLOOR_MULT_AT_ZERO - _MANDATORY_FLOOR_MULT_AFFLICTED
+            )
+    return max(floor, 1.0 - shortfall)
 
 
-def score_subjects(stream_id: str, planet_strengths: Dict[str, float | None]) -> List[Dict[str, Any]]:
-    """Rank every subject under one stream from the chart's planetary strengths."""
+def score_subjects(
+    stream_id: str, planet_strengths: Dict[str, float | None], *, chart_data: Any = None,
+) -> List[Dict[str, Any]]:
+    """Rank every subject under one stream from the chart's planetary strengths.
+
+    `chart_data` is optional (default None, preserving prior behavior for any
+    existing caller that omits it) -- 2026-08-22 audit fix (gap 5): when
+    supplied, it is threaded into _mandatory_ceiling_multiplier so the
+    mandatory-planet ceiling gate can distinguish a plain scalar-strength
+    shortfall from one caused by genuine affliction (combust/debilitated).
+    """
     rows = []
     for subj in SUBJECT_REGISTRY.get(stream_id, []):
         weights: Dict[str, float] = subj["planets"]
@@ -2348,7 +2819,9 @@ def score_subjects(stream_id: str, planet_strengths: Dict[str, float | None]) ->
             mandatory_strength = planet_strengths.get(mandatory_planet)
             ceiling_mult = (
                 _MANDATORY_FLOOR_MULT_AT_ZERO if mandatory_strength is None
-                else _mandatory_ceiling_multiplier(float(mandatory_strength))
+                else _mandatory_ceiling_multiplier(
+                    float(mandatory_strength), planet=mandatory_planet, chart_data=chart_data,
+                )
             )
             if ceiling_mult < 1.0:
                 pre_ceiling_score = score_pct
@@ -2404,7 +2877,36 @@ def score_subjects(stream_id: str, planet_strengths: Dict[str, float | None]) ->
     return rows
 
 
+# AUDIT-FIX 2026-08-15 (D1 audit finding #4): _NEAR_TIE_MARGIN is a DIFFERENT
+# threshold from D1_ARBITRATION_MARGIN below, despite sharing the numeral 3.0.
+# _NEAR_TIE_MARGIN gates the LIVE classical-precedence-chain path (via
+# _apply_classical_precedence_chain's d1_clear gate, now fixed to compare each
+# stream's full final normalized_score, ~0-100 scale) and also the top-level
+# close-call check on that same final-score scale. D1_ARBITRATION_MARGIN
+# (below) gates a different, deprecated/default-off mechanism over a
+# different, smaller D1-only 3-section subtotal (~0-47 scale), and its
+# empirical batch-data justification applies ONLY to that mechanism -- it
+# does NOT carry over to this constant just because the numeral matches. The
+# value here (3.0) is, honestly, an engineering convenience matching this
+# report's own close-call-note language ("This threshold is an engineering
+# convenience, not a statistically validated confidence interval"), not
+# inherited empirical validation from D1_ARBITRATION_MARGIN.
 _NEAR_TIE_MARGIN = 3.0  # normalized-score points; below this, treat top-2 streams as a tie
+
+# AUDIT-FIX 2026-08-15 (round 3, issue #1): a separate, deliberately tighter
+# threshold used only for precedence_chain_margin_note's wording -- a
+# resolved-via-classical-chain outcome can have a final-score gap that is
+# comfortably ABOVE _NEAR_TIE_MARGIN (so is_close_call correctly reads False)
+# yet still be small enough in absolute terms (well under a single point) to
+# be worth flagging as "thin" to a report reader. Same engineering-judgment
+# caveat as _NEAR_TIE_MARGIN above: not a statistically validated cutoff.
+_THIN_MARGIN_POINTS = 1.0  # normalized-score points
+
+# AUDIT-FIX 2026-08-15 (round 3, issue #4): age (in years) below which
+# age_confidence_note fires in compute_stream_determination(). A judgment
+# call, not a statistically derived cutoff -- see the note construction site
+# for the full rationale.
+_YOUNG_CHILD_AGE_THRESHOLD = 5.0
 
 
 def _calculation_identity(payload: Any) -> Dict[str, Any]:
@@ -2799,6 +3301,11 @@ def _stream_key_significators(payload: Any, stream_id: str) -> List[str]:
     return sorted(sig)
 
 
+# AUDIT-FIX 2026-08-15 (D1 audit finding #3): these six sections are "mostly
+# D1, not purely D1" -- `contraindications` includes one compound check
+# (D1-strong-but-D24-debilitated) that reads `d24_planet_dignities` directly.
+# See the comment at that check inside _stream_contraindication_section() and
+# the docstring of _d1_promise_score() below.
 _D1_PRECEDENCE_SECTIONS = {
     "planetary_strength", "house_support", "role_placement",
     "subject_evidence", "relational_d1", "contraindications",
@@ -2814,6 +3321,11 @@ def _d1_promise_score(stream: Dict[str, Any]) -> float:
 
     D24, Jaimini, field-derived evidence and timing are intentionally absent:
     they refine an already-established rasi promise; they do not create it.
+
+    AUDIT-FIX 2026-08-15 (D1 audit finding #3): "D1-only" is an approximation,
+    not exact -- `contraindications` (one of the six summed sections) contains
+    one compound penalty check that reads `d24_planet_dignities`, a documented,
+    intentional exception. So this is "mostly D1, not purely D1" evidence.
     """
     sections = (stream.get("score_rubric") or {}).get("sections") or []
     matching = [section for section in sections
@@ -2828,6 +3340,26 @@ def _d1_promise_score(stream: Dict[str, Any]) -> float:
     ), 4)
 
 
+# AUDIT-VERIFIED 2026-08-15 (round 3, issue #2 -- INVESTIGATED, NO CODE
+# CHANGE): reviewed a claim that this stage's vargottama count on the M P
+# Tharsan chart credited Humanities with a Sun vargottama hit even though Sun
+# is "not one of Humanities's own signature planets." Traced the actual
+# filter below (`own_planets = set((STREAM_META.get(sid, {}).get("planets")
+# or {}).keys())`) -- it correctly restricts the D1/D24 same-sign check to
+# each TIED stream's own signature-planet set from subject_registry.py, per
+# spec doc stream_prompts_engine.md §8 Stage 1, not to all of the chart's
+# planets or any other broader set. Checked subject_registry.py's
+# STREAM_META[STREAM_HUMANITIES]["planets"] directly: it is
+# {"Moon": 0.25, "Jupiter": 0.25, "Mercury": 0.20, "Venus": 0.15, "Sun": 0.15}
+# -- Sun WAS deliberately added to Humanities's own signature-planet set by a
+# prior, separately-documented audit fix (see subject_registry.py's own
+# 2026-07-22 comment there: Sun/authority/governance-presence is a
+# legitimate Humanities-competency signature planet, matching
+# competency_ontology.py's "governance_institutions" competency). So on the
+# M P Tharsan chart, Sun genuinely IS a Humanities signature planet by this
+# engine's own documented data model, and this stage counting a Sun
+# vargottama hit toward Humanities is correct behavior, not a filtering bug.
+# No code change made here.
 def _stage1_vargottama(payload: Any, tied_ids: set, stream_by_id: Dict[str, Dict]) -> Dict[str, Any]:
     planets_d1 = getattr(payload, "planets_d1", {}) or {}
     divisional = getattr(payload, "divisional_charts", {}) or {}
@@ -3350,10 +3882,18 @@ def _apply_classical_precedence_chain(payload: Any, streams: List[Dict[str, Any]
                 "tied_streams": [], "stages": {}, "evaluation_as_of_date": resolved_as_of_date}
 
     stream_by_id = {s["stream_id"]: s for s in streams}
+    # AUDIT-FIX 2026-08-15 (D1 audit finding #1/#2): d1_clear gate now compares
+    # final normalized_score (as the module's own header comment always
+    # documented), not the D1-only subtotal; score_gap_top_two/is_close_call
+    # are no longer overwritten with D1-only numbers when d1_clear fires.
+    # `d1_scores` (via _d1_promise_score) is still computed and returned as
+    # "d1_promise_scores" diagnostic context, but the tie/clear-lead GATE
+    # itself now uses each stream's actual final normalized_score.
     d1_scores = {sid: _d1_promise_score(stream) for sid, stream in stream_by_id.items()}
-    d1_leader = max(d1_scores, key=d1_scores.get)
-    leader_score = d1_scores[d1_leader]
-    tied_ids = {sid for sid, score in d1_scores.items()
+    final_scores = {sid: stream.get("normalized_score", 0.0) for sid, stream in stream_by_id.items()}
+    d1_leader = max(final_scores, key=final_scores.get)
+    leader_score = final_scores[d1_leader]
+    tied_ids = {sid for sid, score in final_scores.items()
                 if leader_score - score <= _NEAR_TIE_MARGIN}
 
     # GAP-FIX (2026-07-24, CRITICAL bug #1): this used to re-sort `streams`
@@ -3369,10 +3909,12 @@ def _apply_classical_precedence_chain(payload: Any, streams: List[Dict[str, Any]
         return {
             "resolution_stage": "d1_clear", "tied_streams": [], "stages": {},
             "winner": d1_leader, "d1_promise_scores": d1_scores,
+            "final_normalized_scores": final_scores,
             "evaluation_as_of_date": resolved_as_of_date,
-            "note": (f"{stream_by_id[d1_leader]['label']} has a clear D1-only promise lead "
-                     f"({leader_score:.2f}; no other stream within {_NEAR_TIE_MARGIN:.1f}) -- "
-                     "D24 cannot create or overturn the underlying promise."),
+            "note": (f"{stream_by_id[d1_leader]['label']} has a clear overall lead "
+                     f"({leader_score:.2f}; no other stream within {_NEAR_TIE_MARGIN:.1f} points "
+                     "on the final normalized score) -- no near-tie triggering the classical "
+                     "precedence chain."),
         }
 
     tied_labels = sorted(stream_by_id[sid]["label"] for sid in tied_ids)
@@ -3483,6 +4025,23 @@ def compute_stream_determination(
     see _resolve_as_of_date()/_stage4_dasha_relevance(). The resolved value
     is echoed back on the report as "evaluation_as_of_date".
     """
+    # 2026-08-22 audit fix (gap 6): d24_arbitration_enabled and
+    # classical_precedence_chain_enabled are two INDEPENDENT tie-resolution
+    # mechanisms -- nothing previously stopped a caller from passing both
+    # True, letting them both fire on the same report (each capable of
+    # re-scoring/deciding the dominant stream, with no defined precedence
+    # between their outputs). The surrounding code's own comments already
+    # establish classical_precedence_chain as the "declared default" and the
+    # D24/JAIMINI arbitration policy as "deprecated" -- so rather than
+    # raising and hard-failing a caller who explicitly opted into both, force
+    # the deprecated mechanism off and let the declared-default chain run
+    # alone, with a visible note on the report (see d1_arbitration_status
+    # override below) so this is never silently ambiguous about which
+    # mechanism actually decided the outcome.
+    _both_arbitration_mechanisms_requested = d24_arbitration_enabled and classical_precedence_chain_enabled
+    if _both_arbitration_mechanisms_requested:
+        d24_arbitration_enabled = False
+
     planet_strengths = _stream_planet_strengths(payload)
 
     # Run the (optional) adult-engine bridge ONCE per chart, not once per
@@ -3535,7 +4094,7 @@ def compute_stream_determination(
 
     streams = []
     for stream_id in STREAM_META:
-        subjects_ranked = score_subjects(stream_id, planet_strengths)
+        subjects_ranked = score_subjects(stream_id, planet_strengths, chart_data=payload)
         entry = score_stream(
             payload, stream_id, planet_strengths, subjects_ranked,
             field_derived_evidence=field_derived_evidence,
@@ -3677,20 +4236,58 @@ def compute_stream_determination(
     # neither manufacture a close call when D1 is clear nor conceal a real
     # D1 tie. A resolved refinement is a decision; an unresolved chain is
     # explicitly indeterminate.
+    # AUDIT-FIX 2026-08-15 (D1 audit finding #1/#2): d1_clear gate now compares
+    # final normalized_score (as the module's own header comment always
+    # documented), not the D1-only subtotal; score_gap_top_two/is_close_call
+    # are no longer overwritten with D1-only numbers when d1_clear fires. The
+    # correctly-computed final-score gap/is_close_call from above are kept
+    # as-is for d1_clear -- since the gate itself now requires the final-score
+    # gap to exceed _NEAR_TIE_MARGIN before it can fire, this naturally reads
+    # as a non-close-call; only close_call_note is replaced with the chain's
+    # own descriptive note (still describing the final-score lead, see the
+    # note text built in _apply_classical_precedence_chain).
+    # AUDIT-FIX 2026-08-15 (round 3, issue #1): this branch used to
+    # unconditionally force is_close_call = False for ANY resolved-via-chain
+    # outcome, regardless of how thin the actual final-score gap was.
+    # Confirmed live on Ramsunder (gap 0.41), Rithul (0.13), Ajay Siddarth
+    # (0.33), and Aishwarrya (0.53) -- all resolved via vargottama/
+    # jaimini_akamk and all reported is_close_call: False, hiding that the
+    # numeric lead is razor-thin even though the classical tiebreak is a
+    # legitimate, well-grounded resolution. A resolved precedence chain is a
+    # DECISION (the chain found real classical grounds to pick a winner), but
+    # that is a different claim from "the final scores are not close" --
+    # conflating the two silently misinformed a report reader. is_close_call
+    # is now LEFT AS THE ACCURATE gap-based value computed above (and
+    # tied_stream_labels is left as-is too) for every resolved stage;
+    # precedence_chain_margin_note (new field, always populated for a
+    # resolved stage) explicitly states the true final-score gap and, when
+    # that gap is thin, says so plainly instead of letting is_close_call:
+    # False imply a comfortable margin. _THIN_MARGIN_POINTS (1.0) is a
+    # separate, deliberately tighter threshold than _NEAR_TIE_MARGIN (3.0):
+    # a gap can be wide enough that our own close-call threshold doesn't
+    # fire, yet still be "thin" in an absolute sense worth calling out to a
+    # parent/student reading the report.
     _resolved_stages = {"vargottama", "dignity_strength", "jaimini_akamk", "dasha_relevance"}
+    precedence_chain_margin_note = ""
     if precedence_chain_resolution_stage == "d1_clear":
-        d1_values = sorted(
-            (precedence_chain_detail.get("d1_promise_scores") or {}).values(),
-            reverse=True,
-        )
-        score_gap = (d1_values[0] - d1_values[1]) if len(d1_values) >= 2 else 0.0
-        is_close_call = False
-        tied_stream_labels = []
         close_call_note = precedence_chain_detail.get("note", "")
     elif precedence_chain_resolution_stage in _resolved_stages:
-        is_close_call = False
-        tied_stream_labels = []
         close_call_note = precedence_chain_detail.get("note", "")
+        if score_gap <= _THIN_MARGIN_POINTS:
+            precedence_chain_margin_note = (
+                f"Resolved via {precedence_chain_resolution_stage} on a thin "
+                f"{score_gap:.2f}-point final-score margin -- treat this as classically "
+                "well-grounded (the precedence chain found real, documented classical "
+                "evidence to break the tie) but NOT a decisive numeric lead. A different "
+                "chart-reading nuance could plausibly move the final score enough to flip "
+                "the top two streams."
+            )
+        else:
+            precedence_chain_margin_note = (
+                f"Resolved via {precedence_chain_resolution_stage} on a "
+                f"{score_gap:.2f}-point final-score margin -- the classical tiebreak "
+                "confirmed a comfortable underlying numeric lead, not just a coin-flip."
+            )
     elif precedence_chain_resolution_stage == "still_tied_after_full_chain":
         is_close_call = True
         tied_stream_labels = precedence_chain_detail.get("tied_streams", [])
@@ -3808,6 +4405,62 @@ def compute_stream_determination(
         recommendation_status = "SUPPORTED"
         dominant_stream = recommended_stream
 
+    # AUDIT-FIX 2026-08-15 (round 3, issue #3): the report never surfaced
+    # when the pure-D1 evidence (_d1_promise_score -- planetary_strength/
+    # house_support/role_placement/subject_evidence/relational_d1/
+    # contraindications only, no D24/Jaimini/dasha) favored a DIFFERENT
+    # stream than the final recommendation. Confirmed live on multiple
+    # charts (Ajay Agarwal, Hemant M, Rithul, Sindhuja Lakshman, Vithun) --
+    # legitimate by the engine's own "D1 establishes candidates, D24/Jaimini
+    # refine" design, but invisible to a report reader without this note.
+    # Compares the D1-only leader (max of _d1_promise_scores, already
+    # computed above as d1_candidate_rank[0]) against the FINAL recommended
+    # stream (recommended_stream, the precedence-informed pick before the
+    # recommendation_status gate -- using recommended_stream rather than
+    # dominant_stream so this note still fires even under PROVISIONAL/
+    # SUPPORTED status nuances and isn't silently suppressed by the None
+    # gating dominant_stream gets under INSUFFICIENT_DATA/INDETERMINATE_*).
+    d1_vs_final_divergence_note = ""
+    if _d1_promise_scores and recommended_stream:
+        d1_leader = d1_candidate_rank[0] if d1_candidate_rank else None
+        if d1_leader and d1_leader != recommended_stream:
+            d1_leader_label = next(
+                (s["label"] for s in streams if s["stream_id"] == d1_leader), d1_leader)
+            final_label = next(
+                (s["label"] for s in streams if s["stream_id"] == recommended_stream), recommended_stream)
+            d1_vs_final_divergence_note = (
+                f"Note: D1-only evidence alone favored {d1_leader_label}; the final "
+                f"recommendation ({final_label}) depends on D24 (Siddhamsha)/Jaimini "
+                "(Karakamsha) evidence refining that D1 picture -- this is by design (D1 "
+                "establishes candidates, D24/Jaimini confirm/refine), but worth knowing "
+                "this isn't a case where D1 alone already pointed to the winner."
+            )
+
+    # AUDIT-FIX 2026-08-15 (round 3, issue #4): no confidence caveat existed
+    # for very young charts (e.g. age ~1) where any stream-aptitude call is
+    # inherently low-confidence regardless of technique quality -- searched
+    # the codebase for existing age-based confidence language first (only
+    # found AGE_THRESHOLD_YEARS=15.0's upper-bound "outside this engine's
+    # scope" note and the unrelated dasha-window age check; nothing scaled
+    # for a very young lower bound). _YOUNG_CHILD_AGE_THRESHOLD (5.0 years)
+    # is a judgment call, not a statistically derived cutoff: chosen because
+    # a chart under ~5 is roughly a decade-plus away from the actual Class 11
+    # decision point (age ~15-16), leaving maximal room for the child's
+    # actual aptitudes/interests to diverge from whatever this snapshot shows.
+    age_confidence_note = ""
+    if _current_age is not None:
+        try:
+            _age_f = float(_current_age)
+            if 0 < _age_f < _YOUNG_CHILD_AGE_THRESHOLD:
+                age_confidence_note = (
+                    f"This chart is for a very young child (age {_age_f:g}) -- any "
+                    "stream-aptitude signal at this age is inherently low-confidence "
+                    "compared to a chart closer to the actual Class 11 decision point "
+                    "(age ~15-16); treat this as a very early directional indicator only."
+                )
+        except (TypeError, ValueError):
+            pass
+
     return {
         "engine_version": STREAM_ENGINE_VERSION,
         "calculation_profile": CALCULATION_PROFILE,
@@ -3876,6 +4529,17 @@ def compute_stream_determination(
         "score_gap_top_two": round(score_gap, 2),
         "is_close_call": is_close_call,
         "close_call_note": close_call_note,
+        # AUDIT-FIX 2026-08-15 (round 3, issue #1): always populated (non-
+        # empty) whenever the classical precedence chain resolved a genuine
+        # tie (d1_clear or one of _resolved_stages) -- states the actual
+        # final-score gap and, when it's under _THIN_MARGIN_POINTS, says so
+        # explicitly. Distinguishes "resolved with a wide underlying margin"
+        # from "resolved via a thin classical tiebreak on a near-tied score"
+        # so a report reader is never left with only an unqualified
+        # is_close_call: False on a genuinely razor-thin final score. Empty
+        # string when the chain is disabled or still_tied_after_full_chain
+        # (that case is already fully described by is_close_call/tied_streams).
+        "precedence_chain_margin_note": precedence_chain_margin_note,
         # GAP-FIX (audit, 2026-07-23): all streams bunched within the
         # near-tie margin of their neighbor, in ranked order -- lets a
         # report distinguish a genuine 2-way tie from a 3-way toss-up
@@ -3886,6 +4550,15 @@ def compute_stream_determination(
         # GAP-FIX (audit #45): non-None only when current_age indicates an
         # adult chart -- see construction above.
         "age_routing_note": age_routing_note,
+        # AUDIT-FIX 2026-08-15 (round 3, issue #4): non-empty only when
+        # current_age < _YOUNG_CHILD_AGE_THRESHOLD -- see construction above.
+        # Purely additive/informational; does not alter any score or status.
+        "age_confidence_note": age_confidence_note,
+        # AUDIT-FIX 2026-08-15 (round 3, issue #3): non-empty only when the
+        # D1-only leader (d1_candidate_rank[0]) differs from recommended_stream
+        # -- see construction above. Purely additive/informational; does not
+        # alter any score or status.
+        "d1_vs_final_divergence_note": d1_vs_final_divergence_note,
         # GAP-FIX (2026-07-24, explicit user decision, "Option 1"): see the
         # D24/JAIMINI ARBITRATION POLICY comment block above
         # compute_stream_determination() -- d1_arbitration_status is
@@ -3902,6 +4575,20 @@ def compute_stream_determination(
         # this is always independently checkable, never a silent policy.
         "d1_arbitration_status": d1_arbitration_status,
         "d1_arbitration_detail": d1_arbitration_detail,
+        # 2026-08-22 audit fix (gap 6): non-None only when the caller passed
+        # BOTH d24_arbitration_enabled=True and
+        # classical_precedence_chain_enabled=True -- states unambiguously
+        # that the (deprecated) D24/JAIMINI arbitration policy was forced off
+        # for this run and the classical precedence chain (declared default)
+        # is the mechanism that actually decided dominant_stream/
+        # recommended_stream. See the guard at the top of this function.
+        "dual_arbitration_mechanism_conflict_note": (
+            "Both d24_arbitration_enabled and classical_precedence_chain_enabled were "
+            "passed True. d24_arbitration_enabled was forced to False for this run -- "
+            "the classical precedence chain (the declared default mechanism) is the "
+            "ONLY one that ran and decided this report's outcome; d1_arbitration_status "
+            "above reflects 'disabled', not an actual arbitration pass."
+        ) if _both_arbitration_mechanisms_requested else None,
         # GAP-FIX (2026-07-24): CLASSICAL PRECEDENCE CHAIN result -- one of
         # "d1_clear" (no genuine tie -- final score already decisive),
         # "vargottama" | "dignity_strength" | "jaimini_akamk" |

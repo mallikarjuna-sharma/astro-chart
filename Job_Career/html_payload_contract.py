@@ -19,7 +19,7 @@ why the payload shape changed.
 """
 from __future__ import annotations
 
-CONTRACT_VERSION = "html-payload-contract.v1.2026-07-18"
+CONTRACT_VERSION = "html-payload-contract.v1.3.2026-08-18"
 
 # ─── Payload 1: `results` — one dict per ranked field, passed as the 5th
 # positional arg to render_report_html_rich()/render_report_html(). This is
@@ -45,12 +45,45 @@ RESULTS_ROW_KEYS = frozenset({
     "score_confidence_note", "score_semantics", "shashtiamsha_confirmation",
     "siddhamsha_education", "sub_branch_compatibility", "sudarshana_score",
     "top_karakas", "weighted_method_score",
+    "astrological_potential_rank", "validated_recommendation_rank",
+    # gap fix 2026-08-18 (item 7 / Group 5): stale-contract fix, not a code
+    # change. These 17 keys are real, load-bearing additions from earlier
+    # gap-fix/audit rounds (e.g. tier1/tier2/tier3 scoring, siddhamsha/
+    # shashtiamsha/structural_patterns method voting tiers, D9 confirmation,
+    # career-archetype labeling, publication-ranking-policy annotations,
+    # step9 convergence, and the tier-decision trace) that were never
+    # back-filled into this frozen contract as they landed -- the same
+    # "added" (not "removed") drift-report pattern the v1.1 REPORT_TOP_KEYS
+    # update above already documents. Confirmed real by their producing
+    # call sites elsewhere in the engine/ranking/report pipeline; added here
+    # per this file's own documented update procedure. No row shape changed.
+    "career_archetype", "confidence_dimensions", "d9_navamsha_confirmation",
+    "defensibility", "final_score_legacy_blend", "jaimini_chara_dasha_timing",
+    "publication_ranking_adjustments", "score_ceiling_tie",
+    "shashtiamsha_score", "siddhamsha_score", "step9_convergence",
+    "structural_patterns_score", "tier1_leakage_discounted", "tier1_score",
+    "tier2_score", "tier3_score", "tier_decision_trace",
+    # gap fix (2026-08-19): same stale-contract pattern as the item-7 block
+    # above -- two more real, load-bearing keys never back-filled here.
+    # method_breakdown: per-method {raw_score, normalized_score, weight, ...}
+    # for all 10 field-determination tiers, added to debug_payload_split.py's
+    # SUMMARY_KEYS render allow-list so career_field_report_v2.py's
+    # _select_headline_routes() could read row["method_breakdown"]
+    # ["siddhamsha"]["normalized_score"] for the pg_divergence_alert check
+    # (previously silently stripped before it ever reached this contract).
+    # validated_pick_pending_stronger_candidates: disclosure-only list
+    # attached by field_suitability.py::annotate_field_suitability(),
+    # surfacing any field with unknown academic-evidence status that
+    # outscores the top validated pick -- never changes selection, only
+    # discloses it. Confirmed real by their producing call sites; no row
+    # shape changed.
+    "method_breakdown", "validated_pick_pending_stronger_candidates",
 })
 
 # ─── Payload 2: `macro_clusters` — one dict per named cluster, 6th arg.
 MACRO_CLUSTER_KEYS = frozenset({
     "rank", "cluster", "strength_pct", "raw_strength", "member_fields",
-    "best_rank_in_cluster",
+    "best_rank_in_cluster", "display_only",
 })
 
 # ─── Payload 3: `report` — the 14-section narrative object, 7th arg.
@@ -61,12 +94,28 @@ MACRO_CLUSTER_KEYS = frozenset({
 # -- this contract additionally covers the keys _apply_deterministic_
 # suitability_to_report / privacy_contract / calculation_identity attach
 # afterward, which _REQUIRED_REPORT_KEYS does not include).
+# v1.1 (2026-07-29): career_field_report_v2.py's caution-status bucketing
+# (STATUS_NOT_PRIMARY/STATUS_PG/STATUS_EXPLORATORY/STATUS_REQUIRES_
+# VALIDATION -- see its own "Section 10 intentionally shows every caution
+# status ... side by side" comment) attaches four additional, deliberate
+# top-level keys to `report` alongside the pre-existing "fields_to_avoid"
+# (which is now restricted to true-avoid-only, per that same comment):
+# route_cautions (all four statuses together, for the "use with care" UI
+# table) plus the three individual per-status buckets it's drawn from.
+# These were real, load-bearing additions (used throughout both HTML
+# renderers) that simply predated being added to this frozen contract --
+# test_html_payload_contract.py's "added" (not "removed") drift report is
+# what caught the gap. Added here as a deliberate contract update, per this
+# file's own documented procedure, not a silent schema change.
 REPORT_TOP_KEYS = frozenset({
     "final_identity", "snapshot", "astrological_signature",
     "macro_cluster_interpretations", "top_20_fields", "education_routes",
     "fields_to_avoid", "engine_output_comparison", "engine_gap_audit",
     "parent_summary", "student_summary", "final_recommendation",
     "disclaimer", "validation_status", "privacy", "calculation_identity",
+    "route_cautions", "pg_specialization_fields", "exploratory_fields",
+    "requires_validation_fields",
+    "astrological_potential_ranking", "validated_recommendation_ranking",
 })
 
 # ─── Payload 4: `chart_facts` — chart-signature facts, 8th arg.
@@ -74,7 +123,7 @@ CHART_FACTS_KEYS = frozenset({
     "lagna_sign", "h10_lord", "active_mahadasha_lord",
     "peak_career_mahadasha_lord", "dob", "current_age", "ug_start_year",
     "eff_strengths_top3", "arudha_lagna", "arudha_pada_h10",
-    "academic_tier_recommendation", "edu_stream",
+    "academic_tier_recommendation", "edu_stream", "education_intent",
 })
 
 

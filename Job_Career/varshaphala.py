@@ -189,6 +189,17 @@ def compute_varshaphala(payload: Any, target_year: int) -> dict:
         natal_asc = asc  # fallback: no natal Lagna available, degrade to annual asc
     muntha=(natal_asc+30*(age%12))%360
     h11_lord=LORD[SIGNS[int(h11//30)]]
+    # PROVENANCE (2026-08 gap-audit item 1.5/3.2, see
+    # reports/JyotishAI_Engine_Gap_Analysis_2026-07.md sec 1.5): day/night
+    # is determined here from the actual annual-chart sunrise/sunset window
+    # (reusing get_sunrise_jd/get_sunset_jd from jyotish/ephemeris.py, the
+    # same helpers panchang.py's vara/hora-lord logic depends on), not
+    # hardcoded to day as an earlier revision did. Classical rule for the
+    # Sahama of Fortune (undisputed across Tajika/Hora sources): by day,
+    # Lagna + Moon - Sun (mod 360); by night, Lagna + Sun - Moon (mod 360).
+    # If tz is unavailable the day/night window can't be computed and this
+    # degrades to the day formula (is_day=True default) rather than failing
+    # the whole Varshaphala computation.
     is_day = True
     if tz is not None:
         rise_jd = get_sunrise_jd(ret.date(), lat, lon, float(tz))
@@ -202,7 +213,16 @@ def compute_varshaphala(payload: Any, target_year: int) -> dict:
             "acquisition":_saham(asc,h11,planets[h11_lord])}
     candidates={LORD[SIGNS[int(asc//30)]],LORD.get(getattr(payload,"lagna_sign",""),""),LORD[SIGNS[int(planets["Sun"]//30)]]}
     candidates.discard("")
-    # Transparent strength proxy pending independent Panchavargiya golden data.
+    # MODERN HEURISTIC / practitioner-derived -- not independently
+    # classically sourced (2026-08 gap-audit item 1.4, see
+    # reports/JyotishAI_Engine_Gap_Analysis_2026-07.md sec 1.4). Classical
+    # Varshesha (year-lord) selection uses Panchavargiya Bala, a five-source
+    # strength comparison among the candidate lords (Sthana/Dig/Kala-like
+    # Tajika components). This engine instead picks whichever candidate has
+    # the highest instantaneous longitudinal speed as a transparent, cheap
+    # proxy pending independent Panchavargiya golden-data validation -- the
+    # output should not be presented as the classical Varshesha
+    # determination (see completeness.varshesha_exact=False below).
     varshesha=max(candidates,key=lambda p: abs(speeds.get(p,0.0)),default="")
     pressure=sum(_house(x,asc) in (6,8,12) for x in (muntha,sahams["occupation"],sahams["acquisition"]))
     tajika_aspects = _tajika_aspects(planets, speeds)

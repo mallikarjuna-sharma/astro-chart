@@ -1,7 +1,12 @@
 """KP field-determination module."""
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List
+
+_logger = logging.getLogger("jyotish_engine_v11_0")
+
+from jyotish.kp_subfield_hint import narrow_field_specialization  # GAP FIX (2026-08-17): Step 6 sub-field narrowing
 
 from jyotish.boosts import (
     _kp_h10_branch_strength,
@@ -32,6 +37,13 @@ from .common import (
     rubric_section,
     top_weighted_planets,
 )
+# 2026-08 architecture-audit gap-fix: reuse the SAME cusp-verification check
+# engine_io.py's KP self-heal and __init__.py's kp_authority_factor weight
+# gate already use, rather than re-deriving equal-house detection locally --
+# see score_kp()'s own gap-fix comment below for why this method's raw score
+# needs to know about verification status too, not just the downstream blend
+# weight.
+from jyotish.kp_audit import audit_kp_cusps
 
 # Earth/underground-domain field cluster — H8 career indicator applies for these
 _EARTH_FIELD_HINTS = (
@@ -88,6 +100,30 @@ def score_kp(
         kp_sigs[_pl] = _expanded
     kp_cusps  = getattr(payload_data, "kp_cusps", {}) or {}
     d10_occ   = getattr(payload_data, "d10_house_occupancy", {}) or {}
+
+    # 2026-08 architecture-audit gap-fix: score_kp() used to be confidence-
+    # aware ONLY for birth_time_precision (the _kp_conf_sub/_kp_conf_star
+    # gate below) -- it had no path at all checking whether kp_cusps
+    # THEMSELVES are trustworthy (genuine Placidus vs. the equal-house-
+    # mislabeled-as-Placidus pattern this session's engine_io.py self-heal
+    # fix already detects and, where possible, repairs). That meant a chart
+    # with an exact birth time but degenerate/unhealed cusps could still
+    # return a full-strength, unflagged KP score here -- the ONLY thing
+    # catching it was a fully separate downstream weight-gate
+    # (kp_authority_factor in __init__.py) that mutes this method's BLEND
+    # WEIGHT, never its own reported score. A report reading "kp_score:
+    # 47.33" gave no hint that number came from cusps that shouldn't be
+    # trusted. Reuses audit_kp_cusps() -- the exact same check
+    # engine_io.py's self-heal and __init__.py's weight gate already run --
+    # rather than re-deriving equal-house detection a third time.
+    _kp_cusp_audit = audit_kp_cusps(kp_cusps, getattr(payload_data, "house_system", "") or "")
+    _kp_cusp_verified = _kp_cusp_audit.get("status") == "VERIFIED"
+    # Conservative, not zeroing: an UNVERIFIED cusp chain is not necessarily
+    # WRONG (it may simply be unconfirmable), so this discounts rather than
+    # eliminates the cusp-derived signal -- same "reduce confidence, don't
+    # assume the opposite" philosophy _kp_conf_star already uses for
+    # approximate birth times just below.
+    _kp_cusp_conf = 1.0 if _kp_cusp_verified else 0.5
     # Gap-18b (generalized fix, audit 2026-07): see field_methods/common.py::build_gate_text.
     label     = build_gate_text(field_id, field_entry)
     neecha_bhanga = set(getattr(payload_data, "neecha_bhanga_planets", []) or [])
@@ -148,6 +184,14 @@ def score_kp(
     else:
         _kp_conf_sub  = 1.00
         _kp_conf_star = 1.00
+    # 2026-08 architecture-audit gap-fix: fold the cusp-verification discount
+    # (_kp_cusp_conf, computed above from audit_kp_cusps) into the SAME two
+    # confidence multipliers every cusp-derived component in this file
+    # already consumes -- this is the one change point that makes the whole
+    # method's cusp-dependent signal self-aware of verification status,
+    # without having to touch every individual call site below.
+    _kp_conf_sub  *= _kp_cusp_conf
+    _kp_conf_star *= _kp_cusp_conf
     _kp_conf = _kp_conf_sub   # legacy alias
     _kp_low_confidence = not _kp_precise
     if _kp_low_confidence:
@@ -155,6 +199,13 @@ def score_kp(
             f"KP birth-time precision is '{_birth_prec}' — cuspal sub-lord/sub-sub-lord "
             "signals are not computable with confidence and have been fully excluded "
             "(KP assumes a precise birth time as a precondition, not a partial one)."
+        )
+    if not _kp_cusp_verified:
+        trace.append(
+            f"KP cusp/sub-lord chain is UNVERIFIED for this chart (audit reasons: "
+            f"{', '.join(_kp_cusp_audit.get('reasons', []) or []) or 'unspecified'}) -- "
+            "cusp-derived components discounted to 50% confidence rather than trusted "
+            "at full strength; see kp_authority_audit for the independent verification detail."
         )
 
     branch_strength = _kp_h10_branch_strength(field_affinity, kp_sigs)
@@ -205,6 +256,53 @@ def score_kp(
             _h10_sub_sub_lord *= 1.15
             trace.append(f"KP H10 sub-sub-lord {h10_ssl} is dispositor-linked to sub-lord {h10_sub}.")
 
+    # KP gap-audit fix (2026-08): the classical KP cuspal chain for a house
+    # is sign_lord -> star_lord -> sub_lord -> sub_sub_lord, in increasing
+    # order of decisiveness (sub_lord is the final word; sub_sub_lord refines
+    # it; star_lord and sign_lord are the weaker, supporting upper links).
+    # This module already scores sub_lord (_h10_sublord) and sub_sub_lord
+    # (_h10_sub_sub_lord) as first-class H10 signals, but H10's sign_lord was
+    # never scored on its own at all (only used elsewhere for the Ruling
+    # Planets derivation on H1, not H10), and H10's star_lord was used ONLY
+    # as an equality check against sub_lord for the consensus bonus below --
+    # never scored independently. Two of the chain's four links were
+    # therefore invisible to this method as first-class signals. Added here
+    # at deliberately small weights matching their lesser classical
+    # decisiveness (sign_lord smallest, star_lord next).
+    # Bugfix (2026-08-19): this fallback previously derived from the LAGNA's
+    # D1 sign (`planets_d1["Lagna"]["sign"]`) whenever kp_cusps["H10"]["sign_lord"]
+    # was itself empty -- i.e. it silently computed H1's sign lord, not H10's,
+    # on any chart with partial KP cuspal data. engine_io.py populates a
+    # "sign" key on every kp_cusps["Hn"] entry (see its cusp-recompute block,
+    # `_recomputed_cusps[f"H{_h}"] = {"sign": ..., "sign_lord": ..., ...}`),
+    # so the correct fallback is H10's OWN cusp sign, not the ascendant's.
+    # This mirrors the (correct) pattern used a few lines below for the
+    # Ruling-Planets H1 derivation, which appropriately uses the Lagna sign
+    # because it IS deriving H1's sign lord there -- that logic was copied
+    # here without updating which house's sign it should read.
+    h10_sign_lord = kp_cusps.get("H10", {}).get("sign_lord", "") or _SIGN_LORD.get(
+        kp_cusps.get("H10", {}).get("sign", ""), "")
+    _h10_sl_aff = field_affinity.get(h10_sign_lord, 0.0) if h10_sign_lord else 0.0
+    _h10_sign_lord_pts = 0.0
+    if h10_sign_lord and _h10_sl_aff > 0.0:
+        # Sign-lord boundaries are 30-degree wide (the coarsest link in the
+        # chain), so this is far less birth-time-sensitive than sub_lord --
+        # gated by the weaker star-lord confidence tier, not the strict
+        # sub-lord one.
+        _h10_sign_lord_pts = 6.0 * _h10_sl_aff * _vit(h10_sign_lord) * _kp_conf_star
+        if _h10_sign_lord_pts > 0.3:
+            trace.append(f"KP H10 sign-lord {h10_sign_lord} supports field (w={_h10_sl_aff:.2f}) "
+                         "-- weakest link in the cuspal chain, scored as a light corroboration.")
+
+    h10_star_lord = kp_cusps.get("H10", {}).get("star_lord", "")
+    _h10_stl_aff = field_affinity.get(h10_star_lord, 0.0) if h10_star_lord else 0.0
+    _h10_star_lord_pts = 0.0
+    if h10_star_lord and _h10_stl_aff > 0.0:
+        _h10_star_lord_pts = 10.0 * _h10_stl_aff * _vit(h10_star_lord) * _kp_conf_star
+        if _h10_star_lord_pts > 0.3:
+            trace.append(f"KP H10 star-lord {h10_star_lord} supports field (w={_h10_stl_aff:.2f}) "
+                         "-- upper cuspal chain link, independent of the sub-lord consensus check.")
+
     # ── Education house CSL sub-lords (H4/H5/H9) ─────────────────────────────
     edu_sub_lords = [
         kp_cusps.get("H4", {}).get("sub_lord", ""),
@@ -250,12 +348,56 @@ def score_kp(
     h2h11_vitality = (h2h11_vit_total / h2h11_vit_weight) if h2h11_vit_weight > 0 else 1.0
     _h2h11_branch  = 20.0 * h2h11_strength * h2h11_vitality
 
+    # 2026-08-22 reconciliation (JyotishAI reference-audit method #6,
+    # owner-approved fix): _h10_branch (the generic L1-L4 significator scan,
+    # up to 40pt) and _h10_sublord/_h10_sub_sub_lord/_h10_sign_lord_pts/
+    # _h10_star_lord_pts (the explicit cuspal-chain bonuses, up to
+    # 30+15+6+10=61pt) were previously summed uncapped -- together up to
+    # 101pt from a single method's ~100pt budget -- despite scoring
+    # substantially the same underlying fact: a house's sub-lord (and often
+    # its sign/star lord too) structurally tends to also appear among that
+    # house's own L1-L4 significators, so the branch scan and the explicit
+    # chain bonuses are correlated, not independent, evidence. Bound the
+    # combined H10-cuspal-chain family at a ceiling that keeps the sub-lord
+    # bonus (KP's own stated "decisive" link, per this file's comments)
+    # intact and claws back first from the weakest/most-derivative links:
+    # sign-lord and star-lord (weakest, 30-degree-wide corroboration)
+    # before sub-sub-lord (refines, doesn't decide) before the generic
+    # branch scan (most overlapping with sub-lord specifically), never
+    # touching sub-lord itself.
+    _h10_family_ceiling = 55.0
+    _h10_family_claw_order = ["h10_star_lord_pts", "h10_sign_lord_pts", "h10_sub_sub_lord", "h10_branch"]
+    _h10_family_vals = {"h10_star_lord_pts": _h10_star_lord_pts, "h10_sign_lord_pts": _h10_sign_lord_pts,
+                         "h10_sub_sub_lord": _h10_sub_sub_lord, "h10_branch": _h10_branch}
+    _h10_family_total = _h10_sublord + sum(_h10_family_vals.values())
+    if _h10_family_total > _h10_family_ceiling:
+        _h10_excess = _h10_family_total - _h10_family_ceiling
+        for _key in _h10_family_claw_order:
+            if _h10_excess <= 0:
+                break
+            _take = min(_h10_family_vals[_key], _h10_excess)
+            _h10_family_vals[_key] -= _take
+            _h10_excess -= _take
+        _h10_star_lord_pts = _h10_family_vals["h10_star_lord_pts"]
+        _h10_sign_lord_pts = _h10_family_vals["h10_sign_lord_pts"]
+        _h10_sub_sub_lord  = _h10_family_vals["h10_sub_sub_lord"]
+        _h10_branch        = _h10_family_vals["h10_branch"]
+        trace.append(
+            f"KP H10 cuspal-chain family (branch scan + sub-lord + sub-sub-lord + "
+            f"sign/star-lord) exceeded {_h10_family_ceiling}pt combined ceiling -- "
+            "clawed back from the weakest/most-derivative links first, sub-lord "
+            "left intact as the chain's decisive link."
+        )
+
     score       += _h10_branch + _h10_sublord + _h10_sub_sub_lord + _edu_star + _edu_branch + _h2h11_branch
+    score       += _h10_sign_lord_pts + _h10_star_lord_pts
     rubric_core += _h10_branch + _h10_sublord + _h10_sub_sub_lord + _edu_star + _edu_branch
-    rubric_support += _h2h11_branch
+    rubric_support += _h2h11_branch + _h10_sign_lord_pts + _h10_star_lord_pts
     components["h10_branch"]   = round(_h10_branch, 2)
     components["h10_sublord"]  = round(_h10_sublord, 2)
     components["h10_sub_sub_lord"] = round(_h10_sub_sub_lord, 2)
+    components["h10_sign_lord"] = round(_h10_sign_lord_pts, 2)
+    components["h10_star_lord"] = round(_h10_star_lord_pts, 2)
     components["edu_star"]     = round(_edu_star, 2)
     components["edu_branch"]   = round(_edu_branch, 2)
     components["h2h11_branch"] = round(_h2h11_branch, 2)
@@ -322,7 +464,11 @@ def score_kp(
         if sub_h7:
             w7 = field_affinity.get(sub_h7, 0.0)
             if w7 >= 0.15:
-                b7 = 5.0 * _vit(sub_h7) * _kp_conf_sub * (1.0 if w7 >= 0.25 else 0.55 if w7 >= 0.15 else 0.0)
+                # 2026-08-20 step-function fix (KP audit): was a flat 0.55/1.0
+                # bucket pair -- replaced with a continuous ramp over the same
+                # 0.15-0.25 span so fields don't tie once both clear 0.25.
+                _h7_frac = min(max((w7 - 0.15) / (0.25 - 0.15), 0.0), 1.0)
+                b7 = 5.0 * _vit(sub_h7) * _kp_conf_sub * (0.55 + _h7_frac * 0.45)
                 if b7 > 0:
                     score += b7; rubric_support += b7
                     components["h7_sublord"] = round(b7, 2)
@@ -336,14 +482,14 @@ def score_kp(
             continue
         w = field_affinity.get(sub, 0.0)
         v = _vit(sub)
-        if w >= 0.25:
-            b = base_pts * v
-        elif w >= 0.15:
-            b = base_pts * 0.55 * v
-        elif w >= 0.08:
-            b = base_pts * 0.20 * v
-        else:
+        if w < 0.08:
             continue
+        # 2026-08-20 step-function fix (KP audit): was three flat plateaus
+        # (0.20/0.55/1.0) -- replaced with a continuous ramp over the same
+        # 0.08-0.25 span so this component keeps differentiating fields
+        # instead of tying once both clear a bucket edge.
+        _mult = 0.20 + min(max((w - 0.08) / (0.25 - 0.08), 0.0), 1.0) * (1.0 - 0.20)
+        b = base_pts * _mult * v
         b *= _kp_conf_sub
         if b <= 0:
             continue
@@ -493,12 +639,29 @@ def score_kp(
         trace.append("Dusthana lordship weakens KP cusp delivery.")
 
     # ── S3: top-4 vitality penalty; S4: skip Neecha Bhanga planets ────────────
+    # 2026-08-22 reconciliation (JyotishAI reference-audit method #6,
+    # owner-approved fix): this loop applies an ADDITIVE penalty from the
+    # same _d1_vitality_coefficient() fact that _vit() already applied
+    # MULTIPLICATIVELY to discount every cuspal-chain bonus above (H10
+    # sub-lord/sub-sub-lord/sign-lord/star-lord, education CSL sub-lords,
+    # Chandra Lagna H10 lord) -- for any planet that holds one of those
+    # roles AND lands in the top-4 affinity set, the same vitality
+    # impairment was already scored once via the multiplicative discount
+    # before being scored again here as a flat subtraction. Halve the
+    # additive penalty for a planet whose vitality was already applied
+    # multiplicatively elsewhere in this call, rather than dropping it
+    # entirely (the top-4 penalty also covers planets with no cuspal role
+    # at all, where it remains the only vitality signal and should stay
+    # at full strength).
+    _vit_already_applied = {p for p in (h10_sub, h10_ssl, h10_sign_lord, h10_star_lord, *edu_sub_lords) if p}
     for planet in top_weighted_planets(field_affinity, 4):
         if planet in neecha_bhanga:
             continue
         vitality = _d1_vitality_coefficient(planet, payload_data)
         if vitality < 1.0:
             penalty = (1.0 - vitality) * field_affinity.get(planet, 0.0) * 20.0
+            if planet in _vit_already_applied:
+                penalty *= 0.5
             if penalty > 0:
                 score         -= penalty
                 rubric_penalty -= penalty
@@ -529,6 +692,25 @@ def score_kp(
                 _mnl_aff = field_affinity.get(_moon_nak_lord, 0.0)
                 _mnl_vit = _vit("Moon")
                 _moon_nak_pts = max(_mnl_aff * 22.0, 1.5) * _mnl_vit * _kp_conf
+                # 2026-08 audit fix: this block and the earlier "moon_nakshatra_
+                # first_class" block (T1-D above, ~line 351) both derive the SAME
+                # underlying fact -- Moon's nakshatra star-lord via the identical
+                # _NAKSHATRA_LORD[moon_nakshatra] lookup (level-1 chain depth,
+                # not a star-lord-vs-sub-lord distinction) -- and both gate on
+                # career-keyword agreement for that same nakshatra. Scored via
+                # two different formulas with no correlation discount, this
+                # double-counts one fact. Following this codebase's established
+                # partial-credit convention (discount, don't zero the second
+                # appearance): if the earlier block already credited points for
+                # this same star-lord fact, this block's contribution is halved.
+                if components.get("moon_nakshatra_first_class", 0.0) > 0:
+                    _moon_nak_pts *= 0.5
+                    trace.append(
+                        "KP Moon nakshatra star-lord signal already credited via "
+                        "moon_nakshatra_first_class (same _NAKSHATRA_LORD lookup) — "
+                        "this second scoring of the identical fact is discounted 50% "
+                        "to avoid double-counting one signal as two."
+                    )
 
                 # P1: Pada refinement — navamsha sign of Moon's pada adds sub-domain precision.
                 # Each pada occupies 3°20′ of the nakshatra and falls in a specific navamsha sign,
@@ -584,7 +766,16 @@ def score_kp(
             if _bdate_rp:
                 _WD_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
                 _birth_weekday = _WD_NAMES[_dt_rp.date.fromisoformat(str(_bdate_rp)[:10]).weekday()]
-        except Exception:
+        except Exception as exc:
+            # Gap-audit fix (2026-08, visibility-only): previously fully
+            # silent. Fallback behavior (empty weekday -> no day-lord RP
+            # signal) is unchanged; this only makes a malformed/unexpected
+            # birth_date value loggable instead of invisible.
+            _logger.warning(
+                "kp.py Ruling-Planet weekday derivation failed for "
+                "birth_date=%r: %s; day-lord RP signal will be absent.",
+                _bdate_rp, exc,
+            )
             _birth_weekday = ""
     _DAY_TO_PLANET_RP = {"Monday": "Moon", "Tuesday": "Mars", "Wednesday": "Mercury",
                           "Thursday": "Jupiter", "Friday": "Venus", "Saturday": "Saturn", "Sunday": "Sun"}
@@ -614,7 +805,17 @@ def score_kp(
                 _rp_confirms.append(_tp)
         if _rp_confirms:
             _rp_vit = sum(_vit(p) for p in _rp_confirms) / len(_rp_confirms)
-            _rp_bonus = (100.0 - score) * 0.06 * min(len(_rp_confirms), 3) / 3.0 * _rp_vit
+            # 2026-08 architecture-audit gap-fix: this was the one KP
+            # component in the whole file NOT gated by any confidence
+            # multiplier, despite depending on star lords (Lagna/Moon
+            # nakshatra boundaries -- exactly as time-sensitive as
+            # edu_star_bonus above, which already uses _kp_conf_star) and,
+            # via _lagna_star_lord's H1 kp_cusps fallback, on cusp
+            # verification too. _kp_conf_star already carries both the
+            # birth-time-precision AND (after the fold-in above) the
+            # cusp-verification discount, so this one multiplier closes
+            # both gaps at once for this block specifically.
+            _rp_bonus = (100.0 - score) * 0.06 * min(len(_rp_confirms), 3) / 3.0 * _rp_vit * _kp_conf_star
             if _rp_bonus > 0:
                 score += _rp_bonus
                 rubric_validation += _rp_bonus
@@ -626,7 +827,10 @@ def score_kp(
         else:
             # No overlap between RP set and the field's decisive planets — classical
             # KP treats an unconfirmed judgment as weaker, not necessarily wrong.
-            _rp_penalty = score * 0.03
+            # Same _kp_conf_star gate as the confirming branch above: an
+            # unconfirmed-RP penalty built from unreliable star-lord data
+            # shouldn't be trusted at full strength either.
+            _rp_penalty = score * 0.03 * _kp_conf_star
             if _rp_penalty > 0:
                 score -= _rp_penalty
                 rubric_penalty -= _rp_penalty
@@ -651,9 +855,10 @@ def score_kp(
                 rubric_support,
                 25.0,
                 note="Career keyword, H2+H11 career branch, H8 earth branch, secondary cusp support, "
-                     "systematic karaka-domain bonus, and house-signification-first bonus.",
+                     "H10 sign-lord/star-lord (upper cuspal chain), systematic karaka-domain bonus, "
+                     "and house-signification-first bonus.",
                 items=["career_keyword", "h2h11_branch", "h8_earth_branch", "h4_sublord", "h11_sublord",
-                       "karaka_domain_bonus", "house_signification_bonus"],
+                       "h10_sign_lord", "h10_star_lord", "karaka_domain_bonus", "house_signification_bonus"],
             ),
             rubric_section(
                 "validation",
@@ -674,12 +879,76 @@ def score_kp(
         ],
     )
 
+    # GAP FIX (2026-08-17): Step 6 sub-field narrowing -- advisory only, does
+    # not affect `score`/ranking. Uses the H10 cuspal-chain lords already
+    # computed above (h10_sub, h10_ssl, h10_star_lord).
+    _subfield = narrow_field_specialization(
+        field_label=field_id or domain,
+        sub_lord=h10_sub,
+        sub_sub_lord=h10_ssl,
+        star_lord=h10_star_lord,
+    )
+    components["kp_subfield_hint"] = _subfield["sub_field_hint"]
+
     components["birth_time_precision"] = _birth_prec
     components["kp_low_confidence"] = 1.0 if _kp_low_confidence else 0.0
+    # 2026-08 architecture-audit gap-fix: this method's raw score is now
+    # self-aware of cusp verification status (see the _kp_cusp_conf fold-in
+    # above) -- surface that status directly on the return value too, same
+    # convention as birth_time_precision/kp_low_confidence just above, so a
+    # consumer reading kp_score can see WHY it's discounted without having
+    # to separately fetch kp_authority_audit from elsewhere in the pipeline.
+    components["kp_cusp_verified"] = 1.0 if _kp_cusp_verified else 0.0
+    components["kp_cusp_confidence_multiplier"] = round(_kp_cusp_conf, 2)
+
+    # Phase B (shadow-score migration, audit item A): surface the specific
+    # planet(s) KP's own cuspal chain already identified as confirming this
+    # field -- purely additive metadata, sourced from local variables this
+    # function already computes (h10_sub/h10_ssl/h10_sign_lord/h10_star_lord),
+    # never a re-derivation of KP logic. Does not change score/components/
+    # trace or any existing return key.
+    _kp_confirming_planets = list(dict.fromkeys(
+        p for p in (h10_sub, h10_ssl, h10_sign_lord, h10_star_lord) if p
+    ))
+
+    # [CROSS-VERIFICATION NARRATIVE] (§9 audit, real-technique instrumentation):
+    # print each cuspal-chain planet's own final confirmation-bonus value for
+    # KP specifically (H10 sub-lord / sub-sub-lord / sign-lord / star-lord —
+    # the actual §9 "identify sub-lord/star-lord/sub-sub-lord of 2/10/11 cusps"
+    # chain), built entirely from local variables already computed above.
+    _kp_cusp_bonus_map = {
+        h10_sub:       (_h10_sublord,        "sub-lord of 10th cusp"),
+        h10_ssl:       (_h10_sub_sub_lord,    "sub-sub-lord of 10th cusp"),
+        h10_sign_lord: (_h10_sign_lord_pts,   "sign-lord of 10th cusp"),
+        h10_star_lord: (_h10_star_lord_pts,   "star-lord of 10th cusp"),
+    }
+    for _cp, (_cb, _clabel) in _kp_cusp_bonus_map.items():
+        if _cp and _cb > 0:
+            # print(f"KP confirmation bonus — {_cp}: {(_cb / 100.0):.3f} ({_clabel})")
+            pass
+    if _kp_confirming_planets:
+        # print(
+        #     f"[CROSS-VERIFICATION NARRATIVE] KP cuspal chain for the 10th house "
+        #     f"(career) was checked at all four links (sign-lord={h10_sign_lord or '—'}, "
+        #     f"star-lord={h10_star_lord or '—'}, sub-lord={h10_sub or '—'}, "
+        #     f"sub-sub-lord={h10_ssl or '—'}); planet(s) {', '.join(_kp_confirming_planets)} "
+        #     f"appear in this chain and receive a modest KP confirmation bonus on top of "
+        #     f"whatever other-method support they already carry for field '{field_id or domain}' "
+        #     f"(cusp verification status: {'VERIFIED' if _kp_cusp_verified else 'UNVERIFIED, discounted to 50% confidence'})."
+        # )
+        pass
+    else:
+        # print(
+        #     f"[CROSS-VERIFICATION NARRATIVE] KP cuspal chain for the 10th house "
+        #     f"produced no confirming planet for field '{field_id or domain}' — "
+        #     "no cuspal-chain confirmation bonus applied this pass."
+        # )
+        pass
 
     # Gap-1 (audit 2026-07) fix: cap unified with the bundle via METHOD_SCORE_CAPS.
     # Gap-3/9 fix: pass raw signed `score` (not pre-clamped) so contraindicated
     # charts (net penalties > positives) are distinguishable from neutral ones;
     # method_result() still clamps internally for the "score" field.
     return method_result("kp", score, trace, components, rubric=rubric,
-                          normalization_cap=METHOD_SCORE_CAPS["kp"])
+                          normalization_cap=METHOD_SCORE_CAPS["kp"],
+                          metadata={"confirming_planets": _kp_confirming_planets})

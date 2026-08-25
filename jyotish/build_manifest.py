@@ -19,10 +19,14 @@ def sha256_file(path: Path) -> str:
 
 
 def source_files(root: Path = ROOT) -> Iterable[Path]:
-    for path in sorted((root / "jyotish").rglob("*")):
-        if path.is_file() and path.suffix in {".py", ".json"}:
-            if not any(part in _EXCLUDED_PARTS for part in path.parts):
-                yield path
+    # Bind release identity to every executable engine package, not only
+    # the shared jyotish core.  Omitting Business_Prediction previously
+    # allowed business logic to change without changing the release hash.
+    for package in ("jyotish", "Business_Prediction", "Field_Determination", "Job_Career", "Stream_Determination", "Prashnam"):
+        for path in sorted((root / package).rglob("*")):
+            if path.is_file() and path.suffix in {".py", ".json"}:
+                if not any(part in _EXCLUDED_PARTS for part in path.parts):
+                    yield path
     for path in sorted((root / "tests").glob("test_*.py")):
         yield path
 
@@ -39,4 +43,3 @@ def build_manifest(root: Path = ROOT) -> dict:
         "file_count": len(files),
         "files": files,
     }
-

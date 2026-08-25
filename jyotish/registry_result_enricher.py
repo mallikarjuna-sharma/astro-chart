@@ -63,4 +63,19 @@ def attach_v12_registry_metadata(
         row["admission_exams_canonical"] = meta.get("admission_exams_canonical", [])
         row["available_at_normalized"] = meta.get("available_at_normalized", {})
 
+        # Gap-audit fix (2026-08): V12_KEYS above did not include the
+        # is_registry_alias/alias_of/ontology_parent flags that
+        # registry_loader_v12.py sets on the 7 synthetic alias fields
+        # (operations_research, information_systems, enterprise_architecture,
+        # platform_engineering, engineering_management, technology_consulting,
+        # it_governance), each of which is a full deep-copy of a "parent"
+        # branch's metadata relabeled under a new name. Without these flags
+        # reaching the result row, a report/consumer had no signal that
+        # curriculum/routes/career_outcomes/market/risk shown for e.g.
+        # "Platform Engineering" are inherited from "Cloud DevOps", not
+        # independently curated. Purely additive -- does not touch score,
+        # rank, or any existing key above.
+        row["is_registry_alias"] = bool(meta.get("is_registry_alias", False))
+        row["registry_alias_of"] = meta.get("alias_of") or meta.get("ontology_parent") or None
+
     return results

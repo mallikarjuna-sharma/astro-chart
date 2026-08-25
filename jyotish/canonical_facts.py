@@ -48,6 +48,7 @@ def build_canonical_facts(payload: Any) -> dict:
         "kp_significators": dict(_get(payload, "kp_significators", {}) or {}),
         "birth_time_precision": _get(payload, "birth_time_precision", "unknown"),
         "birth_time_uncertainty_minutes": _get(payload, "birth_time_uncertainty_minutes", 0),
+        "lagna_degree": _get(payload, "lagna_degree", None),
     }
     warnings: list[dict] = []
     errors: list[dict] = []
@@ -61,12 +62,51 @@ def build_canonical_facts(payload: Any) -> dict:
             "payload_h10_lord": payload_h10,
         })
 
-    if facts["birth_time_precision"] != "exact":
+    # GAP-FIX (P0-2, CalculationPolicy threading): defer to the single declared
+    # policy's precise_cusps_allowed where available, instead of a local
+    # == "exact" re-derivation that ignored birth_time_uncertainty_minutes.
+    _policy = _get(payload, "calculation_policy", None)
+    _precise_ok = (
+        bool(_policy.precise_cusps_allowed)
+        if _policy is not None and hasattr(_policy, "precise_cusps_allowed")
+        else facts["birth_time_precision"] == "exact"
+    )
+    if not _precise_ok:
         warnings.append({"code": "BIRTH_TIME_PRECISION_NOT_EXACT"})
     if int(facts["birth_time_uncertainty_minutes"] or 0) >= 5:
         warnings.append({"code": "HIGH_VARGA_TIME_SENSITIVITY"})
     if not facts["d10_lagna_sign"]:
         warnings.append({"code": "D10_LAGNA_NOT_SUPPLIED"})
+    # Gap-audit fix (2026-08, chat cross-chart review): 6 of 25 charts reviewed
+    # had a natal lagna within ~2 degrees of a sign boundary (hemant 0.90,
+    # vaagesh 1.21, Sai_Havish 1.57, ananyaa 27.97, swastik 28.05, siddarth
+    # 28.30). At that degree, a birth-time error of only a few minutes can
+    # flip the lagna into the neighbouring sign, which changes every whole-
+    # sign house-lordship in the chart -- and therefore the entire field
+    # ranking. This was previously silent; surfaced here so a report reader
+    # knows to treat rank order as provisional pending time confirmation.
+    _lagna_deg = facts["lagna_degree"]
+    _BOUNDARY_MARGIN_DEG = 2.0
+    if _lagna_deg is not None:
+        try:
+            _lagna_deg_f = float(_lagna_deg)
+        except (TypeError, ValueError):
+            _lagna_deg_f = None
+        if _lagna_deg_f is not None and (
+            _lagna_deg_f < _BOUNDARY_MARGIN_DEG or _lagna_deg_f > (30.0 - _BOUNDARY_MARGIN_DEG)
+        ):
+            warnings.append({
+                "code": "LAGNA_BOUNDARY_SENSITIVE",
+                "lagna_degree": round(_lagna_deg_f, 4),
+                "margin_deg": _BOUNDARY_MARGIN_DEG,
+                "note": (
+                    "Natal lagna is within "
+                    f"{_BOUNDARY_MARGIN_DEG:g} degrees of a sign boundary; a small "
+                    "birth-time correction could shift the lagna sign and change "
+                    "every whole-sign house lordship. Treat the field ranking as "
+                    "provisional pending birth-time confirmation."
+                ),
+            })
     kp_audit = audit_kp_cusps(facts["kp_cusps"], _get(payload, "house_system", ""))
     if not facts["kp_cusps"]:
         warnings.append({"code": "KP_CUSPS_NOT_SUPPLIED"})

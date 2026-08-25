@@ -47,6 +47,17 @@ Affinity = Dict[str, float]
 
 STREAM_IDS = ("science", "commerce", "humanities")
 
+# 2026-08-22 audit fix (gap 9): DISCLOSURE -- every affinity number in this
+# module (FIELD_STREAM_AFFINITY below and DOMAIN_STREAM_AFFINITY further
+# down) is this codebase's own ENGINEERED ESTIMATE of real-world field/
+# domain-to-stream affinity. None of these fractions are derived from
+# classical Jyotish texts (this is not an astrological rubric -- see the
+# NOT-THE-PRIMARY-RULE-SOURCE note above) and none are sourced from an
+# official CBSE table or published statistic -- they are this project's own
+# reasonable-effort judgment calls, written down so a future reader does not
+# mistake a number like {"science": 0.55, "humanities": 0.45} for cited or
+# authoritative data.
+
 # --- Field-level overrides (exact field_id from india_course_registry_v12.json) ---
 # Deliberately small and conservative: only fields with a well-known,
 # genuinely split real-world stream pathway are listed here. Everything else

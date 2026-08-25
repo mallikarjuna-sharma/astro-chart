@@ -117,6 +117,7 @@ warning, so that charts with incomplete data do not crash the pipeline.
 """
 from __future__ import annotations
 
+import functools as _functools
 import logging
 import math
 from datetime import date, datetime, timedelta
@@ -149,6 +150,31 @@ _LOAD_ATTEMPTED = False
 _LOAD_OK = False
 
 
+def _de421_search_paths() -> list:
+    """Candidate locations for de421.bsp, in priority order.
+
+    2026-08 gap-audit fix: `load("de421.bsp")` resolves relative to the
+    Skyfield Loader's directory, which defaults to the CURRENT WORKING
+    DIRECTORY of the process -- not this module's own location. A user
+    running `python field_determination/education_engine.py ...` from
+    somewhere other than the repo root (or via an IDE/launcher that sets a
+    different cwd) would silently fail to find a de421.bsp that genuinely
+    exists at the repo root, with no indication why. This anchors the
+    primary lookup to the repo root (one directory above jyotish/, computed
+    from this file's own path) so the file is found regardless of the
+    caller's cwd, while still trying a bare relative lookup and the cwd
+    explicitly as fallbacks for setups that intentionally place the file
+    elsewhere.
+    """
+    import os
+    _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return [
+        os.path.join(_repo_root, "de421.bsp"),
+        os.path.join(os.getcwd(), "de421.bsp"),
+        "de421.bsp",
+    ]
+
+
 def _ensure_loaded() -> bool:
     """Lazily load the DE421 ephemeris + timescale. Returns True if usable."""
     global _EPH, _TS, _EARTH, _SUN_BODY, _MOON_BODY, _PLANET_BODIES
@@ -157,33 +183,59 @@ def _ensure_loaded() -> bool:
         return _LOAD_OK
     _LOAD_ATTEMPTED = True
     if not _SKYFIELD_IMPORTABLE:
-        return False
-    try:
-        _TS = load.timescale()
-        _EPH = load("de421.bsp")
-        _EARTH = _EPH["earth"]
-        _SUN_BODY = _EPH["sun"]
-        _MOON_BODY = _EPH["moon"]
-        _PLANET_BODIES = {
-            "Sun": _EPH["sun"],
-            "Moon": _EPH["moon"],
-            "Mars": _EPH["mars barycenter"],
-            "Mercury": _EPH["mercury barycenter"],
-            "Jupiter": _EPH["jupiter barycenter"],
-            "Venus": _EPH["venus barycenter"],
-            "Saturn": _EPH["saturn barycenter"],
-        }
-        _LOAD_OK = True
-        return True
-    except Exception as exc:  # pragma: no cover - defensive (no network, no file, etc.)
         logger.warning(
-            "ephemeris: could not load Skyfield/DE421 ephemeris (de421.bsp) -- "
-            "real ephemeris features disabled. One-time fix: run "
-            "`python -c \"from skyfield.api import load; load('de421.bsp')\"` "
-            "once on a machine with network access. Error: %s", exc,
+            "ephemeris: 'skyfield' and/or 'numpy' are not importable in this "
+            "Python environment -- real ephemeris features (genuine Placidus "
+            "KP cusps, precise Shadbala Bhava Bala inputs) are disabled. Both "
+            "are declared dependencies in pyproject.toml; if you're running "
+            "`python ...` directly rather than through this project's venv "
+            "(e.g. `uv run python ...` or `.venv\\Scripts\\python.exe ...` on "
+            "Windows), that's very likely why they're missing from this "
+            "interpreter. Verify with: python -c \"import skyfield, numpy\""
         )
-        _LOAD_OK = False
         return False
+
+    import os
+    _tried = []
+    for _path in _de421_search_paths():
+        _tried.append(_path)
+        if not os.path.isfile(_path):
+            continue
+        try:
+            _TS = load.timescale()
+            _EPH = load(_path)
+            _EARTH = _EPH["earth"]
+            _SUN_BODY = _EPH["sun"]
+            _MOON_BODY = _EPH["moon"]
+            _PLANET_BODIES = {
+                "Sun": _EPH["sun"],
+                "Moon": _EPH["moon"],
+                "Mars": _EPH["mars barycenter"],
+                "Mercury": _EPH["mercury barycenter"],
+                "Jupiter": _EPH["jupiter barycenter"],
+                "Venus": _EPH["venus barycenter"],
+                "Saturn": _EPH["saturn barycenter"],
+            }
+            _LOAD_OK = True
+            return True
+        except Exception as exc:  # pragma: no cover - defensive (corrupt file, etc.)
+            logger.warning(
+                "ephemeris: found de421.bsp at %s but failed to load it -- "
+                "real ephemeris features disabled. Error: %s", _path, exc,
+            )
+            _LOAD_OK = False
+            return False
+
+    logger.warning(
+        "ephemeris: de421.bsp not found at any of %s -- real ephemeris "
+        "features disabled. One-time fix: run "
+        "`python -c \"from skyfield.api import load; load('de421.bsp')\"` "
+        "once on a machine with network access (downloads ~17MB from NASA "
+        "JPL and caches it in the current directory), or place an existing "
+        "de421.bsp at the repo root.", _tried,
+    )
+    _LOAD_OK = False
+    return False
 
 
 def is_available() -> bool:
@@ -226,14 +278,80 @@ _NAKSHATRA_LORDS = [_VIMSHO_ORDER[i % 9] for i in range(27)]
 _NAK_SPAN = 360.0 / 27.0  # 13.3333... degrees
 
 
-def _ayanamsa_deg(dt_utc: datetime, ayanamsa: str = _DEFAULT_AYANAMSA) -> float:
-    """KP/Krishnamurti ayanamsa at `dt_utc` (naive UT datetime). Other ayanamsa
-    names are not separately implemented in this Skyfield edition (the prior
-    pyswisseph edition supported Lahiri/Raman overrides for testability only;
-    this codebase's charts all use KP/Krishnamurti in practice -- see this
-    module's docstring for the verified match)."""
+def _ayanamsa_deg(
+    dt_utc: datetime, ayanamsa: str = _DEFAULT_AYANAMSA,
+    override_deg: Optional[float] = None,
+) -> float:
+    """KP/Krishnamurti ayanamsa at `dt_utc` (naive UT datetime).
+
+    2026-08 gap-audit fix: this function used to hardcode the KP/Krishnamurti
+    formula unconditionally regardless of the `ayanamsa` string passed in --
+    "this codebase's charts all use KP/Krishnamurti in practice" turned out
+    to be false. Confirmed on a real chart (swastik_chart_details.json,
+    system_config.ayanamsa == "Lahiri"): back-solving the chart's own
+    already-known sidereal Sun longitude against a real Skyfield/DE421
+    tropical Sun position for the exact birth moment gives an empirical
+    ayanamsa of 23.8515 deg -- matching the published Lahiri constant at
+    year 2000 (~23.85 deg) to within a hundredth of a degree, and diverging
+    from this function's KP formula (23.7757 deg for that same moment) by a
+    non-trivial 0.076 deg (~4.5 arcmin) -- enough to occasionally flip a
+    planet or cusp across a sign/nakshatra boundary near a cusp.
+
+    Rather than hand-implement a second named-ayanamsa formula (Lahiri,
+    Raman, ... each with their own epoch/base-value conventions that are
+    genuinely easy to get subtly wrong without an independent verification
+    source), `override_deg` lets a caller supply an ayanamsa VALUE derived
+    directly from the chart's own data via `derive_ayanamsa_from_known_
+    sidereal_sun()` below -- guaranteeing internal consistency with
+    whichever ayanamsa convention the source chart actually used, regardless
+    of its name. When no override is supplied, this still falls back to the
+    original KP/Krishnamurti formula (unchanged default behavior -- no
+    caller relying on the old formula is affected).
+    """
+    if override_deg is not None:
+        return float(override_deg)
     years = (dt_utc - _KP_AYANAMSA_EPOCH).total_seconds() / (365.25 * 86400.0)
     return _KP_AYANAMSA_BASE_DEG + _KP_AYANAMSA_PRECESSION_PER_YEAR * years
+
+
+def derive_ayanamsa_from_known_sidereal_sun(
+    dt_local: datetime, lat: float, lon: float,
+    known_sidereal_sun_deg: float, tz_offset_hours: Optional[float] = None,
+) -> Optional[float]:
+    """Empirically derive the exact ayanamsa a source chart used, from its
+    own already-computed sidereal Sun longitude.
+
+    ayanamsa = (real tropical Sun longitude at the exact birth moment,
+    computed here from Skyfield/DE421) - (the chart's own stated sidereal
+    Sun longitude, e.g. sign_index*30 + degree from planets_d1.Sun).
+
+    This is deliberately chart-grounded rather than a hardcoded named
+    formula (Lahiri/KP/Raman/...): whatever ayanamsa convention upstream
+    chart-generation software (e.g. pyhora) actually used, this recovers
+    that SAME value, so any cusps/positions subsequently recomputed with it
+    stay internally consistent with the rest of the chart's already-ingested
+    planetary data -- see _ayanamsa_deg's docstring for the concrete
+    real-chart verification (Lahiri-declared chart, derived value matched
+    the published Lahiri constant to ~0.01 deg, diverged from this module's
+    old hardcoded KP formula by ~4.5 arcmin).
+
+    Returns None on any failure (skyfield/ephemeris unavailable, bad
+    inputs) so callers can safely fall back to the original ingestion path.
+    """
+    if not is_available():
+        return None
+    try:
+        tz = tz_offset_hours if tz_offset_hours is not None else _infer_tz_offset_hours(lon)
+        dt_utc = _to_utc(dt_local, tz)
+        t = _skyfield_time(dt_utc)
+        tropical_sun_lon, _ = _ecliptic_lon_lat(_SUN_BODY, t)
+        return (tropical_sun_lon - float(known_sidereal_sun_deg)) % 360.0
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "ephemeris.derive_ayanamsa_from_known_sidereal_sun: failed (%s) -- "
+            "falling back to the default ayanamsa formula.", exc,
+        )
+        return None
 
 
 def _sign_and_deg(longitude: float) -> Tuple[str, float]:
@@ -298,6 +416,14 @@ def _true_node_longitude(t) -> float:
 # 1. Natal planet longitudes
 # ---------------------------------------------------------------------------
 
+@_functools.lru_cache(maxsize=512)
+def _get_planet_longitudes_cached(
+    dt_local: datetime, lat: float, lon: float,
+    ayanamsa: str, tz_offset_hours: Optional[float],
+) -> Tuple[Tuple[str, float], ...]:
+    return tuple(_get_planet_longitudes_uncached(dt_local, lat, lon, ayanamsa, tz_offset_hours).items())
+
+
 def get_planet_longitudes(
     dt_local: datetime, lat: float, lon: float,
     ayanamsa: str = _DEFAULT_AYANAMSA, tz_offset_hours: Optional[float] = None,
@@ -305,7 +431,26 @@ def get_planet_longitudes(
     """Sidereal longitude (0-360 deg) for each of the 9 grahas at `dt_local`
     (naive local civil datetime) and geographic `lat`/`lon`. Ketu is always
     Rahu + 180. Returns {} on any failure (missing skyfield/ephemeris file,
-    bad inputs)."""
+    bad inputs).
+
+    Perf note: cached (functools.lru_cache, keyed on the exact call args) --
+    callers like Business_Prediction's D10 birth-time rectification
+    sensitivity test and genuine-Placidus-KP recompute call this repeatedly
+    at several nearby birth-time offsets / at the same exact birth moment
+    from more than one module, and each call performs a real Skyfield
+    ephemeris query (not free). The cache is exact-match only (no
+    interpolation), so correctness is unaffected -- only redundant identical
+    calls are avoided."""
+    try:
+        return dict(_get_planet_longitudes_cached(dt_local, float(lat), float(lon), ayanamsa, tz_offset_hours))
+    except Exception:
+        return _get_planet_longitudes_uncached(dt_local, lat, lon, ayanamsa, tz_offset_hours)
+
+
+def _get_planet_longitudes_uncached(
+    dt_local: datetime, lat: float, lon: float,
+    ayanamsa: str = _DEFAULT_AYANAMSA, tz_offset_hours: Optional[float] = None,
+) -> Dict[str, float]:
     if not is_available():
         logger.warning("ephemeris.get_planet_longitudes: Skyfield/DE421 not available, skipping.")
         return {}
@@ -451,9 +596,49 @@ def _obliquity_of_ecliptic_deg(t) -> float:
     return eps0
 
 
+@_functools.lru_cache(maxsize=512)
+def _get_house_cusps_placidus_cached(
+    dt_local: datetime, lat: float, lon: float,
+    ayanamsa: str, tz_offset_hours: Optional[float],
+    ayanamsa_deg_override: Optional[float] = None,
+) -> Tuple[Tuple[int, float], ...]:
+    return tuple(_get_house_cusps_placidus_uncached(
+        dt_local, lat, lon, ayanamsa, tz_offset_hours, ayanamsa_deg_override,
+    ).items())
+
+
 def get_house_cusps_placidus(
     dt_local: datetime, lat: float, lon: float,
     ayanamsa: str = _DEFAULT_AYANAMSA, tz_offset_hours: Optional[float] = None,
+    ayanamsa_deg_override: Optional[float] = None,
+) -> Dict[int, float]:
+    """Perf note: cached (functools.lru_cache, exact-match on call args) --
+    see get_planet_longitudes' docstring for why (repeated identical calls
+    from Business_Prediction's D10 rectification-sensitivity test and
+    genuine-Placidus-KP recompute). Delegates to
+    _get_house_cusps_placidus_uncached (below) for the actual algorithm,
+    documented there.
+
+    `ayanamsa_deg_override`: pass a numeric ayanamsa (e.g. from
+    derive_ayanamsa_from_known_sidereal_sun()) to bypass the hardcoded
+    KP/Krishnamurti formula and keep the returned cusps internally
+    consistent with a specific chart's own already-ingested sidereal
+    positions, regardless of which ayanamsa convention that chart used.
+    """
+    try:
+        return dict(_get_house_cusps_placidus_cached(
+            dt_local, float(lat), float(lon), ayanamsa, tz_offset_hours, ayanamsa_deg_override,
+        ))
+    except Exception:
+        return _get_house_cusps_placidus_uncached(
+            dt_local, lat, lon, ayanamsa, tz_offset_hours, ayanamsa_deg_override,
+        )
+
+
+def _get_house_cusps_placidus_uncached(
+    dt_local: datetime, lat: float, lon: float,
+    ayanamsa: str = _DEFAULT_AYANAMSA, tz_offset_hours: Optional[float] = None,
+    ayanamsa_deg_override: Optional[float] = None,
 ) -> Dict[int, float]:
     """Placidus house cusp sidereal longitudes (1-12), computed from Skyfield's
     local apparent sidereal time + the standard iterative semi-arc Placidus
@@ -496,7 +681,7 @@ def get_house_cusps_placidus(
         tz = tz_offset_hours if tz_offset_hours is not None else _infer_tz_offset_hours(lon)
         dt_utc = _to_utc(dt_local, tz)
         t = _skyfield_time(dt_utc)
-        ayan = _ayanamsa_deg(dt_utc, ayanamsa)
+        ayan = _ayanamsa_deg(dt_utc, ayanamsa, ayanamsa_deg_override)
 
         eps = math.radians(_obliquity_of_ecliptic_deg(t))
         lat_r = math.radians(lat)
@@ -802,8 +987,36 @@ def get_planet_latitudes(
     not because Shadbala's formula requires nodal latitude specifically).
     Reuses the same _ecliptic_lon_lat() calls get_planet_longitudes() already
     makes -- no new Skyfield API pattern, just retains the second (latitude)
-    return value that was previously discarded."""
+    return value that was previously discarded.
+
+    Gap-audit fix (2026-08): this function's real body -- the try/except
+    block now below -- had been orphaned as unreachable dead code appended
+    after tt_jd_to_local_datetime()'s `return` statement (evidently from a
+    bad merge), leaving THIS function ending right after the `is_available()`
+    guard with no further statement. On the success path (Skyfield/DE421
+    available), that meant this function returned Python's implicit `None`
+    instead of a dict. Callers typically defensively did
+    `(planet_latitudes or {}).get(planet, 0.0)`, so `None` silently degraded
+    to `{}` and every planet got latitude 0.0 -- meaning shadbala.py's Ayana
+    Bala (declination-based temporal strength) was being computed as if
+    every planet had zero ecliptic latitude even when real ephemeris was
+    fully available. Restored to its intended body below; the orphaned
+    duplicate after tt_jd_to_local_datetime() has been removed."""
     if not is_available():
+        return {}
+    try:
+        tz = tz_offset_hours if tz_offset_hours is not None else _infer_tz_offset_hours(lon)
+        dt_utc = _to_utc(dt_local, tz)
+        t = _skyfield_time(dt_utc)
+        out: Dict[str, float] = {}
+        for planet, body in _PLANET_BODIES.items():
+            _lon, lat_deg = _ecliptic_lon_lat(body, t)
+            out[planet] = round(lat_deg, 6)
+        out["Rahu"] = 0.0
+        out["Ketu"] = 0.0
+        return out
+    except Exception as exc:  # pragma: no cover
+        logger.warning("ephemeris.get_planet_latitudes failed: %s", exc)
         return {}
 
 
@@ -830,20 +1043,6 @@ def tt_jd_to_local_datetime(jd_tt: float, tz_offset_hours: float) -> datetime:
     """Convert a Skyfield TT Julian date returned by rise/set helpers to local civil time."""
     utc = _TS.tt_jd(float(jd_tt)).utc_datetime().replace(tzinfo=None)
     return utc + timedelta(hours=float(tz_offset_hours))
-    try:
-        tz = tz_offset_hours if tz_offset_hours is not None else _infer_tz_offset_hours(lon)
-        dt_utc = _to_utc(dt_local, tz)
-        t = _skyfield_time(dt_utc)
-        out: Dict[str, float] = {}
-        for planet, body in _PLANET_BODIES.items():
-            _lon, lat_deg = _ecliptic_lon_lat(body, t)
-            out[planet] = round(lat_deg, 6)
-        out["Rahu"] = 0.0
-        out["Ketu"] = 0.0
-        return out
-    except Exception as exc:  # pragma: no cover
-        logger.warning("ephemeris.get_planet_latitudes failed: %s", exc)
-        return {}
 
 
 def get_ghati_lagna(

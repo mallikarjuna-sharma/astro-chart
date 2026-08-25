@@ -37,7 +37,24 @@ STREAM_HUMANITIES = "humanities"
 STREAM_META: Dict[str, Dict[str, Any]] = {
     STREAM_SCIENCE: {
         "label": "Science",
-        "planets": {"Mars": 0.30, "Sun": 0.20, "Saturn": 0.25, "Mercury": 0.25},
+        # 2026-08-22 audit fix (gap 4): Mars (0.30, unchanged numerically)
+        # classically maps to engineering/surgery/technical execution
+        # (Phaladeepika Ch 12), and Saturn (0.25, unchanged numerically) to
+        # mining/labour/technical-service domains -- documented here so the
+        # domain reasoning behind these two existing weights is explicit even
+        # though the numbers themselves are not being changed.
+        # Rahu added at a small, clearly-supplementary weight: NOT a BPHS
+        # naisargika karaka, but widely used by contemporary Jyotish
+        # practitioners as a signifier of modern/tech/foreign/research
+        # affinity (common Jaimini-adjacent practice, not a classical BPHS
+        # citation) -- kept modest so it cannot outweigh the classical
+        # significators above.
+        # Ketu added alongside Rahu at an even smaller weight -- same
+        # non-BPHS-original, commonly-used-in-contemporary-practice caveat as
+        # Rahu above; Ketu is read here for research depth/analytical
+        # detachment (subtle/investigative sciences) rather than any BPHS
+        # naisargika karaka citation.
+        "planets": {"Mars": 0.30, "Sun": 0.20, "Saturn": 0.25, "Mercury": 0.25, "Rahu": 0.12, "Ketu": 0.08},
         # 2026-07-22 audit fix (gap 10): Science's house ontology was too
         # narrow (3/5/9 only), missing several houses a real technical/
         # engineering chart routinely shows strength through: H6 (technical
@@ -58,8 +75,15 @@ STREAM_META: Dict[str, Dict[str, Any]] = {
         # accidentally re-broadening the house list back toward "most houses
         # count for most streams," which is exactly what gap 9's fix was
         # trying to undo in the first place.
-        "houses": [3, 5, 6, 8, 9],
-        "house_weights": {3: 0.85, 5: 0.90, 6: 0.50, 8: 0.50, 9: 0.50},
+        # 2026-08-22 audit fix (gap 1/2): added H10 (career/profession -- a
+        # UNIVERSAL house per the same damping pattern already used above for
+        # H11/H10 elsewhere in this file, so weighted low/modest and lower
+        # than Commerce's own H10 weight since 10th is career, not stream,
+        # for a school-age chart) and H2 (BPHS Ch 12 vidya-sthana-adjacent:
+        # speech, early learning, family knowledge -- distinct from and
+        # additional to its existing wealth role under Commerce).
+        "houses": [2, 3, 5, 6, 8, 9, 10],
+        "house_weights": {2: 0.18, 3: 0.85, 5: 0.90, 6: 0.50, 8: 0.50, 9: 0.50, 10: 0.28},
         "description": (
             "Analytical/technical aptitude -- precision (Mercury), execution and "
             "rigor (Mars/Saturn), and native intelligence/vitality (Sun) applied "
@@ -131,8 +155,13 @@ STREAM_META: Dict[str, Dict[str, Any]] = {
         # (the weakest-linked addition); kept H6/H7 (law/disputes and
         # diplomacy/legal-contracts are more distinctively Humanities-
         # relevant than H3's generic communication/effort signification).
-        "houses": [4, 5, 6, 7, 9, 12],
-        "house_weights": {4: 0.55, 5: 0.80, 6: 0.40, 7: 0.40, 9: 1.00, 12: 0.40},
+        # 2026-08-22 audit fix (gap 1/2): added H10 (career/profession --
+        # UNIVERSAL house, same damping reasoning as Science's gap-1 fix
+        # above, weighted lower than Commerce's own H10) and H2 (BPHS Ch 12
+        # vidya-sthana-adjacent: speech, early learning, family knowledge --
+        # distinct from Commerce's wealth-only reading of H2).
+        "houses": [2, 4, 5, 6, 7, 9, 10, 12],
+        "house_weights": {2: 0.18, 4: 0.55, 5: 0.80, 6: 0.40, 7: 0.40, 9: 1.00, 10: 0.28, 12: 0.40},
         "description": (
             "People, society, language, governance and meaning-making "
             "aptitude -- empathy/intuition (Moon), wisdom and broad judgment "

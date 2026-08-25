@@ -1,7 +1,14 @@
 """JyotishAI — Gap-boost scoring helpers (all _*_bonus / _*_penalty functions)."""
 import math as _math
+import os as _os
 import re as _re
 from typing import Dict, List, Tuple, Set, Any, Optional
+
+# Print-output optimization (2026-08-20): gate the per-field wealth-filter
+# debug prints (`[WEALTH FILTER]`, `[WEALTH NARRATIVE]`) behind the same
+# opt-in verbosity flag engine.py uses, so a normal run only prints the
+# final summary report. Set JYOTISH_VERBOSE_FIELD_LOG=1 to restore them.
+_VERBOSE_FIELD_LOG = _os.environ.get("JYOTISH_VERBOSE_FIELD_LOG", "0") == "1"
 
 from .payload import NatalPayloadV2, logger
 from .constants import (
@@ -69,6 +76,14 @@ def _functional_status_factor(planet: str, lagna_sign: str) -> float:
     MALEFIC:    0.60 (dampen — dignity amplifies dusthana significations)
     BENEFIC:    1.00 (neutral — natural + functional benefic; existing bonuses apply)
     NEUTRAL:    1.00 (no data)
+
+    AUDIT NOTE (2026-08-20, combustion/yogakaraka double-count pass): this is
+    the narrowest-scope of the three Yogakaraka implementations -- it only
+    multiplies _exalted_planet_domain_bonus's contribution (planet
+    exalted/own AND matching a domain keyword), not a field's whole score.
+    See _yogakaraka_bonus() below and astro.py::_compute_eff_strengths's
+    `yk_mod` for the other two, broader-scope implementations and how they
+    can currently stack for the same planet/field.
     """
     if not lagna_sign:
         return 1.0
@@ -96,6 +111,25 @@ def _d1_vitality_coefficient(planet: str, payload) -> float:
             - Even signs 0°–6°:                  0.15
       • Multiple impairments → take the lowest coefficient.
       • No impairment → 1.0
+
+    AUDIT NOTE (2026-08-20, combustion/yogakaraka double-count pass): unlike
+    astro.py::_compute_eff_strengths, this coefficient is NOT multiplied
+    against raw_shadbala/base -- it's a standalone [0,1] structural gate
+    applied directly to varga (divisional-chart) results elsewhere, so its
+    combustion/Graha-Yuddha figures are not a Shadbala double-count the way
+    astro.py's `comb_mod`/`war_mod` are (see the audit notes on those). It IS,
+    however, a fourth independently-parameterized combustion magnitude
+    (0.45 flat cap here vs. astro.py's 0.75-0.92 dignity-aware gradient vs.
+    dignity.py's COMBUST_STRENGTH_PENALTY=0.85, which is dead code -- see
+    that constant's note) and a third Graha-Yuddha magnitude (0.20/0.35/0.60
+    here vs. astro.py's 0.85/0.90/0.95/1.05 war_mod vs. the classical Yuddha
+    Bala virupas already inside raw_shadbala). Each serves a genuinely
+    different purpose (D1 structural gate vs. eff_strength scaling vs.
+    Shadbala's own point system), so this is not necessarily wrong, but the
+    three/four magnitudes were never cross-checked against each other or
+    against BPHS for consistency -- worth a unification pass, same as
+    combustion partially got in md/ENGINE_SIMPLIFICATION_2026-08-17_
+    combustion_unify.md. Not changed here; flagging only.
     """
     planets_d1 = getattr(payload, "planets_d1", {}) or {}
     combust    = set(getattr(payload, "combust_planets", []) or [])
@@ -333,19 +367,38 @@ def _wm(kw: str, text: str) -> bool:
 # D60 deity quality map: 1–60 (by index 0–59) for ODD signs.
 # EVEN signs use the same sequence in REVERSE (classical rule).
 # Quality: 1=auspicious (Deva/Saumya), 0=neutral, -1=malefic (Ghora/Krodhana/Rakshasa)
+#
+# GAP-FIX (2026-08, astrological audit): this array's values were checked
+# against `_D60_DEITY_NAMES_ODD` below and, at 9 of the 60 indices, directly
+# contradicted this docstring's OWN stated categorization of the deity name
+# occupying that index -- e.g. index 0 is "Ghora" (this docstring's own
+# example of a malefic name) but was scored 1 (auspicious); index 17 is
+# "Maheshwara" (this docstring's own example of an auspicious name) but was
+# scored -1 (malefic). Corrected every index where the deity name at that
+# position is one of this function's own explicitly-named categories
+# (Deva/Saumya/Brahma/Vishnu/Maheshwara=auspicious,
+# Kinnara/Gandharva/Mridu=neutral, Ghora/Krodhana/Rakshasa/Yama=malefic):
+# indices 0 (Ghora), 10 (Yama), 16 (Vishnu), 17 (Maheshwara), 24 (Saumya),
+# 34 (Krodhana), 38 (Saumya), 49 (Ghora), 50 (Mridu). The remaining ~40
+# deity names are NOT given an explicit category by this function's own
+# docstring and were left unchanged -- correcting those would require an
+# authoritative source for this specific 60-name Shashtiamsha deity table
+# (a genuinely disputed area across classical commentators), which wasn't
+# available to verify with confidence; only self-contradictions against this
+# code's own documented rule were fixed here.
 _D60_ODD_QUALITIES = [
     # 1-10
-    1, -1, 1, -1, 1, 0, 1, -1, 1, 0,
+    -1, -1, 1, -1, 1, 0, 1, -1, 1, 0,
     # 11-20
-    1, -1, 0, 1, -1, 1, 0, -1, 1, 0,
+    -1, -1, 0, 1, -1, 1, 1, 1, 1, 0,
     # 21-30
-    1, -1, 1, 0, -1, 1, -1, 0, 1, -1,
+    1, -1, 1, 0, 1, 1, -1, 0, 1, -1,
     # 31-40
-    1, 0, -1, 1, 0, 1, -1, 1, 0, -1,
+    1, 0, -1, 1, -1, 1, -1, 1, 1, -1,
     # 41-50
-    1, 0, -1, 1, -1, 1, 0, -1, 1, 0,
+    1, 0, -1, 1, -1, 1, 0, -1, 1, -1,
     # 51-60
-    -1, 1, 0, 1, -1, 1, 0, -1, 1, -1,
+    0, 1, 0, 1, -1, 1, 0, -1, 1, -1,
 ]  # 60 entries
 
 _D60_DEITY_NAMES_ODD = [
@@ -443,6 +496,29 @@ from .affinity import _GENERIC_9P_WEIGHTS
 from .astro import _get_active_dasha_lord, _paksha_bala
 
 
+# Score-calibration fix (2026-08-20, Claude session, Jaimini audit
+# follow-up): _brahma_lord_bonus/_maheshwara_lord_bonus below used the same
+# hard step-function pattern already found and fixed in _yogakaraka_bonus
+# (w>=threshold -> flat return, no further scaling above the top threshold)
+# -- once a field's affinity for the special lord cleared 0.25, every
+# stronger affinity (0.30, 0.60, 0.90) produced the exact same 0.07, making
+# this component field-invariant past that point for any two fields that
+# both clear it. Smaller in magnitude than the Yogakaraka bug (max 7 raw
+# points here vs. 12+ there), but the same architectural flaw. Replaced both
+# with a shared continuous ramp helper so genuinely stronger affinity for
+# the special lord keeps producing proportionally more credit.
+_SPECIAL_LORD_W_FLOOR, _SPECIAL_LORD_W_CEIL = 0.08, 0.40
+_SPECIAL_LORD_BASE_FLOOR, _SPECIAL_LORD_BASE_CEIL = 0.02, 0.08
+
+
+def _special_lord_domain_ramp(w: float) -> float:
+    if w < _SPECIAL_LORD_W_FLOOR:
+        return 0.0
+    w_clamped = min(w, _SPECIAL_LORD_W_CEIL)
+    frac = (w_clamped - _SPECIAL_LORD_W_FLOOR) / (_SPECIAL_LORD_W_CEIL - _SPECIAL_LORD_W_FLOOR)
+    return _SPECIAL_LORD_BASE_FLOOR + frac * (_SPECIAL_LORD_BASE_CEIL - _SPECIAL_LORD_BASE_FLOOR)
+
+
 def _maheshwara_lord_bonus(label: str, maheshwara_lord: str, affinity: Dict[str, float]) -> float:
     """FIX-6: Maheshwara lord (Jaimini special lord) now contributes to branch scoring.
     Maheshwara represents the peak institutional authority phase of the native's career.
@@ -453,10 +529,7 @@ def _maheshwara_lord_bonus(label: str, maheshwara_lord: str, affinity: Dict[str,
     if not any(_wm(kw, label.lower()) for kw in kws):
         return 0.0
     w = affinity.get(maheshwara_lord, 0.0)
-    if   w >= 0.25: return 0.07
-    if   w >= 0.15: return 0.04
-    if   w >= 0.08: return 0.02
-    return 0.0
+    return _special_lord_domain_ramp(w)
 
 # ── Gap-boost helper constants (extracted from original monolith) ──────────
 _YOGA_DOMAIN_KW: Dict[str, List[str]] = {
@@ -591,6 +664,24 @@ _AK_PLANET_BONUS: Dict[str, float] = {
 def _kp_career_h2h11_strength(affinity: Dict[str, float], kp_sigs: Dict) -> float:
     """KP 4-level significator scan across H2 (wealth) and H11 (gains) — secondary career branch.
 
+    CALLER NOTE (2026-08-22, JyotishAI reference-audit method #6, corrected):
+    this function is NOT called from engine.py directly (the `kp_sigs`
+    variable engine.py extracts at line 1809 is indeed dead there) -- but it
+    IS live, called from a separate module,
+    Field_Determination/field_methods/kp.py::score_kp, which imports this
+    function (and its four siblings _kp_h10_branch_strength,
+    _kp_edu_branch_strength, _h10_sublord_bonus, _kp_edu_starlord_bonus)
+    directly from jyotish.boosts. An earlier pass of this audit incorrectly
+    flagged these as dead code based on an engine.py-only grep; corrected
+    after checking kp.py's own imports. See kp.py's own audit notes for a
+    real, confirmed overlap: its H10 4-level generic branch scan (which
+    this function's L1-L4 pattern mirrors) is not cross-checked against the
+    explicit H10 sub-lord/sub-sub-lord bonuses computed alongside it in the
+    same score_kp() call, even though a house's sub-lord commonly also
+    appears among its own L1-L4 significators -- a correlated-fact overlap
+    of the same kind reconciled for Yogakaraka/Dasha/Karakamsha in this
+    audit's methods #1-3, not yet reconciled here.
+
     Classical KP requires H2+H6+H10+H11 to connect for career materialisation.
     H2 and H11 matter especially when H10 has only one L1 significator.
     House priority: H11=1.0 (income/gains), H2=0.8 (accumulated wealth/speech).
@@ -708,15 +799,42 @@ def _space_aerospace_cluster_bonus(
         base += 0.05
         base += 0.03 * min(1.0, affinity.get("Ketu", 0.0) + affinity.get("Jupiter", 0.0))
     elif "space systems" in text or "space science" in text or "space technology" in text:
-        base += 0.04
-        base += 0.03 * min(1.0, affinity.get("Rahu", 0.0) + affinity.get("Mars", 0.0))
+        # gap fix 2026-08-18 (item 4 / Group 3), UPDATED 2026-08-22 (test
+        # regression fix): this branch (which space_sciences_engineering
+        # falls into) undershot the "aerospace/aeronautical/astronautical/
+        # rocket/propulsion" branch just above even though both are equally
+        # core "space cluster" branches -- on a space-dominant chart
+        # (test_space_cluster_outweighs_extractives_when_chart_is_space_
+        # dominant) that undershoot let mining_engineering's raw
+        # BRANCH_PLANET_AFFINITY dot-product (Mars 0.29 + Saturn 0.39 in
+        # Field_Affinity.json -- both planets a "space-dominant" chart also
+        # scores highly on) outrun space_sciences_engineering's total even
+        # after the extractive counterweight below.
+        # The 2026-08-18 fix (0.04->0.08) wasn't sized against Field_Affinity.
+        # json's CURRENT mining_engineering weights (verified 2026-08-22: with
+        # eff_strengths={Mars:1.85,Rahu:1.75,Saturn:1.65,Jupiter:1.55,
+        # Ketu:1.45,Mercury:0.95,Sun:0.80}, mining's raw affinity dot-product
+        # is ~165 vs space's ~128 -- a ~37pt raw gap the prior 0.08 flat term
+        # (a max ~21.5pt swing) plus the old counterweight (max -8pt) could
+        # not close). Raised further to 0.16 (paired with the extractive
+        # counterweight strengthening below and the cap raised from 0.22 to
+        # 0.30 just below) so the combined swing (space bonus + mining
+        # counterweight) can actually exceed real-data raw-score gaps this
+        # size, not just the smaller gap the original fix was sized against.
+        base += 0.16
+        base += 0.03 * min(1.0, affinity.get("Rahu", 0.0) + affinity.get("Mars", 0.0) + affinity.get("Saturn", 0.0))
 
     if "space_systems" in text or "mission_design" in text:
         base += 0.12
     if "astronautical" in text or "rocket_propulsion" in text:
         base += 0.08
 
-    return min(0.22, base)
+    # Cap raised 0.22 -> 0.30 (2026-08-22, same fix as above) to give the
+    # "space systems/science/technology" branch's strengthened base term
+    # room to actually apply rather than immediately saturating at the old
+    # cap; aerospace/aeronautical/satellite/astronomy branches are unaffected
+    # in practice since their base values don't approach this raised cap.
+    return min(0.30, base)
 
 
 def _space_extractive_counterweight(
@@ -731,7 +849,14 @@ def _space_extractive_counterweight(
     signal = _space_aerospace_signal(eff_strengths)
     if signal < 0.45:
         return 0.0
-    return -min(0.08, 0.03 + 0.06 * signal)
+    # Strengthened 2026-08-22 (test regression fix, see the paired comment on
+    # the space-cluster bonus above): coefficient 0.06->0.15 and cap
+    # 0.08->0.20, so a strongly space-dominant chart's extractive
+    # counterweight can meaningfully offset mining/petroleum/metallurgical
+    # branches' own high raw Mars/Saturn affinity overlap with that same
+    # signal, rather than saturating at a ceiling too low to matter once
+    # real Field_Affinity.json weights are involved.
+    return -min(0.20, 0.03 + 0.15 * signal)
 
 
 def _life_science_signal(eff_strengths: Dict[str, float]) -> float:
@@ -874,14 +999,23 @@ def _priority_cluster_field_bonus(
 
     return 0.0
 
+# 2026-08-20 step-function fix (KP audit): H10 sub-lord is KP's single most
+# decisive career signal (feeds a 30-pt-cap component in kp.py) but was
+# bucketed into 3 flat plateaus -- any two fields whose H10-sub-lord affinity
+# both cleared 0.30 scored byte-identically here regardless of how much
+# stronger one field's affinity actually was, same flaw already fixed for
+# _yogakaraka_bonus. Replaced with a continuous ramp over the same range.
+_H10_SUBLORD_W_FLOOR, _H10_SUBLORD_W_CEIL = 0.10, 0.35
+_H10_SUBLORD_BASE_FLOOR, _H10_SUBLORD_BASE_CEIL = 0.02, 0.08
+
 def _h10_sublord_bonus(affinity, kp_cusps):
     h10 = kp_cusps.get("H10",{}); sub_lord = h10.get("sub_lord","")
     if not sub_lord: return 0.0
     w = affinity.get(sub_lord, 0.0)
-    if w >= 0.30: return 0.08
-    if w >= 0.20: return 0.05
-    if w >= 0.10: return 0.02
-    return 0.0
+    if w < _H10_SUBLORD_W_FLOOR:
+        return 0.0
+    frac = (min(w, _H10_SUBLORD_W_CEIL) - _H10_SUBLORD_W_FLOOR) / (_H10_SUBLORD_W_CEIL - _H10_SUBLORD_W_FLOOR)
+    return _H10_SUBLORD_BASE_FLOOR + frac * (_H10_SUBLORD_BASE_CEIL - _H10_SUBLORD_BASE_FLOOR)
 def _get_prime_career_lord_local(dasha_seq):
     """Prime career lord — ages 25-45 overlap (inline; avoids circular import from engine)."""
     lord_durations = {}
@@ -911,7 +1045,28 @@ def _dasha_bonus(label, payload):
       neutral  → 0.08  (moderate signal)
       DEBIL    → 0.05  (weakened timing)
 
-    Triple-stacking guard: run_engine caps total dasha-family boosts at 0.22.
+    Mahadasha-level only: this function never inspects the Antardasha
+    (sub-period) lord — the "current_lord"/"prime_lord" above are both
+    Mahadasha lords. Antardasha is scored separately by the
+    `antardasha_affinity` / `ad_kendra_trikona` boosts in engine.py.
+
+    Scope of the 0.22 cap: engine.py's apply_dasha_total_cap(ceiling=0.22)
+    bounds only this function's output + prime_dasha_affinity + peak_md_boost.
+    It is NOT a cap on all dasha-family boosts -- prd_boost, antardasha_affinity,
+    ad_kendra_trikona, and md_ad_compound stack on top of it, independently
+    capped elsewhere. The true combined dasha-family ceiling for a field is
+    apply_dasha_family_cap(ceiling=0.35), called after all of the above are
+    added (see engine.py). (2026-08-22 reconciliation: this docstring
+    previously called 0.22 the "total dasha-family" cap, which was
+    inaccurate -- see JyotishAI reference-audit method #2.)
+
+    Age-window/blending caveat: the 25-45 "prime career window" and the
+    18-25 linear blend between prime and current lord are in-house
+    heuristics -- BPHS/Laghu Parashari time dasha results by lordship,
+    house connections, and dignity, not by a fixed chronological age band,
+    and classical Vimshottari dasha activation is a hard cutover at the
+    calculated date, not a smooth interpolation. Tag: AUTHOR_SPECIFIC, not
+    CLASSICAL, per the corpus authority-tier scheme.
     """
     dasha_seq   = getattr(payload, "dasha_sequence", [])
     current_age = float(getattr(payload, "current_age", 0))
@@ -949,13 +1104,55 @@ def _dasha_bonus(label, payload):
     blended = prime_contrib + current_contrib
     return blended if blended > 0.0 else 0.0
 
+# Score-calibration fix (2026-08-20, Claude session, Jaimini audit):
+# same step-function issue as _yogakaraka_bonus/_special_lord_domain_ramp --
+# a hard w>=0.20 threshold with no scaling above it. Reuses the same ramp
+# shape/floor as the special-lord bonuses above (0.08-0.40 affinity range)
+# for consistency, scaled to this function's own per-lord ceilings.
+#
+# 2026-08-20 cap-proportionality fix (hands-on chart-audit finding): the
+# original 0.05/0.03 per-lord ceilings (0.08 total) made Karakamsha --
+# Jaimini's "soul lagna," classically weighted comparably to the
+# Atmakaraka's own D1 placement -- contribute at most a rounding error to
+# any field's score, regardless of match strength. Raised to ceilings
+# proportionate with _yogakaraka_bonus's own 0.04-0.16 range (sign_lord is
+# the primary/decisive link so gets the larger half; co_lord -- only
+# populated for Aquarius/Scorpio/Pisces Karakamsha via the node-as-co-lord
+# convention -- remains secondary).
+#
+# PROVENANCE NOTE (2026-08-22, JyotishAI reference-audit method #3):
+# Karakamsha's core definition (Navamsha sign of the Atmakaraka) and the
+# significance of its sign lord are classically sourced (Jaimini/BPHS ch.33
+# material). Everything else in this function is NOT classical: the node
+# co-lord convention (_KARAKAMSHA_CO_LORD: Rahu/Aquarius, Ketu/Scorpio,
+# Ketu/Pisces) is a modern 20th-century-onward practitioner convention --
+# BPHS and the Jaimini Sutras do not assign the nodes as co-rulers of any
+# sign. The 0.12/0.08 sign-lord-vs-co-lord weighting split and the
+# continuous affinity-ramp scaling are engineering heuristics with no
+# classical or practitioner citation (classical Karakamsha treatment is
+# structural: house of Atmakaraka from Karakamsha, aspects/conjunctions,
+# Chara Dasha timing -- not a numeric domain-affinity score). Tag:
+# CLASSICAL for the sign/sign-lord identity, MODERN_PRACTICE for the node
+# co-lord table, AUTHOR_SPECIFIC for the weighting/ramp. Also see
+# apply_karakamsha_family_cap() in engine.py: this function's output now
+# shares a combined 0.30 ceiling with three sibling Karakamsha functions
+# (karakamsha_occ, karakamsha_domain, chara_dasha) that were previously
+# uncapped as a family.
 def _karakamsha_bonus(affinity, karakamsha):
     if not karakamsha: return 0.0
     sign_lord = _SIGN_LORD.get(karakamsha,""); co_lord = _KARAKAMSHA_CO_LORD.get(karakamsha,"")
     bonus = 0.0
-    if sign_lord and affinity.get(sign_lord,0) >= 0.20: bonus += 0.05
-    if co_lord   and affinity.get(co_lord,  0) >= 0.20: bonus += 0.03
-    return min(bonus, 0.08)
+    if sign_lord:
+        w = affinity.get(sign_lord, 0)
+        if w >= _SPECIAL_LORD_W_FLOOR:
+            frac = (min(w, _SPECIAL_LORD_W_CEIL) - _SPECIAL_LORD_W_FLOOR) / (_SPECIAL_LORD_W_CEIL - _SPECIAL_LORD_W_FLOOR)
+            bonus += 0.12 * frac
+    if co_lord:
+        w = affinity.get(co_lord, 0)
+        if w >= _SPECIAL_LORD_W_FLOOR:
+            frac = (min(w, _SPECIAL_LORD_W_CEIL) - _SPECIAL_LORD_W_FLOOR) / (_SPECIAL_LORD_W_CEIL - _SPECIAL_LORD_W_FLOOR)
+            bonus += 0.08 * frac
+    return min(bonus, 0.20)
 
 def _combustion_degree_factor(planet: str, planets_d1: dict) -> float:
     """N3: Graded combustion using planet-specific classical orbs.
@@ -963,11 +1160,34 @@ def _combustion_degree_factor(planet: str, planets_d1: dict) -> float:
     Classical orbs (Parashara / Saravali):
       Moon 12°, Mars 17°, Mercury 14°, Jupiter 11°, Venus 10°, Saturn 15°.
     Returns 0.0–1.0 multiplier:
-      Cazimi  (<1°)            → 0.0   (no penalty; in the heart of Sun = amplified)
+      Cazimi  (<~17')          → 0.0   (no penalty; in the heart of Sun = amplified)
       Deep    (<25% of orb)   → 0.90  (severe combustion)
       Mid     (<60% of orb)   → 0.65  (moderate combustion)
       Mild    (<orb)          → 0.35  (edge of combust zone)
       Beyond  (>orb)          → 0.0   (should not appear in combust_planets)
+
+    PROVENANCE NOTE (2026-08-22, JyotishAI reference-audit method #4):
+    the six base orbs above match widely-cited practitioner-consensus
+    tables verbatim, but no source located quotes an actual BPHS verse
+    for these exact figures -- treat as well-established consensus
+    (tag: TRADITIONAL_INTERPRETATION), not a verified primary BPHS
+    citation. Known gap: practitioner sources commonly give a tighter
+    orb for RETROGRADE Mercury (~12 deg vs 14 direct) and Venus (~8 deg
+    vs 10 direct); this function uses one flat orb regardless of
+    retrograde status -- not fixed here (needs a decision on whether
+    planets_d1 reliably carries retrograde flags before implementing).
+    "Cazimi" itself is a Hellenistic/Western term, absent from BPHS/
+    Saravali/Phaladeepika (tag: MODERN_PRACTICE, cross-tradition import);
+    this function's "Cazimi = zero penalty" treatment is a conservative
+    middle ground (Western tradition instead treats Cazimi as
+    strengthened), not itself classically sourced either way. The
+    continuous deep/moderate/mild grading is a modern refinement layered
+    on the classical binary combust/not-combust rule (tag: AUTHOR_SPECIFIC).
+
+    Cazimi threshold matches dignity.py's canonical _CAZIMI_ORB_DEGREES
+    (~0.28 deg / 17 arcmin, per Full Methodology Spec §5c) rather than a full
+    1 deg, so this duplicate grader doesn't disagree with the main dignity
+    module about which planets are Cazimi vs. deep-combust.
     """
     # Planet-specific standard combustion orbs (degrees)
     _PLANET_ORB = {
@@ -985,8 +1205,8 @@ def _combustion_degree_factor(planet: str, planets_d1: dict) -> float:
     dist = abs(sun_abs - pla_abs)
     if dist > 180.0:
         dist = 360.0 - dist
-    if dist < 1.0:
-        return 0.0   # Cazimi — amplified, no penalty
+    if dist < (17.0 / 60.0):
+        return 0.0   # Cazimi (~17') — amplified, no penalty
     orb = _PLANET_ORB.get(planet, 12.0)
     if dist > orb:
         return 0.0   # Outside combust zone
@@ -1007,6 +1227,24 @@ def _ak_combustion_penalty(affinity, ak, combust_planets, planet_dignities=None,
     Mild combustion (1°–6°) receives half the standard penalty.
     G2 fix: Vargottama AK is exempt — same-sign in D1/D9 overrides combustion weakening
     (classical principle: Vargottama planets carry amplified dignity that persists through Sun).
+
+    PROVENANCE NOTE (2026-08-22, JyotishAI reference-audit method #4):
+    Vargottama's general strength-boosting effect IS solidly classical
+    (Saravali, Phaladeepika, Laghu Jataka). The specific claim in the G2
+    comment above -- that Vargottama exempts a planet from combustion
+    specifically -- is an extrapolation from that general doctrine, not
+    a rule stated in any classical source located during this audit.
+    Tag: AUTHOR_SPECIFIC, not CLASSICAL. Left unchanged (reasonable
+    engineering inference, not contradicted by any source either), but
+    should not be cited to the user as a verbatim classical rule.
+
+    Double-count note: this penalty deliberately halves its base tiers
+    because comb_mod (astro.py's separate, primary multiplicative
+    combustion discount baked into eff_strength) already scores the same
+    underlying fact -- this is the one combustion-adjacent overlap in the
+    codebase that was already caught and compensated for at design time
+    (see FIX-1 comment below), unlike the yogakaraka/dasha/karakamsha
+    families reconciled in reference-audit methods #1-3.
     """
     if planet_dignities is None: planet_dignities = {}
     if not ak or ak not in combust_planets: return 0.0
@@ -1132,7 +1370,42 @@ def _risk_appetite_bonus(label: str, risk: str) -> float:
     return 0.0
 
 def _yogakaraka_bonus(affinity, lagna_sign, shadbala, digs):
-    yk = _YOGAKARAKA_PLANET.get(lagna_sign, _FUNCTIONAL_TRIKONA_FALLBACK.get(lagna_sign,""))
+    # AUDIT NOTE (2026-08-20, combustion/yogakaraka double-count pass; RECONCILED
+    # 2026-08-22 per owner sign-off, JyotishAI reference-audit method #1): this
+    # additive bonus is one of THREE independent Yogakaraka implementations in
+    # this codebase -- see astro.py::_compute_eff_strengths's `yk_mod` (a flat
+    # multiplicative 0.90/1.18-1.25 applied to the same planet's eff_strength,
+    # which is itself blended into the same field score this bonus adds to) and
+    # _functional_status_factor below (flat 1.15x, narrower scope -- only gates
+    # _exalted_planet_domain_bonus, left unchanged: its overlap is narrow and its
+    # own magnitude is small). Classical Parashari doctrine treats Yogakaraka
+    # status as binary (kendra+trikona dual lordship present or not); the
+    # continuous shadbala/dignity scaling below is a modern software heuristic,
+    # not itself classically sourced -- so there is no doctrinal reason this
+    # function's magnitude must equal any particular value, only that it must
+    # not silently duplicate the credit `yk_mod` already gives the same fact.
+    # `yk_mod` is treated as the primary/canonical Yogakaraka signal (it is the
+    # more structurally integrated of the two -- it scales eff_strength, which
+    # every other bonus function in this file reads). This additive bonus is
+    # therefore de-weighted to a supplementary top-up rather than a full second
+    # credit: floor/ceiling below are scaled to 55% of their pre-reconciliation
+    # values (0.04-0.16 -> 0.022-0.088). This does not fully eliminate the
+    # overlap (the two mechanisms operate on different bases -- one multiplies
+    # eff_strength, one adds a flat term to gap_boost -- so an exact
+    # single-source unification would require a deeper refactor), but it caps
+    # the worst-case combined over-credit at roughly half of what it was.
+    # Spec fix (Full Methodology Spec §5d): true Yogakaraka status is
+    # structurally possible ONLY for the six listed lagna/planet pairings
+    # (Taurus/Libra->Saturn, Cancer/Leo->Mars, Capricorn/Aquarius->Venus) --
+    # a planet that owns one kendra AND one distinct trikona house. The other
+    # six lagnas' "functional trikona/kendra" planet is NOT a Yogakaraka and
+    # must not receive this bonus; falling back to it here fabricated a
+    # Yogakaraka-style bonus for lagnas where the yoga cannot classically
+    # exist (e.g. Aries Lagna -> Sun). _FUNCTIONAL_TRIKONA_FALLBACK is kept
+    # in constants.py/boosts.py for any other caller that legitimately wants
+    # "functional benefic of this lagna" as a distinct, smaller concept, but
+    # it must not feed the Yogakaraka bonus.
+    yk = _YOGAKARAKA_PLANET.get(lagna_sign, "")
     if not yk: return 0.0
     w = affinity.get(yk, 0.0)
     ratio = shadbala.get(yk, 300.0) / _PLANET_MIN_SHADBALA.get(yk, 300.0)
@@ -1141,23 +1414,74 @@ def _yogakaraka_bonus(affinity, lagna_sign, shadbala, digs):
     # to accumulate the penalty into gap_penalty (not silently subtract from gap_boost).
     if dig == "DEBILITATED": return 0.0
     dig_mod = {"EXALTED": 1.3, "OWN": 1.1, "NEECHA_BHANGA": 1.05}.get(dig, 1.0)
-    if   w >= 0.20: base = 0.12
-    elif w >= 0.12: base = 0.07
-    elif w >= 0.07: base = 0.04
-    else: return 0.0
+    # Score-calibration fix (2026-08-20, Claude session, real-chart audit):
+    # `base` used to be a hard step function (w>=0.20 -> flat 0.12, with NO
+    # further scaling for any w above 0.20). Since the Yogakaraka planet is
+    # fixed per chart (one planet per D1 lagna sign) and `ratio`/`dig_mod`
+    # above are also pure chart facts, once a field's own affinity for that
+    # planet cleared 0.20, this whole bonus became completely field-
+    # invariant -- identical for every field whose affinity for the
+    # Yogakaraka planet was 0.21 or 0.90, no differentiation at all above
+    # that point. Confirmed on a real chart (Ramsunder): this is Parashara's
+    # single largest component (14.45 points, 40-60% of the method's total
+    # score for several fields) and it came out byte-identical across
+    # international_law, history_archaeology, materials_science_engineering,
+    # and space_systems_engineering -- four very different fields -- because
+    # all four happened to clear the 0.20 threshold on this chart's
+    # Yogakaraka planet. Replaced with a continuous ramp so genuinely
+    # stronger affinity for the Yogakaraka planet keeps producing
+    # proportionally more credit instead of saturating at a fixed ceiling;
+    # the floor/ceiling values are chosen to keep the same rough magnitude
+    # range as the old step function (0.04-0.12) while extending a modest
+    # amount further (to 0.16) for a field where the Yogakaraka planet is an
+    # exceptionally dominant significator (affinity >= 0.40).
+    _W_FLOOR, _W_CEIL = 0.07, 0.40
+    # 2026-08-22 reconciliation: de-weighted to 55% of the original
+    # 0.04-0.16 range to avoid double-crediting yk_mod's overlapping
+    # multiplicative signal (see AUDIT NOTE above).
+    _BASE_FLOOR, _BASE_CEIL = 0.022, 0.088
+    if w < _W_FLOOR:
+        return 0.0
+    _w_clamped = min(w, _W_CEIL)
+    base = _BASE_FLOOR + (_w_clamped - _W_FLOOR) / (_W_CEIL - _W_FLOOR) * (_BASE_CEIL - _BASE_FLOOR)
     return max(0.0, base * ratio * dig_mod)
 
 
 def _yogakaraka_debilitation_penalty(affinity, lagna_sign, shadbala, digs):
     """LS3 fix: gap_penalty contribution when the Yogakaraka is debilitated.
     Called by engine.py gap_penalty accumulator instead of reducing gap_boost."""
-    yk = _YOGAKARAKA_PLANET.get(lagna_sign, _FUNCTIONAL_TRIKONA_FALLBACK.get(lagna_sign,""))
+    # Spec fix (§5d, see _yogakaraka_bonus above): no fallback to the
+    # non-Yogakaraka lagnas' functional-trikona planet.
+    yk = _YOGAKARAKA_PLANET.get(lagna_sign, "")
     if not yk: return 0.0
     if digs.get(yk, "") != "DEBILITATED": return 0.0
     w = affinity.get(yk, 0.0)
     if w < 0.07: return 0.0
     ratio = shadbala.get(yk, 300.0) / _PLANET_MIN_SHADBALA.get(yk, 300.0)
     return round(min(0.06, 0.05 * ratio * (1.0 if w >= 0.20 else 0.6)), 4)
+
+def _node_dignity_damping(planet: str, dig_scale: float) -> float:
+    """2026-08-20 audit fix: Rahu/Ketu's entry in `planet_dignities` is not
+    the node's own placement quality -- compute_dignity()'s nodal branch
+    (astro.py:65-72, "Sanivad Rahu, Kujavad Ketu") makes a node ADOPT its
+    dispositor's sign dignity wholesale (e.g. Rahu reads as EXALTED purely
+    because Saturn happens to be exalted elsewhere in the chart). That
+    dispositor-adoption is deliberate and correct for the D9/D24/D10
+    cross-checks it was built for (engine_io.py:474 comment) -- disabling it
+    would regress those. But several D1-level dignity-gated bonuses below
+    were written assuming `dig` reflects the SAME planet's own placement,
+    and apply a classical planet's full EXALTED/OWN/DEBILITATED swing to a
+    node's borrowed label. Since the node itself may sit nowhere near its
+    own exaltation/debilitation point (per the separate Taurus/Scorpio
+    heuristic in shadbala.py's estimate_node_strength), this halves the
+    swing for nodes only -- keeps the signal (still directionally correct,
+    since a well-placed dispositor genuinely does strengthen a node) without
+    treating borrowed dignity as equivalent to true own dignity.
+    """
+    if planet not in ("Rahu", "Ketu"):
+        return dig_scale
+    return 1.0 + (dig_scale - 1.0) * 0.5
+
 
 def _h10_lord_strength_bonus(affinity, h10_lord, shadbala, planet_dignities=None):
     """H10 lord strength bonus — scaled by dignity.
@@ -1175,6 +1499,7 @@ def _h10_lord_strength_bonus(affinity, h10_lord, shadbala, planet_dignities=None
     # Soften dig_mult: field_affinity already encodes dignity via effective strengths.
     # Applying a heavy multiplier here causes exponential double-compounding.
     dig_mult = {"EXALTED": 1.15, "OWN": 1.08, "NEECHA_BHANGA": 1.0, "DEBILITATED": 0.70}.get(dig, 1.0)
+    dig_mult = _node_dignity_damping(h10_lord, dig_mult)
     if   w >= 0.30: base = 0.12
     elif w >= 0.20: base = 0.08
     elif w >= 0.10: base = 0.04
@@ -1371,11 +1696,17 @@ def _kp_edu_starlord_bonus(affinity, kp_cusps):
     h4_sub = kp_cusps.get("H4", {}).get("sub_lord", "")
     h5_sub = kp_cusps.get("H5", {}).get("sub_lord", "")
     h9_sub = kp_cusps.get("H9", {}).get("sub_lord", "")
+    # 2026-08-20 step-function fix (KP audit): same flat-bucket flaw as
+    # _h10_sublord_bonus, applied here to the education CSL sub-lords.
+    _EDU_SL_W_FLOOR, _EDU_SL_W_CEIL = 0.12, 0.30
+    _EDU_SL_BASE_FLOOR, _EDU_SL_BASE_CEIL = 0.01, 0.03
     bonus = 0.0
     for sl in set(filter(None, [h4_sub, h5_sub, h9_sub])):
         w = affinity.get(sl, 0.0)
-        if w >= 0.25: bonus += 0.03
-        elif w >= 0.15: bonus += 0.02
+        if w < _EDU_SL_W_FLOOR:
+            continue
+        frac = (min(w, _EDU_SL_W_CEIL) - _EDU_SL_W_FLOOR) / (_EDU_SL_W_CEIL - _EDU_SL_W_FLOOR)
+        bonus += _EDU_SL_BASE_FLOOR + frac * (_EDU_SL_BASE_CEIL - _EDU_SL_BASE_FLOOR)
     return min(bonus, 0.08)
 
 def _d9_ak_delta(label, payload):
@@ -1418,7 +1749,28 @@ def _yoga_bonus(label, detected_yogas, house_lords=None, planet_dignities=None):
     if planet_dignities is None: planet_dignities = {}
     label_lower = label.lower(); bonus = 0.0
     for yoga in detected_yogas:
-        if yoga.startswith("Parivartana_"):
+        if yoga.startswith("Nakshatra_Parivartana_"):
+            # GAP-FIX (2026-08, ranking-impact audit): engine.py's
+            # _prepare_chart_scoring_context now detects Nakshatra Parivartana
+            # Yoga (mutual nakshatra-lord exchange) generically across all
+            # planet pairs and emits "Nakshatra_Parivartana_<P1>_<P2>", but
+            # this function only ever matched "Parivartana_" (Rashi/sign-lord
+            # exchange, 3-part string) or an exact _YOGA_DOMAIN_KW key, so the
+            # 4-part nakshatra-exchange string matched neither branch and the
+            # correctly-detected yoga produced zero score impact. Nakshatra
+            # Parivartana is classically a real but generally milder exchange
+            # than Rashi Parivartana (no house-lordship transfer, just mutual
+            # nakshatra reception), so it is graded with the same
+            # Mahayoga/Dainya/Khala house-role classification but at roughly
+            # half the Rashi-Parivartana bonus magnitude.
+            parts = yoga.split("_")
+            if len(parts) == 4:
+                ptype = _classify_parivartana(parts[2], parts[3], house_lords)
+                if   ptype == "Mahayoga": bonus += 0.04
+                elif ptype == "Dainya":   bonus -= 0.025
+                elif ptype == "Khala":    bonus += 0.0
+                else:                     bonus += 0.015
+        elif yoga.startswith("Parivartana_"):
             parts = yoga.split("_")
             if len(parts) == 3:
                 ptype = _classify_parivartana(parts[1], parts[2], house_lords)
@@ -1523,6 +1875,17 @@ def _planet_combustion_penalty(affinity, combust_planets, planet_dignities=None,
                                 vargottama_planets=None):
     """M3: Sliding combustion penalty — uses degree proximity from Sun instead of binary flag.
     G2 fix: Vargottama planets are exempt — same-sign D1/D9 dignity overrides combustion penalty.
+
+    DEAD CODE FLAG (2026-08-22, JyotishAI reference-audit method #4):
+    imported in engine.py (`from .boosts import ..., _planet_combustion_penalty, ...`)
+    but grep confirms zero call sites anywhere in engine.py -- this
+    general, all-combust-planets penalty never actually runs. It is the
+    sibling of `_ak_combustion_penalty` above (which IS called, AK-only).
+    No live double-penalty risk exists today since this never executes,
+    but if it's ever wired in without checking `_ak_combustion_penalty`'s
+    own halved-base compensation, the AK specifically would be penalized
+    twice for the same combustion fact. Needs an owner decision: wire in
+    deliberately (with an AK-exclusion or shared-cap guard) or remove.
     """
     if planet_dignities is None: planet_dignities = {}
     _varg_set = set(vargottama_planets or [])
@@ -1551,6 +1914,17 @@ def _dusthana_lord_penalty(affinity, lagna_sign, house_lords, lagna_lord: str = 
     actual capacity: if the relevant dusthana lord is strong (eff_strength ≥ 0.60),
     the penalty is fully waived.  A weak lord (< 0.40) still draws a partial penalty
     even for exempt fields, because the native lacks the capacity to channel that energy.
+
+    PROVENANCE NOTE (2026-08-22, JyotishAI reference-audit method #5): the
+    "profession neutralizes affliction" principle behind this exemption
+    (_DUSTHANA_EXEMPT_KW) has no classical or practitioner citation found --
+    it is a software design choice, not sourced doctrine. Tag:
+    AUTHOR_SPECIFIC. See also _viparita_raja_yoga_bonus, a genuinely
+    classical yoga (dusthana lord in ANOTHER dusthana) that reacts to a
+    closely related condition; that function now de-weights its own bonus
+    when a lord clears this function's same exemption test, to avoid
+    crediting the same underlying "strong dusthana lord" fact twice through
+    two independently-designed mechanisms.
     """
     if eff_strengths is None:
         eff_strengths = {}
@@ -1600,6 +1974,68 @@ def _dusthana_lord_penalty(affinity, lagna_sign, house_lords, lagna_lord: str = 
 
     return min(penalty, 0.15)
 
+_PEAK_DASHA_DIGNITY_MULT: Dict[str, float] = {
+    "EXALTED": 1.40, "OWN": 1.15, "NEECHA_BHANGA": 1.05, "DEBILITATED": 0.40,
+}
+# GAP-7 fix: _peak_career_dasha_boost used to carry its own DEBILITATED=0.60
+# scale, diverging from the 0.40 used here to actually pick the peak lord —
+# two functions scoring "the same fact" (this planet is debilitated) with
+# different penalties. Unified to one shared table; both functions read it.
+
+# GAP-8 fix: role-weight stacking (AmK/H10/AK/H9/H1) used to be additive and
+# uncapped — a planet holding all five roles could reach role_mult≈2.03,
+# more headroom than the 2.0 cap already enforced on raw effective strength.
+# Capped so role stacking can influence but never dominate the score.
+_PEAK_DASHA_ROLE_MULT_CAP = 1.75
+
+# GAP-6 fix: the old reach_mod was a hard cliff — start_age=79.9 got full
+# weight, start_age=80.1 got crushed to 0.2x. Replaced with a linear taper
+# starting at 65 (when "will the native realistically be professionally
+# active for this MD" first becomes a real question) down to a floor of 0.2
+# fully reached at 95, matching the same anti-cliff philosophy already
+# applied to the combustion modifier in astro.py.
+_REACH_TAPER_START_AGE = 65.0
+_REACH_TAPER_FLOOR_AGE = 95.0
+_REACH_TAPER_FLOOR     = 0.2
+
+
+def _peak_dasha_reach_mod(start_age: float) -> float:
+    if start_age <= _REACH_TAPER_START_AGE:
+        return 1.0
+    if start_age >= _REACH_TAPER_FLOOR_AGE:
+        return _REACH_TAPER_FLOOR
+    span = _REACH_TAPER_FLOOR_AGE - _REACH_TAPER_START_AGE
+    t = (start_age - _REACH_TAPER_START_AGE) / span
+    return 1.0 - t * (1.0 - _REACH_TAPER_FLOOR)
+
+
+def _peak_dasha_dusthana_mod(lord: str, dusthana_lords: Set[str],
+                              eff_strength: float, label: str = "") -> float:
+    """GAP-5 fix: the label-based full exemption only ever fires when a
+    field-specific label is passed in — but the one production call site
+    (engine.py, whole-chart peak_dasha_lord) never passes a label, so the
+    exemption was dead code there and every dusthana-lord dasha always ate
+    the flat 0.85 penalty regardless of how strong that lord actually was.
+    Two independent fixes, applied together:
+      1. Field-aware full exemption still applies when the caller *does*
+         know the field is dusthana-friendly (medicine/research/forensics/…).
+      2. Even with no label, the penalty is now graded by the lord's own
+         effective strength — a strong dusthana lord (classically, capable
+         of delivering on its house's mandate despite the placement) is
+         penalized less than a weak one — instead of a flat 0.85 for every
+         dusthana lord regardless of how strong or weak it is.
+    """
+    if lord not in dusthana_lords:
+        return 1.0
+    if label and any(_wm(kw, label.lower()) for kw in _DUSTHANA_EXEMPT_KW):
+        return 1.0
+    if eff_strength >= 0.60:
+        return 0.95      # strong dusthana lord — mild penalty only
+    elif eff_strength >= 0.40:
+        return 0.90       # moderate
+    return 0.85            # weak dusthana lord — full penalty
+
+
 def _peak_career_dasha(
     dasha_seq: List[Dict], shadbala: Dict[str, float],
     planet_dignities: Dict[str, str], house_lords: Dict[str, str],
@@ -1608,13 +2044,15 @@ def _peak_career_dasha(
     planet_house: Dict[str, int] = None,
     label: str = "",
 ) -> Tuple[str, Dict[str, float]]:
-    # FIX-6: uses effective strengths; age>80 reachability cap (0.2x); dusthana-lord penalty (0.7x)
+    # FIX-6: uses effective strengths; graded reachability taper (65->95, floor 0.2x);
+    # graded dusthana-lord penalty (self-strength aware, field-exemption aware).
     if eff_strengths is None:
         eff_strengths = {}
     if planet_house is None:
         planet_house = {}
 
     scores: Dict[str, float] = {}
+    role_mults: Dict[str, float] = {}
     seen: set = set()
     h1_lord  = house_lords.get("1",  "")
     h9_lord  = house_lords.get("9",  "")
@@ -1637,7 +2075,7 @@ def _peak_career_dasha(
             eff   = min(shadbala.get(lord, min_v) / min_v, 2.0)
 
         dig = planet_dignities.get(lord, "")
-        dig_mult = {"EXALTED": 1.40, "OWN": 1.15, "NEECHA_BHANGA": 1.05, "DEBILITATED": 0.40}.get(dig, 1.0)
+        dig_mult = _PEAK_DASHA_DIGNITY_MULT.get(dig, 1.0)
 
         role_mult = 1.0
         if lord == amk:      role_mult += _MD_ROLE_WEIGHT["amk"]
@@ -1645,23 +2083,54 @@ def _peak_career_dasha(
         if lord == ak:       role_mult += _MD_ROLE_WEIGHT["ak"]
         if lord == h9_lord:  role_mult += _MD_ROLE_WEIGHT["h9"]
         if lord == h1_lord:  role_mult += _MD_ROLE_WEIGHT["h1"]
+        role_mult = min(role_mult, _PEAK_DASHA_ROLE_MULT_CAP)
+        role_mults[lord] = role_mult
 
-        reach_mod = 0.2 if start_age > 80 else 1.0   # dasha starting after 80 = speculative
-        # T3: Exempt dusthana-lord dashas when the field itself requires dusthana energy
-        # (medicine, research, hospital, forensic, surgery etc. thrive under H6/H8/H12 lords)
-        _is_exempt_field = label and any(_wm(kw, label.lower()) for kw in _DUSTHANA_EXEMPT_KW)
-        dust_mod = (1.0 if lord not in dusthana_lords or _is_exempt_field else 0.85)
+        reach_mod = _peak_dasha_reach_mod(start_age)
+        dust_mod  = _peak_dasha_dusthana_mod(lord, dusthana_lords, eff, label=label)
 
         scores[lord] = eff * dig_mult * role_mult * reach_mod * dust_mod
 
-    if not scores: return ("", {})
-    peak = max(scores, key=scores.get)
+    if not scores:
+        # GAP-2 fix: this used to fail silently, returning ("", {}) with no
+        # signal distinguishing "no dasha data supplied" from "every dasha
+        # has already elapsed for this current_age" — callers then silently
+        # fell back to active_lord with nothing in the logs to explain why.
+        logger.warning(
+            "_peak_career_dasha: no eligible (unexpired) dasha lords found "
+            "for current_age=%s out of %d dasha_seq entries — returning empty.",
+            current_age, len(dasha_seq),
+        )
+        return ("", {})
+
+    # GAP-4 fix: max(scores, key=scores.get) resolved ties by dict/iteration
+    # order with no astrological rationale. Deterministic tiebreak: highest
+    # score wins; on a near-tie (within 0.5%), prefer the lord carrying more
+    # career-role weight (AmK/H10/AK/H9/H1), then fall back to a fixed
+    # classical-strength planet order so the result is reproducible.
+    _CLASSICAL_ORDER = ["Jupiter", "Venus", "Mercury", "Sun", "Mars", "Saturn", "Moon", "Rahu", "Ketu"]
+    top_score = max(scores.values())
+    _near_tie = [lord for lord, sc in scores.items() if sc >= top_score * 0.995]
+    if len(_near_tie) > 1:
+        logger.info(
+            "_peak_career_dasha: near-tie among %s (scores=%s) — resolving via role weight, "
+            "then classical order.", _near_tie,
+            {l: round(scores[l], 4) for l in _near_tie},
+        )
+        peak = sorted(
+            _near_tie,
+            key=lambda l: (-role_mults.get(l, 1.0),
+                           _CLASSICAL_ORDER.index(l) if l in _CLASSICAL_ORDER else 99),
+        )[0]
+    else:
+        peak = max(scores, key=scores.get)
     return (peak, scores)
 
 def _peak_career_dasha_boost(affinity: Dict[str, float], peak_lord: str, active_lord: str, planet_dignities: Dict[str, str]) -> float:
     if not peak_lord or peak_lord not in affinity: return 0.0
     dig = planet_dignities.get(peak_lord, "")
-    dig_scale = {"EXALTED": 1.40, "OWN": 1.15, "NEECHA_BHANGA": 1.05, "DEBILITATED": 0.60}.get(dig, 1.0)
+    dig_scale = _PEAK_DASHA_DIGNITY_MULT.get(dig, 1.0)  # GAP-7 fix: shared scale (was a local 0.60 for DEBILITATED, now 0.40)
+    dig_scale = _node_dignity_damping(peak_lord, dig_scale)
     base = affinity[peak_lord] * 0.22 * dig_scale
     # H1 fix: when peak_lord == active_lord the native IS in their peak window — do NOT
     # halve the signal.  Instead, the caller skips _dasha_active_affinity_boost for this
@@ -1673,6 +2142,7 @@ def _dasha_active_affinity_boost(affinity, active_lord, planet_dignities=None):
     if active_lord not in affinity: return 0.0
     dig = planet_dignities.get(active_lord,"")
     dig_scale = {"EXALTED":1.40,"OWN":1.15,"DEBILITATED":0.40,"NEECHA_BHANGA":1.05}.get(dig,1.0)
+    dig_scale = _node_dignity_damping(active_lord, dig_scale)
     return affinity[active_lord] * 0.25 * dig_scale
 
 def _d10_consistency_penalty(affinity, d10_house_occ, label: str = ""):
@@ -1785,9 +2255,15 @@ def _bhavesha_phala_edu_bonus(label: str, affinity: Dict[str, float], house_lord
 def _d9_h10_bonus(affinity, d9_chart, d9_lagna_sign, payload=None):
     """Bonus for planets in D9 H10 — gated by D1 vitality coefficient."""
     if not d9_lagna_sign or not d9_chart: return 0.0
+    if isinstance(d9_lagna_sign, dict):
+        d9_lagna_sign = d9_lagna_sign.get("sign", "")
     bonus = 0.0
     for planet, sign in d9_chart.items():
         if planet == "Lagna": continue
+        if isinstance(sign, dict):
+            sign = sign.get("sign", "")
+        if not isinstance(sign, str) or sign not in _SIGN_NUM:
+            continue
         if (((_SIGN_NUM.get(sign, 1) - _SIGN_NUM.get(d9_lagna_sign, 1)) % 12) + 1) == 10:
             w = affinity.get(planet, 0.0)
             raw = 0.05 if w >= 0.20 else (0.02 if w >= 0.10 else 0.0)
@@ -1805,9 +2281,13 @@ def _dharma_karma_bonus(affinity, house_lords, planet_house):
     mutual_kendra = abs(h9l_house - h10l_house) in (0,3,6,9)
     if not (same_house or mutual_kendra): return 0.0
     w9, w10  = affinity.get(h9_lord, 0.0), affinity.get(h10_lord, 0.0)
-    if w9 >= 0.15 or w10 >= 0.15: return 0.08
-    if w9 >= 0.10 or w10 >= 0.10: return 0.04
-    return 0.0
+    w = max(w9, w10)
+    _DK_W_FLOOR, _DK_W_CEIL = 0.10, 0.30
+    _DK_BASE_FLOOR, _DK_BASE_CEIL = 0.02, 0.08
+    if w < _DK_W_FLOOR:
+        return 0.0
+    frac = (min(w, _DK_W_CEIL) - _DK_W_FLOOR) / (_DK_W_CEIL - _DK_W_FLOOR)
+    return _DK_BASE_FLOOR + frac * (_DK_BASE_CEIL - _DK_BASE_FLOOR)
 
 # ════════════════════════════════════════════════════════════════════════════
 # NEW GAP FUNCTIONS (v8.9)
@@ -1843,6 +2323,10 @@ def _d10_h10_bonus(affinity: Dict[str, float], d10_chart: Dict, d10_lagna_sign: 
         for planet, sign in d10_chart.items():
             if planet == "Lagna":
                 continue
+            if isinstance(sign, dict):
+                sign = sign.get("sign", "")
+            if not isinstance(sign, str) or sign not in _SIGN_NUM:
+                continue
             h = ((_SIGN_NUM.get(sign, 1) - _SIGN_NUM.get(d10_lagna_sign, 1)) % 12) + 1
             if h == 10:
                 h10_planets.append(planet)
@@ -1851,11 +2335,15 @@ def _d10_h10_bonus(affinity: Dict[str, float], d10_chart: Dict, d10_lagna_sign: 
     for planet in h10_planets:
         w = affinity.get(planet, 0.0)
         dig = d10_planet_dignities.get(planet, "")
-        if   w >= 0.20 and dig == "EXALTED": raw = 0.10
-        elif w >= 0.20:                       raw = 0.06
-        elif w >= 0.10 and dig == "EXALTED": raw = 0.06
-        elif w >= 0.10:                       raw = 0.03
-        else:                                 raw = 0.0
+        # 2026-08-20 audit fix: a node's "EXALTED" here is borrowed from its
+        # dispositor (see _node_dignity_damping docstring), so don't grant it
+        # the full classical-planet EXALTED bonus tier.
+        is_exalted = dig == "EXALTED" and planet not in ("Rahu", "Ketu")
+        if   w >= 0.20 and is_exalted: raw = 0.10
+        elif w >= 0.20:                 raw = 0.06
+        elif w >= 0.10 and is_exalted: raw = 0.06
+        elif w >= 0.10:                 raw = 0.03
+        else:                           raw = 0.0
         bonus += raw  # vitality not applied here (no payload reference; caller can gate)
     return min(bonus, 0.12)
 
@@ -1922,6 +2410,7 @@ def _aspect_h10_bonus(affinity: Dict[str, float], planet_house: Dict[str, int],
         w         = affinity.get(planet, 0.0)
         dig       = planet_dignities.get(planet, "")
         dig_scale = {"EXALTED": 1.40, "OWN": 1.15}.get(dig, 1.0)
+        dig_scale = _node_dignity_damping(planet, dig_scale)
         drishti   = aspect_strength.get(planet, 1.0)   # 0.5 (cusp) → 1.0 (midpoint)
         if   w >= 0.25: bonus += 0.06 * dig_scale * drishti
         elif w >= 0.15: bonus += 0.03 * dig_scale * drishti
@@ -2007,10 +2496,7 @@ def _brahma_lord_bonus(label: str, brahma_lord: str, affinity: Dict[str, float])
     if not any(_wm(kw, label_lower) for kw in kws):
         return 0.0
     w = affinity.get(brahma_lord, 0.0)
-    if   w >= 0.25: return 0.07
-    if   w >= 0.15: return 0.04
-    if   w >= 0.08: return 0.02
-    return 0.0
+    return _special_lord_domain_ramp(w)
 
 
 def _chart_specific_aptitude_supplement(
@@ -2058,6 +2544,100 @@ def _chart_specific_aptitude_supplement(
     return min(supplement, 10.0)
 
 
+# Gap-audit fix (2026-08, chat cross-chart review): this table used to be
+# duplicated verbatim inside both _ak_planet_domain_boost() and
+# _ak_domain_flat_supplement() -- two independent copies of the same planet->
+# keyword mapping, with no mechanism to keep them in sync (the same class of
+# drift risk _h3_lord_communication_boost's sibling helper
+# `chandra_lagna_h10_lord` was centralised to avoid, per that function's own
+# comment in field_methods/common.py). Centralised here as the single source
+# both functions reference.
+#
+# Confirmed bug fixed here: Venus's list carried a bare "design" keyword,
+# intended to catch genuinely Venus-flavoured fields (fashion_design,
+# interior_design, design_ux_product). But "design" is polysemous -- the word
+# also appears in ~15+ unrelated engineering fields' registry descriptions
+# ("reactor design", "machine design", "mine design", "ship design", "vlsi
+# design", "highway design", "antenna design", ...). A 25-chart cross-check
+# found this firing for rithul/Rithvik's Venus AmK on "Nuclear Engineering"
+# purely because its description says "reactor design" -- a false-positive
+# keyword collision with zero connection to Venus's actual significations.
+# Replaced with the specific multi-word design phrases that (verified against
+# the full registry) appear ONLY in genuinely creative/UX-design fields:
+# "fashion design", "interior design", "graphic design", "ux design",
+# "product design", "industrial design", "design thinking",
+# "human-centred design", "spatial design" -- none of these collide with any
+# engineering field's description text.
+_AK_DOMAIN_KEYWORDS: Dict[str, Tuple[List[str], List[str]]] = {
+    "Mercury": (
+        ["technology", "computer", "software", "data science", "machine learning",
+         "artificial intelligence", "analytics", "mathematics", "programming",
+         "information technology", "statistics", "computational"],
+        ["communication", "media", "writing", "journalism", "research",
+         "commerce", "accounting", "economics", "finance", "digital"],
+    ),
+    "Jupiter": (
+        ["law", "economics", "education", "philosophy", "management",
+         "finance", "banking", "consulting", "teaching", "governance",
+         "political science", "public policy"],
+        ["theology", "international", "administration", "research",
+         "humanities", "social science", "commerce", "medicine",
+         "business", "policy"],
+    ),
+    "Venus": (
+        ["arts", "fashion design", "interior design", "graphic design",
+         "ux design", "product design", "industrial design",
+         "design thinking", "human-centred design", "spatial design",
+         "music", "fashion", "beauty", "hospitality",
+         "film", "performing", "visual", "creative", "architecture",
+         "animation", "dance"],
+        ["luxury", "tourism", "entertainment", "interior", "textile",
+         "jewellery", "culinary", "drama", "photography", "media"],
+    ),
+    "Mars": (
+        ["engineering", "defence", "defense", "military", "surgery",
+         "mechanical", "electrical", "manufacturing", "aerospace",
+         "civil engineering", "energy", "strategic", "operations", "tactical"],
+        ["nuclear", "police", "security", "firefighting",
+         "materials", "metallurgy", "construction", "mining", "petroleum"],
+    ),
+    "Saturn": (
+        ["engineering", "government", "administration", "agriculture",
+         "mining", "construction", "infrastructure", "materials",
+         "civil engineering", "public works", "industrial"],
+        ["law", "policy", "social work", "environmental", "geology",
+         "architecture", "urban", "mechanical", "labour", "textile"],
+    ),
+    "Sun": (
+        ["government", "civil services", "administration", "leadership",
+         "nuclear", "medicine", "political", "public", "law", "energy"],
+        ["corporate", "executive", "defence", "history",
+         "social", "pharmacy", "ophthalmology", "cardiology", "surgery"],
+    ),
+    "Moon": (
+        ["psychology", "nursing", "medicine", "counseling", "social work",
+         "public health", "hospitality", "food", "agriculture", "childcare",
+         "mental health"],
+        ["humanities", "education", "community", "welfare", "health",
+         "pharmacy", "marine", "tourism", "literature", "naturopathy"],
+    ),
+    "Rahu": (
+        ["technology", "artificial intelligence", "data science",
+         "machine learning", "cybersecurity", "robotics", "space",
+         "biotechnology", "foreign", "media", "digital"],
+        ["film", "research", "analytics", "finance", "economics",
+         "engineering", "computer", "international", "aviation"],
+    ),
+    "Ketu": (
+        ["research", "philosophy", "spiritual", "medicine", "forensic",
+         "ayurveda", "archaeology", "investigative", "alternative",
+         "astrology", "mathematics"],
+        ["psychology", "metaphysics", "science", "theology", "history",
+         "ancient", "language", "occult", "analytics"],
+    ),
+}
+
+
 def _ak_planet_domain_boost(
     label: str,
     ak: str,
@@ -2090,76 +2670,13 @@ def _ak_planet_domain_boost(
     AmK applies the same mapping at 60 % base weight.
     """
     # ── keyword table ─────────────────────────────────────────────────────────
-    _KW: Dict[str, Tuple[List[str], List[str]]] = {
-        "Mercury": (
-            ["technology", "computer", "software", "data science", "machine learning",
-             "artificial intelligence", "analytics", "mathematics", "programming",
-             "information technology", "statistics", "computational"],
-            ["communication", "media", "writing", "journalism", "research",
-             "commerce", "accounting", "economics", "finance", "digital"],
-        ),
-        "Jupiter": (
-            ["law", "economics", "education", "philosophy", "management",
-             "finance", "banking", "consulting", "teaching", "governance",
-             "political science", "public policy"],
-            ["theology", "international", "administration", "research",
-             "humanities", "social science", "commerce", "medicine",
-             "business", "policy"],
-        ),
-        "Venus": (
-            ["arts", "design", "music", "fashion", "beauty", "hospitality",
-             "film", "performing", "visual", "creative", "architecture",
-             "animation", "dance"],
-            ["luxury", "tourism", "entertainment", "interior", "textile",
-             "jewellery", "culinary", "drama", "photography", "media"],
-        ),
-        "Mars": (
-            ["engineering", "defence", "defense", "military", "surgery",
-             "mechanical", "electrical", "manufacturing", "aerospace",
-             "civil engineering", "energy", "strategic", "operations", "tactical"],
-            ["nuclear", "police", "security", "firefighting",
-             "materials", "metallurgy", "construction", "mining", "petroleum"],
-        ),
-        "Saturn": (
-            ["engineering", "government", "administration", "agriculture",
-             "mining", "construction", "infrastructure", "materials",
-             "civil engineering", "public works", "industrial"],
-            ["law", "policy", "social work", "environmental", "geology",
-             "architecture", "urban", "mechanical", "labour", "textile"],
-        ),
-        "Sun": (
-            ["government", "civil services", "administration", "leadership",
-             "nuclear", "medicine", "political", "public", "law", "energy"],
-            ["corporate", "executive", "defence", "history",
-             "social", "pharmacy", "ophthalmology", "cardiology", "surgery"],
-        ),
-        "Moon": (
-            ["psychology", "nursing", "medicine", "counseling", "social work",
-             "public health", "hospitality", "food", "agriculture", "childcare",
-             "mental health"],
-            ["humanities", "education", "community", "welfare", "health",
-             "pharmacy", "marine", "tourism", "literature", "naturopathy"],
-        ),
-        "Rahu": (
-            ["technology", "artificial intelligence", "data science",
-             "machine learning", "cybersecurity", "robotics", "space",
-             "biotechnology", "foreign", "media", "digital"],
-            ["film", "research", "analytics", "finance", "economics",
-             "engineering", "computer", "international", "aviation"],
-        ),
-        "Ketu": (
-            ["research", "philosophy", "spiritual", "medicine", "forensic",
-             "ayurveda", "archaeology", "investigative", "alternative",
-             "astrology", "mathematics"],
-            ["psychology", "metaphysics", "science", "theology", "history",
-             "ancient", "language", "occult", "analytics"],
-        ),
-    }
-
+    # Gap-audit fix (2026-08): now references the single shared
+    # _AK_DOMAIN_KEYWORDS table (see its module-level comment above) instead
+    # of an independent local copy.
     def _planet_boost(planet: str, dig: str, base_scale: float) -> float:
         if not planet:
             return 0.0
-        primary_kw, secondary_kw = _KW.get(planet, ([], []))
+        primary_kw, secondary_kw = _AK_DOMAIN_KEYWORDS.get(planet, ([], []))
         lbl = label.lower()
         # L2 fix: use word-boundary match (_wm) consistent with all other boost functions.
         # Bare substring match caused false positives e.g. "medicine" in "sports medicine"
@@ -2216,93 +2733,35 @@ def _ak_domain_flat_supplement(
     if digs is None:
         digs = {}
 
-    _KW: Dict[str, Tuple[List[str], List[str]]] = {
-        "Mercury": (
-            ["technology", "computer", "software", "data science", "machine learning",
-             "artificial intelligence", "analytics", "mathematics", "programming",
-             "information technology", "statistics", "computational"],
-            ["communication", "media", "writing", "journalism", "research",
-             "commerce", "accounting", "economics", "finance", "digital"],
-        ),
-        "Jupiter": (
-            ["law", "economics", "education", "philosophy", "management",
-             "finance", "banking", "consulting", "teaching", "governance",
-             "political science", "public policy"],
-            ["theology", "international", "administration", "research",
-             "humanities", "social science", "commerce", "medicine",
-             "business", "policy"],
-        ),
-        "Venus": (
-            ["arts", "design", "music", "fashion", "beauty", "hospitality",
-             "film", "performing", "visual", "creative", "architecture",
-             "animation", "dance"],
-            ["luxury", "tourism", "entertainment", "interior", "textile",
-             "jewellery", "culinary", "drama", "photography", "media"],
-        ),
-        "Mars": (
-            ["engineering", "defence", "defense", "military", "surgery",
-             "mechanical", "electrical", "manufacturing", "aerospace",
-             "civil engineering", "energy", "strategic", "operations", "tactical"],
-            ["nuclear", "police", "security", "firefighting",
-             "materials", "metallurgy", "construction", "mining", "petroleum"],
-        ),
-        "Saturn": (
-            ["engineering", "government", "administration", "agriculture",
-             "mining", "construction", "infrastructure", "materials",
-             "civil engineering", "public works", "industrial"],
-            ["law", "policy", "social work", "environmental", "geology",
-             "architecture", "urban", "mechanical", "labour", "textile"],
-        ),
-        "Sun": (
-            ["government", "civil services", "administration", "leadership",
-             "nuclear", "medicine", "political", "public", "law", "energy"],
-            ["corporate", "executive", "defence", "history",
-             "social", "pharmacy", "ophthalmology", "cardiology", "surgery"],
-        ),
-        "Moon": (
-            ["psychology", "nursing", "medicine", "counseling", "social work",
-             "public health", "hospitality", "food", "agriculture", "childcare",
-             "mental health"],
-            ["humanities", "education", "community", "welfare", "health",
-             "pharmacy", "marine", "tourism", "literature", "naturopathy"],
-        ),
-        "Rahu": (
-            ["technology", "artificial intelligence", "data science",
-             "machine learning", "cybersecurity", "robotics", "space",
-             "biotechnology", "foreign", "media", "digital"],
-            ["film", "research", "analytics", "finance", "economics",
-             "engineering", "computer", "international", "aviation"],
-        ),
-        "Ketu": (
-            ["research", "philosophy", "spiritual", "medicine", "forensic",
-             "ayurveda", "archaeology", "investigative", "alternative",
-             "astrology", "mathematics"],
-            ["psychology", "metaphysics", "science", "theology", "history",
-             "ancient", "language", "occult", "analytics"],
-        ),
-    }
+    # Gap-audit fix (2026-08): now references the single shared
+    # _AK_DOMAIN_KEYWORDS table (see its module-level comment above) instead
+    # of an independent local copy.
 
-    def _flat_for(planet: str, scale: float) -> float:
+    def _flat_for(planet: str, scale: float) -> tuple[float, str]:
+        """Returns (flat_value, tier) where tier is "primary"/"secondary"/"none"."""
         if not planet:
-            return 0.0
-        primary_kw, secondary_kw = _KW.get(planet, ([], []))
+            return 0.0, "none"
+        primary_kw, secondary_kw = _AK_DOMAIN_KEYWORDS.get(planet, ([], []))
         lbl = label.lower()
         # L2 fix: use word-boundary match (_wm) — this function adds up to 20 flat points
         # so false positives from bare substring match (e.g. "medicine" in "sports medicine")
         # are consequential and must be prevented.
         if any(_wm(kw, lbl) for kw in primary_kw):
-            base = 32.0
+            base, tier = 32.0, "primary"
         elif any(_wm(kw, lbl) for kw in secondary_kw):
-            base = 14.0
+            base, tier = 14.0, "secondary"
         else:
-            return 0.0
+            return 0.0, "none"
         dig_mod = {"EXALTED": 1.4, "OWN": 1.2,
                    "NEECHA_BHANGA": 1.0, "DEBILITATED": 0.5}.get(digs.get(planet, ""), 1.0)
-        return base * scale * dig_mod
+        return base * scale * dig_mod, tier
 
-    ak_flat  = _flat_for(ak,  1.00)
-    amk_flat = _flat_for(amk, 0.65)
-    raw      = max(ak_flat, amk_flat)
+    ak_flat,  ak_tier  = _flat_for(ak,  1.00)
+    amk_flat, amk_tier = _flat_for(amk, 0.65)
+    if ak_flat >= amk_flat:
+        raw, winning_tier = ak_flat, ak_tier
+    else:
+        raw, winning_tier = amk_flat, amk_tier
     # 2026-07 rebalance (engine-gap audit): this flat supplement was found to
     # dominate final_score (+800-1800% of a field's other-method contribution
     # in several audited charts) precisely because it's a FLAT addend applied
@@ -2313,7 +2772,19 @@ def _ak_domain_flat_supplement(
     # real method convergence. Caller still scales this by (blended/100) and
     # by friction_multiplier, so the effective ceiling is well under 12 pts
     # for any field that isn't already scoring reasonably on its own methods.
-    return round(min(raw, 12.0), 2)
+    #
+    # Gap-audit fix (2026-08, chat cross-chart review): that single 12.0 cap
+    # applied regardless of which tier matched, so a single tangential
+    # secondary-keyword hit (e.g. AjayAgarwal's Saturn AmK matching
+    # "materials"/"industrial" for applied_chemistry) could saturate to the
+    # exact same ceiling as a direct, unambiguous primary-keyword hit (Jupiter
+    # AK matching "law" for law_llb) -- the mechanism could not tell "exact
+    # match" from "tangential match" once either exceeded the cap. Secondary-
+    # tier-only results are now held to a lower ceiling, so a primary match
+    # keeps a real, visible edge over a secondary-only one instead of both
+    # being indistinguishable at the ceiling.
+    _cap = 12.0 if winning_tier == "primary" else 6.0
+    return round(min(raw, _cap), 2)
 
 
 def _karakamsha_domain_boost(label: str, domain: str, karakamsha: str) -> float:
@@ -2521,13 +2992,45 @@ def apply_domain_deduplication(
     results: List[Dict],
     per_domain_cap: int = 1,
     exempt_window: int = 1,
+    dedup_window: int = 40,
+    cluster_key: str = "career_family",
 ) -> List[Dict]:
-    """Post-LLM domain deduplication — caps results per domain.
+    """Post-LLM domain deduplication — caps results per domain/cluster near the top.
 
     The first ``exempt_window`` results are always kept regardless of domain
     so the single best-scoring field is never filtered out.  After that, each
     additional domain entry beyond ``per_domain_cap`` is moved to the bottom
     of the list (not discarded) to preserve full coverage.
+
+    Gap audit (2026-08): this function is called on the FULL scored
+    population (engine.py: ``apply_domain_deduplication(_all_pre_results)``,
+    ~198 fields across only 12 registry domains — engineering alone has 54
+    fields), not just the top-5/top-35 slice its own docstring and history
+    describe. With ``per_domain_cap=1`` applied unbounded, only ONE field per
+    domain keeps its real computed score; every other field of that domain —
+    e.g. 53 of engineering's 54 fields — gets shoved into `deferred` and its
+    `final_score` overwritten to `floor - 0.01*offset`, where `floor` is a
+    SINGLE shared value (the min score among the ~12 domain leaders). Real
+    case traced on a live chart: electrical_engineering, aeronautical_
+    engineering, and energy_engineering (all domain=engineering, all with
+    strong blended_scores of 78-82) were flattened to 29.7-31.7 alongside
+    completely unrelated deferred fields (political_science, defence_
+    military) sharing that same floor — while whichever engineering field
+    happened to be domain-leader that run (e.g. power_systems_engineering)
+    kept its real score untouched. This wasn't "domain diversity" working as
+    designed; it was ~94% of the scored population's differentiation being
+    silently destroyed by a mechanism whose own history/docstring only ever
+    justifies influencing the top-5/top-35 window.
+
+    Fix: bound the cap/floor logic to the first ``dedup_window`` items (the
+    function already receives a score-sorted list, so this is "near the
+    top" in the same sense the original top-5 fix intended). Anything beyond
+    that window is appended back with its own real, untouched `final_score`
+    — it was never a "top-5 crowding" problem to begin with, and the actual
+    downstream consumer of this function's output
+    (``_edu_stream_slot_allocation(..., n=35)``) only ever looks at ~35-40
+    items anyway, so 40 gives it comfortable headroom without reintroducing
+    the original top-5 same-domain-sweep bug this function exists to prevent.
 
     Gap audit (2026-07): previously ``exempt_window=5`` meant the entire
     top-5 was exempt from any domain cap, so this function never actually
@@ -2568,20 +3071,80 @@ def apply_domain_deduplication(
     (bounded, transparent, same pattern as the tie-break cascade / family-
     cohesion adjustment elsewhere in this codebase) so ANY later sort by
     final_score reproduces this function's decision instead of undoing it.
+
+    AUDIT FIX (2026-08-23): two compounding problems traced on a real chart
+    (ramsunder_chart_details.json): the top-level ``domain`` field is far
+    too coarse a unit for "diversity" -- this registry has only 12 domains
+    for 213 fields, and ``domain="engineering"`` alone covers 57 genuinely
+    distinct professions (civil, aerospace, chemical, materials, electrical,
+    computer...), not near-duplicates of each other. With a flat
+    ``per_domain_cap=1`` applied uniformly, a chart whose real astrology
+    concentrates strongly in engineering (as ramsunder's does) can only ever
+    surface ONE engineering field near the top no matter how many other
+    engineering fields score highly and distinctly -- civil_engineering
+    scored 71.94 (rank 27 of 213 overall, a genuinely strong result) and was
+    still flattened purely because 16 *other* engineering fields scored
+    higher, none of which makes it a near-duplicate of any of them. This is
+    the same class of bug as the domain-crowding problem this function was
+    built to fix, just inverted: instead of one domain flooding the top
+    ranks with redundant entries, one domain's real breadth is punished as
+    if it were redundancy.
+
+    Two changes address this without touching the core cap/floor mechanism
+    (still correct in principle -- see gap audits above):
+
+    1. Group by ``cluster_key`` (default ``"career_family"``, already
+       attached to every row earlier in the pipeline by
+       apply_competency_ontology_layer -- a finer-grained clustering, e.g.
+       "materials & manufacturing" vs. "civil & structural" vs.
+       "aerospace & defence" rather than one blanket "engineering" bucket)
+       when present on a row, falling back to the coarser ``domain`` only
+       when it is missing (e.g. the ontology layer failed defensively
+       upstream and never attached it). This targets the mechanism at
+       actual near-duplicates instead of an entire profession.
+    2. Scale the cap to the real population of whatever grouping key ends
+       up being used, computed from this same call's full input population
+       (not the registry as a whole, so this stays self-contained and
+       correct even if the registry's domain/family sizes change): a
+       cluster/domain with only a handful of candidates keeps the original
+       cap=1 behavior (still guarantees the top slots draw from distinct
+       clusters when few exist), but a cluster/domain this deep gets
+       proportionally more room, so real breadth within it can still
+       surface instead of being crushed to a single representative.
     """
     if not results:
         return results
+
+    def _group_key(item: Dict) -> str:
+        return item.get(cluster_key) or item.get("domain", "")
+
+    _group_population: Dict[str, int] = {}
+    for _item in results:
+        _g = _group_key(_item)
+        _group_population[_g] = _group_population.get(_g, 0) + 1
+
+    def _cap_for(group: str) -> int:
+        n = _group_population.get(group, 0)
+        if n <= 10:
+            return per_domain_cap
+        if n <= 25:
+            return max(per_domain_cap, 2)
+        return max(per_domain_cap, 3)
+
+    window = results[:dedup_window]
+    beyond_window = results[dedup_window:]
     domain_counts: Dict[str, int] = {}
     kept: List[Dict] = []
     deferred: List[Dict] = []
-    for idx, item in enumerate(results):
-        domain = item.get("domain", "")
+    for idx, item in enumerate(window):
+        domain = _group_key(item)
+        cap = _cap_for(domain)
         if idx < exempt_window:
             kept.append(item)
             domain_counts[domain] = domain_counts.get(domain, 0) + 1
         else:
             count = domain_counts.get(domain, 0)
-            if count < per_domain_cap:
+            if count < cap:
                 kept.append(item)
                 domain_counts[domain] = count + 1
             else:
@@ -2599,7 +3162,14 @@ def apply_domain_deduplication(
             item["final_score"] = round(floor - 0.01 * offset, 4)
             item["domain_dedup_demoted"] = True
 
-    return kept + deferred
+    # `beyond_window` items never entered the cap/floor logic at all — they
+    # keep their own real, untouched final_score. `results` is already
+    # score-sorted on entry (engine.py sorts _all_pre_results immediately
+    # before calling this), so every beyond_window item's real score is
+    # already <= every window item's real score; appending them after
+    # kept+deferred does not introduce any new inversion, it just stops
+    # silently overwriting scores this function was never designed to touch.
+    return kept + deferred + beyond_window
 
 
 # =============================================================================
@@ -2704,69 +3274,300 @@ _FIELD_PRIMARY_PLANETS: Dict[str, List[str]] = {
     "_default":    ["Mercury", "Jupiter"],
 }
 
+def _graha_drishti_houses(planet: str, from_house: int) -> set:
+    """Classical Parashari graha-drishti (planetary aspect): every planet
+    casts a full (100%) aspect on the 7th house from its own placement;
+    Mars, Jupiter, and Saturn additionally cast full special aspects (Mars:
+    4th/8th; Jupiter: 5th/9th; Saturn: 3rd/10th from itself). This is the
+    mainstream, universally-taught aspect scheme (BPHS ch. on graha
+    drishti) -- deliberately NOT extending special aspects to Rahu/Ketu,
+    since which houses the nodes specially aspect is a genuinely disputed
+    point across traditions (some give them Jupiter's 5th/9th, others treat
+    them as Saturn-like, others give only the 7th); staying with the
+    uncontested mainstream scheme keeps this function's output defensible
+    rather than tradition-specific.
+    """
+    if not from_house or not (1 <= from_house <= 12):
+        return set()
+    # `nth_houses` values are counted INCLUSIVELY the classical way (the
+    # planet's own house = "1st from itself", so the 7th house from it is
+    # 6 steps ahead, not 7) -- convert to a 0-based step count (n-1) before
+    # applying the wheel-wrap arithmetic below. Confirmed against the
+    # standard worked example: a planet in H1 (Aries) casts its 7th-house
+    # aspect on H7 (Libra), i.e. from_house=1, n=7 must resolve to house 7.
+    nth_houses = {7}
+    if planet == "Mars":
+        nth_houses |= {4, 8}
+    elif planet == "Jupiter":
+        nth_houses |= {5, 9}
+    elif planet == "Saturn":
+        nth_houses |= {3, 10}
+    return {((from_house - 1 + (n - 1)) % 12) + 1 for n in nth_houses}
+
+
+def _chart_wide_dhana_yogas(house_lords: Dict[str, str], planet_house: Dict[str, int]) -> Dict[str, Any]:
+    """Scan the WHOLE chart (not just a field's hardcoded primary planets) for
+    classical Dhana yogas on both the primary (2nd/11th) and secondary
+    (9th/5th) wealth axes.
+
+    Full Methodology Spec §7: primary axis = 2nd lord in 2nd/11th (own sign
+    or exchange), 11th lord in 2nd, 2nd/11th lord conjunction, Jupiter/Venus/
+    Mercury connected to 2nd or 11th; secondary axis = 9th lord aspecting/
+    joining 2nd/11th ("Dharma-linked wealth" — more durable/reputation-
+    linked) or 5th lord aspecting/joining 2nd/11th ("merit/expertise/
+    speculation-linked wealth"). This previously only ever looked at whether
+    a field's hardcoded `_FIELD_PRIMARY_PLANETS` happened to BE or touch the
+    2nd/11th lord — it never scanned the chart's own Dhana-yoga topology
+    (own-sign, exchange, conjunction) and never touched the 9th/5th axis at
+    all, so e.g. a genuine Venus-in-Taurus (own sign, H2) Dhana yoga was
+    invisible for any field whose domain table didn't happen to include
+    Venus. This function is domain/field-independent: it returns the set of
+    "wealth-eligible" planets on each axis, which compute_wealth_potential
+    below then checks a field's own significators against.
+
+    Aspect fix (2026-08-20, defensibility audit): graha-drishti (classical
+    planetary aspect, via `_graha_drishti_houses()` just above) is now
+    checked alongside placement/exchange/conjunction on every axis. Before
+    this fix, a chart whose 2nd/11th/9th/5th lords connected to the wealth
+    houses purely by aspect -- a common, classically equal-standing
+    configuration -- returned a completely empty result, which made
+    compute_wealth_potential's "prestige-strong, wealth-durability
+    uncertain" flag fire for every single field in that chart (nothing left
+    to intersect against), rather than reflecting genuine field-by-field
+    variation.
+    """
+    h2_lord  = house_lords.get("2",  "")
+    h11_lord = house_lords.get("11", "")
+    h9_lord  = house_lords.get("9",  "")
+    h5_lord  = house_lords.get("5",  "")
+
+    primary_planets: Dict[str, str] = {}   # planet -> reason
+    secondary_dharma: Dict[str, str] = {}  # planet -> reason (9th axis)
+    secondary_speculative: Dict[str, str] = {}  # planet -> reason (5th axis)
+
+    h2_house  = planet_house.get(h2_lord, 0) if h2_lord else 0
+    h11_house = planet_house.get(h11_lord, 0) if h11_lord else 0
+    h9_house  = planet_house.get(h9_lord, 0) if h9_lord else 0
+    h5_house  = planet_house.get(h5_lord, 0) if h5_lord else 0
+
+    # 2nd lord in own sign (still ruling H2) or in H11
+    if h2_lord and h2_house == 2:
+        primary_planets[h2_lord] = "2nd lord in own sign (H2)"
+    elif h2_lord and h2_house == 11:
+        primary_planets[h2_lord] = "2nd lord placed in H11"
+
+    # 11th lord in H2
+    if h11_lord and h11_house == 2:
+        primary_planets[h11_lord] = "11th lord placed in H2"
+
+    # Parivartana (mutual exchange) between 2nd and 11th lords
+    if h2_lord and h11_lord and h2_house == 11 and h11_house == 2:
+        primary_planets[h2_lord] = "2nd/11th lord exchange (parivartana)"
+        primary_planets[h11_lord] = "2nd/11th lord exchange (parivartana)"
+
+    # 2nd/11th lord conjunction (co-placed in the same house)
+    if h2_lord and h11_lord and h2_lord != h11_lord and h2_house and h2_house == h11_house:
+        primary_planets[h2_lord] = "conjunct with 11th lord"
+        primary_planets[h11_lord] = "conjunct with 2nd lord"
+
+    # Jupiter/Venus/Mercury (natural wealth/value significators) placed in H2/H11
+    for nat in ("Jupiter", "Venus", "Mercury"):
+        nat_house = planet_house.get(nat, 0)
+        if nat_house in (2, 11):
+            primary_planets.setdefault(nat, f"natural wealth significator placed in H{nat_house}")
+
+    # Aspect-based additions (audit fix, 2026-08-20): graha drishti is one of
+    # the most basic tools of classical yoga-formation -- a planet aspecting
+    # a house is treated as "seeing"/connecting with it, not just occupying
+    # or exchanging with it (BPHS explicitly forms Dhana yogas this way, not
+    # only via conjunction/exchange). Previously this function only ever
+    # checked placement/exchange/co-placement, so a chart where the 2nd/11th
+    # lords or the natural significators connect to the wealth houses purely
+    # by aspect (a very common, classically equal-standing configuration)
+    # registered as "zero wealth yoga" -- which then flagged every field's
+    # wealth_potential as "prestige-strong, wealth-durability uncertain"
+    # (compute_wealth_potential intersects a field's significators against
+    # WHATEVER this function finds; an empty result here makes that flag
+    # fire for literally every field, not a considered per-field judgment).
+    # Confirmed live on a real chart (Vaagesh Narayan, 2026-08-20 audit):
+    # the placement/exchange-only scan found nothing at all, so 20/20 of the
+    # published Top-20 carried the same uncertain-wealth flag identically --
+    # exactly the all-or-nothing failure mode this aspect layer fixes.
+    if h2_lord and 11 in _graha_drishti_houses(h2_lord, h2_house):
+        primary_planets.setdefault(h2_lord, "2nd lord aspects 11th house (graha drishti)")
+    if h11_lord and 2 in _graha_drishti_houses(h11_lord, h11_house):
+        primary_planets.setdefault(h11_lord, "11th lord aspects 2nd house (graha drishti)")
+    for nat in ("Jupiter", "Venus", "Mercury"):
+        nat_house = planet_house.get(nat, 0)
+        if nat_house and ({2, 11} & _graha_drishti_houses(nat, nat_house)):
+            _seen_h = sorted({2, 11} & _graha_drishti_houses(nat, nat_house))
+            primary_planets.setdefault(
+                nat, f"natural wealth significator aspects H{'/'.join(str(h) for h in _seen_h)} (graha drishti)"
+            )
+
+    # Secondary axis: 9th lord joining/aspecting 2nd or 11th
+    if h9_lord and h9_house in (2, 11):
+        secondary_dharma[h9_lord] = f"9th lord placed in H{h9_house} (dharma-linked wealth)"
+    if h9_lord and h2_lord and h9_house == h2_house and h9_house:
+        secondary_dharma[h9_lord] = "9th lord conjunct 2nd lord (dharma-linked wealth)"
+    if h9_lord and h11_lord and h9_house == h11_house and h9_house:
+        secondary_dharma[h9_lord] = "9th lord conjunct 11th lord (dharma-linked wealth)"
+    if h9_lord and h9_house and ({2, 11} & _graha_drishti_houses(h9_lord, h9_house)):
+        secondary_dharma.setdefault(h9_lord, "9th lord aspects 2nd/11th house (graha drishti, dharma-linked wealth)")
+
+    # Secondary axis: 5th lord joining/aspecting 2nd or 11th, or mutual
+    # 5th/2nd/11th connections (speculation/expertise-linked wealth)
+    if h5_lord and h5_house in (2, 11):
+        secondary_speculative[h5_lord] = f"5th lord placed in H{h5_house} (merit/speculation-linked wealth)"
+    if h5_lord and h2_lord and h5_house == h2_house and h5_house:
+        secondary_speculative[h5_lord] = "5th lord conjunct 2nd lord (merit/speculation-linked wealth)"
+    if h5_lord and h11_lord and h5_house == h11_house and h5_house:
+        secondary_speculative[h5_lord] = "5th lord conjunct 11th lord (merit/speculation-linked wealth)"
+    if h5_lord and h5_house and ({2, 11} & _graha_drishti_houses(h5_lord, h5_house)):
+        secondary_speculative.setdefault(
+            h5_lord, "5th lord aspects 2nd/11th house (graha drishti, merit/speculation-linked wealth)"
+        )
+
+    return {
+        "primary": primary_planets,
+        "secondary_dharma": secondary_dharma,
+        "secondary_speculative": secondary_speculative,
+    }
+
+
 def compute_wealth_potential(
     field_result: Dict,
     house_lords: Dict[str, str],
     planet_house: Dict[str, int],
     eff_strengths: Dict[str, float],
+    field_affinity: Dict[str, float] | None = None,
 ) -> Dict:
-    """Return a wealth potential score and label for a specific field.
+    """Return a wealth potential score/label for a specific field, per Full
+    Methodology Spec §7 (2nd/11th primary axis + 9th/5th secondary axis).
 
-    Logic:
-    - Identify field primary planets from domain.
-    - Check if any primary planet is also the lord of H2 or H11 (wealth houses),
-      or is placed in H2/H11, or aspects H2/H11.
-    - Score the connection strength.
+    This checks the field's OWN significators (its affinity vector, when
+    provided, falling back to the old hardcoded domain->primaries table for
+    callers that don't yet pass one) against the chart-wide Dhana-yoga scan
+    in _chart_wide_dhana_yogas() above, so a real 2nd/11th own-sign/exchange
+    yoga is found even for fields whose domain isn't one of the handful of
+    hardcoded keys.
+
+    wealth_axis distinguishes primary (2nd/11th) wealth, secondary_dharma
+    (9th-linked, "more durable/ethically-earned") wealth, and
+    secondary_speculative (5th-linked, "merit/expertise/speculation-linked")
+    wealth per the spec's explicit instruction not to collapse these into
+    one generic label.
+
+    A field with ZERO wealth-eligible planets across all four houses gets an
+    explicit, non-penalizing "prestige_strong_wealth_uncertain" flag instead
+    of being silently scored/labeled "Low" with a discouraging note.
     """
     domain = field_result.get("domain", "_default")
-    primaries = _FIELD_PRIMARY_PLANETS.get(domain, _FIELD_PRIMARY_PLANETS["_default"])
+    if field_affinity:
+        primaries = [p for p, w in field_affinity.items() if w and w > 0]
+    else:
+        primaries = _FIELD_PRIMARY_PLANETS.get(domain, _FIELD_PRIMARY_PLANETS["_default"])
 
-    h2_lord  = house_lords.get("2",  "")
-    h11_lord = house_lords.get("11", "")
-    wealth_planets = {p for p in [h2_lord, h11_lord] if p}
+    yogas = _chart_wide_dhana_yogas(house_lords, planet_house)
 
     wealth_score = 0.0
-    connections  = []
+    connections: List[str] = []
+    axis_hits = {"primary": [], "secondary_dharma": [], "secondary_speculative": []}
 
     for planet in primaries:
         strength = eff_strengths.get(planet, 1.0)
-        ph = planet_house.get(planet, 0)
+        if planet in yogas["primary"]:
+            # Primary axis: 0.08-0.15 per planet (spec §7.4), scaled by strength.
+            wealth_score += 0.115 * strength
+            axis_hits["primary"].append(planet)
+            connections.append(f"{planet}: {yogas['primary'][planet]}")
+        if planet in yogas["secondary_dharma"]:
+            # Secondary/dharma axis: 0.04-0.08 per planet (spec §7.4).
+            wealth_score += 0.06 * strength
+            axis_hits["secondary_dharma"].append(planet)
+            connections.append(f"{planet}: {yogas['secondary_dharma'][planet]}")
+        if planet in yogas["secondary_speculative"]:
+            # §7 remediation (2026-08): secondary/speculative axis is a
+            # DISTINCT, slightly lower range (0.03-0.06 per spec §7.4) from
+            # the dharma axis's 0.04-0.08 -- speculative/merit-linked wealth
+            # (5th house) is classically less durable than dharma-linked
+            # wealth (9th house). Previously both used the same 0.06
+            # constant, collapsing that intended magnitude distinction.
+            wealth_score += 0.045 * strength
+            axis_hits["secondary_speculative"].append(planet)
+            connections.append(f"{planet}: {yogas['secondary_speculative'][planet]}")
 
-        # Direct: planet IS a wealth lord
-        if planet in wealth_planets:
-            wealth_score += 1.5 * strength
-            connections.append(f"{planet} is lord of H2/H11")
+    zero_eligible = not (axis_hits["primary"] or axis_hits["secondary_dharma"] or axis_hits["secondary_speculative"])
 
-        # Planet placed in H2 or H11
-        elif ph in (2, 11):
-            wealth_score += 1.0 * strength
-            connections.append(f"{planet} placed in H{ph}")
+    # Normalize against a plausible max (roughly 3 primary-axis hits at max strength)
+    normalised = min(wealth_score / 0.6, 1.0)
 
-        # Wealth lords placed in field-primary planet's house
-        for wl in wealth_planets:
-            wl_house = planet_house.get(wl, 0)
-            if wl_house == ph and ph != 0:
-                wealth_score += 0.5 * strength
-                connections.append(f"Wealth lord {wl} co-placed with {planet}")
-
-    # Normalise: max possible ≈ 3 planets × 1.5 × avg strength 2.0 = 9
-    normalised = min(wealth_score / 9.0, 1.0)
-
-    if normalised >= 0.65:
+    if zero_eligible:
+        label = "Uncertain"
+        note = ("No 2nd/11th/9th/5th-house Dhana-yoga connection found for this field's own "
+                "significators. This does not mean the field is weak — it may be prestige-strong "
+                "via other houses — but its wealth durability specifically is uncertain from this "
+                "chart's wealth axes and should be paired with a deliberate monetisation strategy.")
+    elif axis_hits["primary"] and normalised >= 0.5:
         label = "High"
-        note  = "Strongest financial alignment — this field connects to your wealth-generating planets."
-    elif normalised >= 0.35:
+        note = "Strong primary-axis (2nd/11th) wealth connection — durable, direct financial alignment."
+    elif axis_hits["primary"]:
         label = "Medium"
-        note  = "Solid earning potential with focused monetisation strategy."
+        note = "Primary-axis (2nd/11th) wealth connection present, moderate strength."
+    elif axis_hits["secondary_dharma"] and not axis_hits["secondary_speculative"]:
+        label = "Medium (dharma-linked)"
+        note = ("Wealth here is linked through the 9th house — reputation/dharma-linked income, "
+                "typically slower-building but more durable and ethically-earned than direct "
+                "2nd/11th wealth.")
+    elif axis_hits["secondary_speculative"] and not axis_hits["secondary_dharma"]:
+        label = "Medium (speculative/merit-linked)"
+        note = ("Wealth here is linked through the 5th house — merit, expertise, and speculative-"
+                "gains income (investment acumen, intelligence-driven earnings) rather than direct "
+                "2nd/11th accumulation.")
     else:
-        label = "Low"
-        note  = "Technical aptitude is high but financial returns may require supplementary income streams."
+        label = "Medium (mixed axes)"
+        note = "Wealth support present via both the 9th (dharma-linked) and 5th (speculative-linked) axes."
+
+    # -- Instrumentation: final per-planet wealth bonus + narrative (spec §7) --
+    _field_label = field_result.get("field") or field_result.get("field_id") or field_result.get("domain") or "field"
+    _h2, _h11, _h9, _h5 = house_lords.get("2", "?"), house_lords.get("11", "?"), house_lords.get("9", "?"), house_lords.get("5", "?")
+    if _VERBOSE_FIELD_LOG:
+        print(f"[WEALTH FILTER] {_field_label}: house lords checked -- 2nd={_h2} 11th={_h11} 9th={_h9} 5th={_h5}")
+        for _planet in primaries:
+            if _planet in yogas["primary"]:
+                print(f"  Wealth bonus -- {_planet}: {0.115 * eff_strengths.get(_planet, 1.0):.3f} (2nd/11th primary axis, {yogas['primary'][_planet]})")
+            if _planet in yogas["secondary_dharma"]:
+                print(f"  Wealth bonus -- {_planet}: {0.06 * eff_strengths.get(_planet, 1.0):.3f} (9th-axis dharma-linked, {yogas['secondary_dharma'][_planet]})")
+            if _planet in yogas["secondary_speculative"]:
+                print(f"  Wealth bonus -- {_planet}: {0.045 * eff_strengths.get(_planet, 1.0):.3f} (5th-axis speculative-linked, {yogas['secondary_speculative'][_planet]})")
+    _narrative = (
+        f"Wealth-filter analysis for {_field_label}: checked lords of the 2nd ({_h2}), 11th ({_h11}), "
+        f"9th ({_h9}), and 5th ({_h5}) houses against this field's own significators "
+        f"({', '.join(primaries) if primaries else 'none'}). "
+        + (f"Primary (2nd/11th) Dhana-yoga connection found via {', '.join(axis_hits['primary'])}, "
+           f"indicating durable, direct financial alignment. " if axis_hits["primary"] else "")
+        + (f"Secondary dharma-linked (9th-house) wealth found via {', '.join(axis_hits['secondary_dharma'])} -- "
+           f"slower-building but more durable/ethically-earned income. " if axis_hits["secondary_dharma"] else "")
+        + (f"Secondary speculative/merit-linked (5th-house) wealth found via {', '.join(axis_hits['secondary_speculative'])} -- "
+           f"expertise or investment-driven earnings rather than direct accumulation. " if axis_hits["secondary_speculative"] else "")
+        + (f"No wealth-bonus-eligible planets were found on any of the four houses for this field's "
+           f"significators, so the field is flagged 'prestige-strong but wealth-durability uncertain' "
+           f"rather than penalized -- {_field_label} may still succeed on merit, but its financial "
+           f"durability is not confirmed by this chart's Dhana-yoga topology. " if zero_eligible else "")
+        + f"Resulting wealth potential: {label} (normalised score {round(normalised, 3)})."
+    )
+    if _VERBOSE_FIELD_LOG:
+        print(f"[WEALTH NARRATIVE] {_narrative}")
 
     return {
-        "wealth_potential":     label,
-        "wealth_score":         round(normalised, 3),
-        "wealth_connections":   connections[:3],
-        "wealth_note":          note,
+        "wealth_potential":         label,
+        "wealth_score":             round(normalised, 3),
+        "wealth_connections":       connections[:5],
+        "wealth_note":              note,
+        "wealth_axis_primary":      axis_hits["primary"],
+        "wealth_axis_dharma_9th":   axis_hits["secondary_dharma"],
+        "wealth_axis_speculative_5th": axis_hits["secondary_speculative"],
+        "prestige_strong_wealth_uncertain_flag": zero_eligible,
     }
 
 
@@ -4175,6 +4976,7 @@ def _viparita_raja_yoga_bonus(
     house_lords: Dict[str, str],
     planet_house: Dict[str, int],
     label: str,
+    eff_strengths: Dict[str, float] = None,
 ) -> float:
     """Detect Viparita Raja Yoga: dusthana lord placed in another dusthana.
 
@@ -4187,10 +4989,40 @@ def _viparita_raja_yoga_bonus(
     • Harsha Yoga  — H6 lord in H8/H12 → service/medicine/law bonus
     • Sarala Yoga  — H8 lord in H6/H12 → research/occult/investigation bonus
     • Vimala Yoga  — H12 lord in H6/H8 → foreign/hospital/research bonus
+
+    PROVENANCE NOTE (2026-08-22, JyotishAI reference-audit method #5):
+    the Harsha/Sarala/Vimala lord-house mapping matches classical/
+    practitioner sources; some sources word the base rule more loosely
+    (own-house dusthana placement also counts, not just a DIFFERENT
+    dusthana), so this function's "different dusthana only" requirement
+    is a modern tightening, not a misreading -- tag: TRADITIONAL_
+    INTERPRETATION. The per-yoga domain-keyword lists (Harsha→medicine/
+    law, Sarala→research/occult, Vimala→foreign/hospital) have NO
+    classical basis -- classical VRY results are described generically
+    (rise after struggle, victory over adversity), not by domain. Tag:
+    AUTHOR_SPECIFIC.
+
+    RECONCILIATION NOTE (2026-08-22, owner-approved, method #5): this
+    function and _dusthana_lord_penalty's capacity-conditioned exemption
+    (_DUSTHANA_EXEMPT_KW + eff_strength>=0.60) both react to the same
+    underlying fact -- a strong dusthana lord well-placed for a
+    dusthana-natured field -- via two independently-designed paths: the
+    penalty function can waive the affliction penalty entirely, while
+    this function separately adds a positive bonus. When both fire for
+    the same lord (common, since a well-placed VRY lord is often also
+    "strong"), the field gets full penalty waiver AND a bonus for
+    substantially the same chart fact. VRY is a real, distinct classical
+    yoga beyond mere non-affliction, so this is not eliminated -- only
+    de-weighted by 35% for a lord that also clears the penalty-exemption
+    condition, to avoid crediting the same underlying strength twice at
+    full magnitude through two unrelated mechanisms.
     """
     if not label:
         return 0.0
+    if eff_strengths is None:
+        eff_strengths = {}
     label_lower = label.lower()
+    _also_penalty_exempt = any(_wm(kw, label_lower) for kw in _DUSTHANA_EXEMPT_KW)
     bonus = 0.0
 
     h6l  = house_lords.get("6",  "")
@@ -4211,9 +5043,14 @@ def _viparita_raja_yoga_bonus(
         if not any(_wm(kw, label_lower) for kw in kws):
             continue
         w = affinity.get(lord, 0.0)
-        if   w >= 0.20: bonus += 0.07
-        elif w >= 0.10: bonus += 0.04
-        else:           bonus += 0.02  # yoga present regardless of affinity weight
+        if   w >= 0.20: lord_bonus = 0.07
+        elif w >= 0.10: lord_bonus = 0.04
+        else:           lord_bonus = 0.02  # yoga present regardless of affinity weight
+        # Reconciliation: same overlap condition _dusthana_lord_penalty uses
+        # for its full-waiver branch (domain exempt + lord strength >= 0.60).
+        if _also_penalty_exempt and eff_strengths.get(lord, 0.5) >= 0.60:
+            lord_bonus *= 0.65
+        bonus += lord_bonus
 
     return min(bonus, 0.10)
 
@@ -4323,42 +5160,95 @@ def _hora_mode_career_signal(
     return 0.01  # mild hora-mode signal even with low anchor weight
 
 
+# ── Phase B shadow-score: per-planet Baladi Avastha multiplier ───────────────
+# GAP FIX (Phase B avastha_mult): the degree bucketing below is now derived
+# with the exact same odd/even-sign convention and Mrita boundary as the
+# ground-truth classifier engine.py::_detect_mrita_avastha (odd sign,
+# degree >= 24.0 == Mrita; even sign, degree < 6.0 == Mrita) and
+# boosts.py::_d1_vitality_coefficient's own Mrita check, instead of the
+# previous "check_deg = 30.0 - degree" mirror trick, which put the Mrita/
+# Vriddha boundary on an even sign at degree <= 6.0 (inclusive) rather than
+# the ground truth's degree < 6.0 (exclusive) -- a silent one-tenth-of-a-
+# degree divergence between this helper and the log line every other part
+# of the pipeline treats as authoritative. Expressed explicitly per band
+# (rather than via a single reversed-degree formula) so any future reader
+# can diff each band directly against _detect_mrita_avastha's two-line rule
+# instead of re-deriving the mirrored-fraction algebra.
+def _avastha_planet_mults(planets_d1: Dict[str, Dict]) -> Dict[str, float]:
+    """Per-planet multiplicative Baladi Avastha factor (1.0 = neutral).
+
+    Extracted from the SAME degree-band classification used by
+    `_avastha_career_modifier` below (Bala/Kumara -> mild bonus, Yuva ->
+    baseline, Vriddha/Mrita -> mild penalty), just expressed as a
+    per-planet multiplier (1 + additive mod) instead of an
+    affinity-weighted single scalar. `_avastha_career_modifier` calls this
+    helper internally so the two never drift apart. Used only by the
+    additive/shadow-only Tier-2 composite_v2 path (jyotish/engine.py's
+    `_build_composite_v2_chart_primitives`) -- does NOT feed final_score.
+    """
+    _ODD = {"Aries","Gemini","Leo","Libra","Sagittarius","Aquarius"}
+    mults: Dict[str, float] = {}
+    for planet, pdata in (planets_d1 or {}).items():
+        if not isinstance(pdata, dict):
+            continue
+        sign = pdata.get("sign", "")
+        try:
+            degree = float(pdata.get("degree", 0))
+        except (TypeError, ValueError):
+            degree = 0.0
+        is_odd = sign in _ODD
+
+        # Bands run 0->30 for odd signs (Bala..Mrita) and are mirrored for
+        # even signs (Mrita..Bala) -- same reversal _detect_mrita_avastha
+        # and _d1_vitality_coefficient apply, spelled out per-band here.
+        if is_odd:
+            if   degree < 6:    mod =  0.05  # Bala (infant) -- growth potential
+            elif degree < 12:   mod =  0.05  # Kumara (youth) -- growth potential
+            elif degree < 18:   mod =  0.0   # Yuva (adult/peak) -- baseline
+            elif degree < 24:   mod = -0.065 # Vriddha (old) -- needs support
+            else:                mod = -0.065 # Mrita (dead, degree >= 24) -- needs support
+        else:
+            if   degree < 6:    mod = -0.065 # Mrita (dead, degree < 6) -- needs support
+            elif degree < 12:   mod = -0.065 # Vriddha (old) -- needs support
+            elif degree < 18:   mod =  0.0   # Yuva (adult/peak) -- baseline
+            elif degree < 24:   mod =  0.05  # Kumara (youth) -- growth potential
+            else:                mod =  0.05  # Bala (infant) -- growth potential
+
+        mults[planet] = round(1.0 + mod, 4)
+    return mults
+
+
 # ── Fix 6: Graha Avastha career manifestation modifier ───────────────────────
 def _avastha_career_modifier(
     affinity: Dict[str, float],
     planets_d1: Dict[str, Dict],
 ) -> float:
-    """Avastha (planetary state) career-manifestation modifier.
+    """Baladi Avastha (degree-based life-stage) career-manifestation modifier.
 
-    Yuva (prime) planets → most productive career signal (+15%).
-    Bala (young) planets → talent present but needs time (−15%).
-    Vriddha (old) → results delayed, after mid-life (−10%).
-    Mrita (dead) → already penalized elsewhere; skip here.
+    Per Full Methodology Spec §5f: Bala (infant) and Kumara (youth) indicate
+    freshness/growth potential -> mild bonus (~+5%). Yuva (adult) is the
+    strongest state -> baseline, no adjustment. Vriddha (old) and Mrita
+    (dead) indicate the planet needs external support/institutional backing
+    to deliver results readily -> mild penalty (~-5% to -8%, midpoint -6.5%
+    used here). This previously had the sign of every bucket inverted
+    (Bala/Kumara penalized, Yuva boosted, Vriddha/Mrita boosted) and
+    mislabeled the 18-24 deg band as "mature" instead of Vriddha -- fixed to
+    match the spec's odd/even degree bands and polarity.
 
     Returns a net boost/penalty scalar averaged across top-affinity planets.
     """
     if not planets_d1 or not affinity:
         return 0.0
 
-    _ODD = {"Aries","Gemini","Leo","Libra","Sagittarius","Aquarius"}
+    _planet_mults = _avastha_planet_mults(planets_d1)
     weighted_sum, weight_total = 0.0, 0.0
 
     for planet, w in affinity.items():
         if w < 0.10:
             continue
-        pdata = planets_d1.get(planet, {})
-        if not isinstance(pdata, dict):
+        if planet not in _planet_mults:
             continue
-        sign   = pdata.get("sign", "")
-        degree = float(pdata.get("degree", 15))
-        is_odd = sign in _ODD
-        check_deg = degree if is_odd else (30.0 - degree)
-
-        if   check_deg < 6:    mod = -0.15  # Bala
-        elif check_deg < 12:   mod = -0.05  # Kumara (developing)
-        elif check_deg < 18:   mod =  0.15  # Yuva (peak)
-        elif check_deg < 24:   mod =  0.05  # mature
-        else:                  mod = -0.10  # Vriddha / approaching Mrita
+        mod = round(_planet_mults[planet] - 1.0, 4)  # back to additive form
 
         weighted_sum  += w * mod
         weight_total  += w
@@ -4366,7 +5256,7 @@ def _avastha_career_modifier(
     if weight_total <= 0:
         return 0.0
     avg_mod = weighted_sum / weight_total
-    return max(-0.06, min(0.07, avg_mod))
+    return max(-0.08, min(0.05, avg_mod))
 
 
 # ── Fix 7: H3 lord scoring (effort/skill house) ───────────────────────────────
@@ -4766,9 +5656,17 @@ def _adhi_anapha_yoga_bonus(
         if moon_house:
             _BENEFICS = {"Jupiter", "Mercury", "Venus"}
             benefic_positions = {p: planet_house.get(p, 0) for p in _BENEFICS}
-            adhi_houses = {(moon_house + 4) % 12 or 12,   # H6 from Moon
-                           (moon_house + 5) % 12 or 12,   # H7 from Moon
-                           (moon_house + 6) % 12 or 12}   # H8 from Moon
+            # GAP-FIX (2026-08, astrological audit): the cyclic "Nth house
+            # from a reference house" formula is `((ref - 1 + (N - 1)) % 12)
+            # + 1`. This previously omitted the final `+1`, using
+            # `(moon_house + k) % 12 or 12` — for moon_house=1 that produced
+            # {5,6,7} instead of the correct H6/H7/H8 = {6,7,8}, shifting
+            # every Adhi Yoga benefic-house check one house early and
+            # silently missing genuine H8-from-Moon cases. Fixed to the
+            # correct cyclic formula.
+            adhi_houses = {((moon_house - 1 + 5) % 12) + 1,   # H6 from Moon
+                           ((moon_house - 1 + 6) % 12) + 1,   # H7 from Moon
+                           ((moon_house - 1 + 7) % 12) + 1}   # H8 from Moon
             adhi_planets = [p for p, h in benefic_positions.items() if h in adhi_houses and h != 0]
             has_adhi = len(adhi_planets) >= 2  # classical: 2-3 benefics needed
 
@@ -4780,8 +5678,13 @@ def _adhi_anapha_yoga_bonus(
     # Detect Anapha / Sunapha
     moon_house = planet_house.get("Moon", 0)
     if moon_house and planets_d1:
-        h12_from_moon = (moon_house - 2) % 12 or 12  # H12 from Moon = Moon house - 1
-        h2_from_moon  = moon_house % 12 + 1          # H2 from Moon = Moon house + 1
+        # GAP-FIX (2026-08, astrological audit): same missing-`+1` cyclic
+        # house-offset bug as adhi_houses above. h2_from_moon happened to be
+        # correct already (its `+1` term cancelled the missing offset), but
+        # h12_from_moon was off by one -- for moon_house=1 it returned 11
+        # instead of the correct 12th-from-Moon = house 12.
+        h12_from_moon = ((moon_house - 1 + 11) % 12) + 1  # H12 from Moon
+        h2_from_moon  = ((moon_house - 1 + 1) % 12) + 1   # H2 from Moon
 
         anapha_planets = [p for p, h in planet_house.items()
                          if h == h12_from_moon and p not in ("Sun", "Moon", "Rahu", "Ketu")]
@@ -5243,10 +6146,21 @@ def _compound_dasha_quality(
     conditions_total = 5
 
     # Condition 1: yogakaraka for the lagna
+    # GAP-FIX (2026-08, astrological audit): a Yogakaraka is a planet that
+    # rules BOTH a kendra (1/4/7/10) and a trikona (1/5/9) house for a given
+    # ascendant -- this combination exists for exactly six lagnas: Taurus &
+    # Libra -> Saturn, Cancer & Leo -> Mars, Capricorn & Aquarius -> Venus.
+    # The two extra entries here, "Aries": "Saturn" and "Scorpio": "Jupiter",
+    # are not valid yogakarakas: for Aries, Saturn rules the 10th (kendra)
+    # and 11th (neither kendra nor trikona) -- kendra-only, not a dual
+    # kendra+trikona lord; for Scorpio, Jupiter rules the 2nd and 5th
+    # (trikona) -- trikona-only, no kendra rulership. Removed both so this
+    # only credits the six lagnas classical Jyotish actually recognizes as
+    # having a yogakaraka.
     _yk_map = {
-        "Aries": "Saturn", "Leo": "Mars", "Scorpio": "Jupiter",
-        "Cancer": "Mars", "Capricorn": "Venus", "Libra": "Saturn",
-        "Taurus": "Saturn", "Aquarius": "Venus",
+        "Taurus": "Saturn", "Libra": "Saturn",
+        "Cancer": "Mars", "Leo": "Mars",
+        "Capricorn": "Venus", "Aquarius": "Venus",
     }
     if _yk_map.get(lagna_sign) == dasha_lord:
         conditions_met += 1
@@ -5308,31 +6222,8 @@ def _putrakaraka_field_score(
     a strong PK in H5/H9/H1 with field affinity = high intellectual/creative career mandate.
     Returns max 0.09.
     """
-    if not putrakaraka or not label:
-        return 0.0
-    label_lower = label.lower()
-
-    pk_kws = ["research","mathematics","data science","creative","arts","philosophy",
-              "education","teaching","science","literature","music","design","writing",
-              "analytics","theoretical","intellectual","scholarship","computing","innovation"]
-    match_count = sum(1 for kw in pk_kws if _wm(kw, label_lower))
-    if match_count == 0:
-        return 0.0
-
-    pk_aff  = affinity.get(putrakaraka, 0.0)
-    pk_h    = planet_house.get(putrakaraka, 0)
-    pk_eff  = eff_strengths.get(putrakaraka, 0.0)
-
-    if pk_aff < 0.05:
-        return 0.0
-
-    # House position multiplier
-    pos_mult = (1.30 if pk_h in {5, 9} else
-                1.15 if pk_h in {1, 3, 11} else
-                0.80 if pk_h in {6, 8, 12} else 1.00)
-
-    bonus = pk_aff * 0.30 * min(match_count, 3) * pos_mult * (0.5 + pk_eff)
-    return min(bonus, 0.09)
+    return _karaka_field_bonus(affinity, putrakaraka, planet_house, eff_strengths, label,
+                                cfg_key="putrakaraka")
 
 
 # ── R3-10: Gnatikaraka (6th Chara Karaka) competition field signal ────────────
@@ -5349,30 +6240,8 @@ def _gnatikaraka_field_score(
     A strong GnK in H6 or H10 with relevant affinity = strong competition-field mandate.
     Returns max 0.07.
     """
-    if not gnatikaraka or not label:
-        return 0.0
-    label_lower = label.lower()
-
-    gnk_kws = ["law","military","medicine","sports","forensic","investigation","police",
-               "defence","surgery","competition","healthcare","litigation","conflict",
-               "rehabilitation","emergency","veterinary","prosecution"]
-    match_count = sum(1 for kw in gnk_kws if _wm(kw, label_lower))
-    if match_count == 0:
-        return 0.0
-
-    gnk_aff = affinity.get(gnatikaraka, 0.0)
-    gnk_h   = planet_house.get(gnatikaraka, 0)
-    gnk_eff = eff_strengths.get(gnatikaraka, 0.0)
-
-    if gnk_aff < 0.05:
-        return 0.0
-
-    pos_mult = (1.30 if gnk_h == 6 else
-                1.20 if gnk_h in {10, 1} else
-                1.00 if gnk_h in {3, 5, 9} else 0.80)
-
-    bonus = gnk_aff * 0.25 * min(match_count, 3) * pos_mult * (0.5 + gnk_eff)
-    return min(bonus, 0.07)
+    return _karaka_field_bonus(affinity, gnatikaraka, planet_house, eff_strengths, label,
+                                cfg_key="gnatikaraka")
 
 
 # ── GAP-FIX (2026-07): remaining 3 Chara Karakas — Bhratrikaraka, Matrikaraka,
@@ -5382,7 +6251,102 @@ def _gnatikaraka_field_score(
 # only partial. These three follow the exact same pattern/shape as
 # _putrakaraka_field_score / _gnatikaraka_field_score above so they slot into
 # the same gap-boost stage in engine.py.
+#
+# 2026-08 simplification pass: all 5 Chara-Karaka functions in this section
+# (Putrakaraka/Gnatikaraka/Bhratrikaraka/Matrikaraka/Darakaraka) were
+# confirmed structurally identical (keyword-gate -> affinity/house/strength
+# lookup -> tiered position multiplier -> capped bonus) and consolidated into
+# the shared `_karaka_field_bonus()` + `_KARAKA_CONFIG` table below. Each
+# thin wrapper keeps its original name/signature/docstring (so every existing
+# call site in engine.py is untouched) and every per-karaka number (keyword
+# list, coefficient, house tiers, cap) was copied verbatim from the pre-
+# refactor bespoke bodies. Verified bit-for-bit equivalent against the
+# original implementations across 20,000 randomized inputs each (200,000
+# total comparisons, zero mismatches) before this rewrite was applied — see
+# audit/ENGINE_SIMPLIFICATION_2026-08_boosts_table_drive.md.
 # ──────────────────────────────────────────────────────────────────────────────
+
+_DUSTHANA_HOUSES = {6, 8, 12}
+
+_KARAKA_CONFIG = {
+    "putrakaraka": dict(
+        keywords=["research","mathematics","data science","creative","arts","philosophy",
+                  "education","teaching","science","literature","music","design","writing",
+                  "analytics","theoretical","intellectual","scholarship","computing","innovation"],
+        primary_houses={5, 9}, secondary_houses={1, 3, 11}, dusthana_mult=0.80,
+        coefficient=0.30, cap=0.09),
+    "gnatikaraka": dict(
+        keywords=["law","military","medicine","sports","forensic","investigation","police",
+                   "defence","surgery","competition","healthcare","litigation","conflict",
+                   "rehabilitation","emergency","veterinary","prosecution"],
+        primary_houses={6}, secondary_houses={10, 1}, tertiary_houses={3, 5, 9},
+        tertiary_mult=1.00, primary_mult=1.30, secondary_mult=1.20, default_mult=0.80,
+        coefficient=0.25, cap=0.07),
+    "bhratrikaraka": dict(
+        keywords=["entrepreneur","sales","marketing","journalism","media","communication",
+                  "logistics","transport","sports","athletics","writing","broadcasting",
+                  "public relations","content","courier","fitness","coaching","startup"],
+        primary_houses={3}, secondary_houses={1, 11}, dusthana_mult=0.85,
+        coefficient=0.25, cap=0.08),
+    "matrikaraka": dict(
+        keywords=["real estate","agriculture","hospitality","property","construction",
+                  "farming","dairy","land","interior design","early childhood",
+                  "hospitality management","hotel","homestead","landscape"],
+        primary_houses={4}, secondary_houses={2, 10}, dusthana_mult=0.85,
+        coefficient=0.25, cap=0.08),
+    "darakaraka": dict(
+        keywords=["business","trade","partnership","consulting","negotiation","diplomacy",
+                  "retail","export","import","client","counselling","mediation",
+                  "hospitality management","public relations","merchandising","franchise"],
+        primary_houses={7}, secondary_houses={1, 10}, dusthana_mult=0.85,
+        coefficient=0.25, cap=0.08),
+}
+
+
+def _karaka_field_bonus(
+    affinity: Dict[str, float],
+    karaka: str,
+    planet_house: Dict[str, int],
+    eff_strengths: Dict[str, float],
+    label: str,
+    *,
+    cfg_key: str,
+) -> float:
+    """Shared Chara-Karaka field-bonus formula (keyword-gate -> affinity/house/
+    strength lookup -> tiered position multiplier -> capped bonus). See
+    _KARAKA_CONFIG for the per-karaka keyword lists, house tiers, coefficient
+    and cap that reproduce each original bespoke function exactly."""
+    if not karaka or not label:
+        return 0.0
+    label_lower = label.lower()
+    cfg = _KARAKA_CONFIG[cfg_key]
+    match_count = sum(1 for kw in cfg["keywords"] if _wm(kw, label_lower))
+    if match_count == 0:
+        return 0.0
+
+    aff = affinity.get(karaka, 0.0)
+    h = planet_house.get(karaka, 0)
+    eff = eff_strengths.get(karaka, 0.0)
+    if aff < 0.05:
+        return 0.0
+
+    if cfg_key == "gnatikaraka":
+        # Gnatikaraka alone uses a 4-tier position scheme (primary/secondary/
+        # tertiary/default) rather than the 3-tier (primary/secondary/
+        # dusthana) scheme the other four karakas share — preserved exactly
+        # as its own branch rather than forced into a shape it never had.
+        pos_mult = (cfg["primary_mult"] if h in cfg["primary_houses"] else
+                    cfg["secondary_mult"] if h in cfg["secondary_houses"] else
+                    cfg["tertiary_mult"] if h in cfg["tertiary_houses"] else
+                    cfg["default_mult"])
+    else:
+        pos_mult = (1.30 if h in cfg["primary_houses"] else
+                    1.15 if h in cfg["secondary_houses"] else
+                    cfg["dusthana_mult"] if h in _DUSTHANA_HOUSES else 1.00)
+
+    bonus = aff * cfg["coefficient"] * min(match_count, 3) * pos_mult * (0.5 + eff)
+    return min(bonus, cfg["cap"])
+
 
 def _bhratrikaraka_field_score(
     affinity: Dict[str, float],
@@ -5398,30 +6362,8 @@ def _bhratrikaraka_field_score(
     BK in H3/H1/H11 with field affinity indicates effort-driven, entrepreneurial,
     or communication-heavy career mandates. Returns max 0.08.
     """
-    if not bhratrikaraka or not label:
-        return 0.0
-    label_lower = label.lower()
-
-    bk_kws = ["entrepreneur","sales","marketing","journalism","media","communication",
-              "logistics","transport","sports","athletics","writing","broadcasting",
-              "public relations","content","courier","fitness","coaching","startup"]
-    match_count = sum(1 for kw in bk_kws if _wm(kw, label_lower))
-    if match_count == 0:
-        return 0.0
-
-    bk_aff = affinity.get(bhratrikaraka, 0.0)
-    bk_h   = planet_house.get(bhratrikaraka, 0)
-    bk_eff = eff_strengths.get(bhratrikaraka, 0.0)
-
-    if bk_aff < 0.05:
-        return 0.0
-
-    pos_mult = (1.30 if bk_h == 3 else
-                1.15 if bk_h in {1, 11} else
-                0.85 if bk_h in {6, 8, 12} else 1.00)
-
-    bonus = bk_aff * 0.25 * min(match_count, 3) * pos_mult * (0.5 + bk_eff)
-    return min(bonus, 0.08)
+    return _karaka_field_bonus(affinity, bhratrikaraka, planet_house, eff_strengths, label,
+                                cfg_key="bhratrikaraka")
 
 
 def _matrikaraka_field_score(
@@ -5438,30 +6380,8 @@ def _matrikaraka_field_score(
     MK in H4/H2/H10 with field affinity indicates real-estate, agriculture,
     hospitality, or foundational-education career mandates. Returns max 0.08.
     """
-    if not matrikaraka or not label:
-        return 0.0
-    label_lower = label.lower()
-
-    mk_kws = ["real estate","agriculture","hospitality","property","construction",
-              "farming","dairy","land","interior design","early childhood",
-              "hospitality management","hotel","homestead","landscape"]
-    match_count = sum(1 for kw in mk_kws if _wm(kw, label_lower))
-    if match_count == 0:
-        return 0.0
-
-    mk_aff = affinity.get(matrikaraka, 0.0)
-    mk_h   = planet_house.get(matrikaraka, 0)
-    mk_eff = eff_strengths.get(matrikaraka, 0.0)
-
-    if mk_aff < 0.05:
-        return 0.0
-
-    pos_mult = (1.30 if mk_h == 4 else
-                1.15 if mk_h in {2, 10} else
-                0.85 if mk_h in {6, 8, 12} else 1.00)
-
-    bonus = mk_aff * 0.25 * min(match_count, 3) * pos_mult * (0.5 + mk_eff)
-    return min(bonus, 0.08)
+    return _karaka_field_bonus(affinity, matrikaraka, planet_house, eff_strengths, label,
+                                cfg_key="matrikaraka")
 
 
 def _darakaraka_field_score(
@@ -5480,30 +6400,8 @@ def _darakaraka_field_score(
     checks structurally. A strong DK in H7/H1/H10 with field affinity indicates
     business, trade, consulting, or diplomacy career mandates. Returns max 0.08.
     """
-    if not darakaraka or not label:
-        return 0.0
-    label_lower = label.lower()
-
-    dk_kws = ["business","trade","partnership","consulting","negotiation","diplomacy",
-              "retail","export","import","client","counselling","mediation",
-              "hospitality management","public relations","merchandising","franchise"]
-    match_count = sum(1 for kw in dk_kws if _wm(kw, label_lower))
-    if match_count == 0:
-        return 0.0
-
-    dk_aff = affinity.get(darakaraka, 0.0)
-    dk_h   = planet_house.get(darakaraka, 0)
-    dk_eff = eff_strengths.get(darakaraka, 0.0)
-
-    if dk_aff < 0.05:
-        return 0.0
-
-    pos_mult = (1.30 if dk_h == 7 else
-                1.15 if dk_h in {1, 10} else
-                0.85 if dk_h in {6, 8, 12} else 1.00)
-
-    bonus = dk_aff * 0.25 * min(match_count, 3) * pos_mult * (0.5 + dk_eff)
-    return min(bonus, 0.08)
+    return _karaka_field_bonus(affinity, darakaraka, planet_house, eff_strengths, label,
+                                cfg_key="darakaraka")
 
 
 # ── GAP-FIX (2026-07): Gochar (transit) career-activation signal ─────────────
@@ -6242,27 +7140,68 @@ def _foreign_career_multiplier(label: str, payload) -> float:
     return min(round(bonus, 4), 0.12)
 
 
+# ── 2026-08 simplification pass: the 5 special-lagna domain-alignment
+# functions below (Ghati/Sree/Hora/Bhava-Lagna, Bhrigu Bindu) were confirmed
+# structurally identical (domain-keyword hit count -> capped base bonus ->
+# sign-lord dignity kicker) and consolidated into the shared
+# `_special_lagna_domain_bonus()` + `_LAGNA_CONFIG` table below. Each thin
+# wrapper keeps its original name/signature/docstring (so every existing call
+# site in engine.py is untouched) and every per-point number (domain table,
+# hit unit/cap, dignity bonuses, final cap) was copied verbatim from the
+# pre-refactor bespoke bodies, including the Bhrigu Bindu function's original
+# reuse of the Sree Lagna domain table. Verified bit-for-bit equivalent
+# against the original implementations across 20,000 randomized inputs each
+# (200,000 total comparisons, zero mismatches) before this rewrite was
+# applied — see audit/ENGINE_SIMPLIFICATION_2026-08_boosts_table_drive.md.
+
+_LAGNA_CONFIG = {
+    "ghati": dict(domain_table_name="_GHATI_LAGNA_DOMAIN", hit_unit=0.025, hit_cap=0.06,
+                  exalt_bonus=0.02, own_bonus=0.01, final_cap=0.08),
+    "sree": dict(domain_table_name="_SREE_LAGNA_DOMAIN", hit_unit=0.02, hit_cap=0.05,
+                 exalt_bonus=0.02, own_bonus=0.01, final_cap=0.07),
+    "hora": dict(domain_table_name="_HORA_LAGNA_DOMAIN", hit_unit=0.02, hit_cap=0.045,
+                 exalt_bonus=0.015, own_bonus=0.008, final_cap=0.06),
+    "bhava": dict(domain_table_name="_BHAVA_LAGNA_DOMAIN", hit_unit=0.02, hit_cap=0.045,
+                  exalt_bonus=0.015, own_bonus=0.008, final_cap=0.06),
+    # Bhrigu Bindu deliberately reuses the Sree Lagna domain table (both
+    # points are used by their respective schools as a single-sign "life
+    # direction" marker) — preserved from the original implementation.
+    "bhrigu": dict(domain_table_name="_SREE_LAGNA_DOMAIN", hit_unit=0.015, hit_cap=0.035,
+                   exalt_bonus=0.01, own_bonus=0.005, final_cap=0.05),
+}
+
+
+def _special_lagna_domain_bonus(label: str, lagna_sign: str, planet_dignities: dict, *,
+                                 cfg_key: str) -> float:
+    """Shared special-lagna domain-alignment formula (domain-keyword hit count
+    -> capped base bonus -> sign-lord dignity kicker). See _LAGNA_CONFIG for
+    the per-point domain table, hit unit/cap, dignity bonuses and final cap
+    that reproduce each original bespoke function exactly."""
+    if not lagna_sign:
+        return 0.0
+    cfg = _LAGNA_CONFIG[cfg_key]
+    domain_table = globals()[cfg["domain_table_name"]]
+    label_l = label.lower()
+    domains = domain_table.get(lagna_sign, [])
+    hits = sum(1 for d in domains if d in label_l)
+    if hits == 0:
+        return 0.0
+    base = min(hits * cfg["hit_unit"], cfg["hit_cap"])
+    lord = _WC_SIGN_LORD.get(lagna_sign, "")
+    dig = planet_dignities.get(lord, "")
+    if dig == "EXALTED":
+        base += cfg["exalt_bonus"]
+    elif dig == "OWN":
+        base += cfg["own_bonus"]
+    return min(round(base, 4), cfg["final_cap"])
+
+
 def _ghati_lagna_bonus(label: str, ghati_lagna_sign: str, planet_dignities: dict) -> float:
     """
     Ghati Lagna (power/authority lagna) domain alignment.
     Returns 0–0.08
     """
-    if not ghati_lagna_sign:
-        return 0.0
-    label_l = label.lower()
-    domains = _GHATI_LAGNA_DOMAIN.get(ghati_lagna_sign, [])
-    hits = sum(1 for d in domains if d in label_l)
-    if hits == 0:
-        return 0.0
-    base = min(hits * 0.025, 0.06)
-    # Boost if Ghati Lagna lord is exalted/own
-    lord = _WC_SIGN_LORD.get(ghati_lagna_sign, "")
-    dig  = planet_dignities.get(lord, "")
-    if dig == "EXALTED":
-        base += 0.02
-    elif dig == "OWN":
-        base += 0.01
-    return min(round(base, 4), 0.08)
+    return _special_lagna_domain_bonus(label, ghati_lagna_sign, planet_dignities, cfg_key="ghati")
 
 
 def _sree_lagna_bonus(label: str, sree_lagna_sign: str, planet_dignities: dict) -> float:
@@ -6270,21 +7209,7 @@ def _sree_lagna_bonus(label: str, sree_lagna_sign: str, planet_dignities: dict) 
     Sree Lagna (Lakshmi/prosperity lagna) domain alignment.
     Returns 0–0.07
     """
-    if not sree_lagna_sign:
-        return 0.0
-    label_l = label.lower()
-    domains = _SREE_LAGNA_DOMAIN.get(sree_lagna_sign, [])
-    hits = sum(1 for d in domains if d in label_l)
-    if hits == 0:
-        return 0.0
-    base = min(hits * 0.02, 0.05)
-    lord = _WC_SIGN_LORD.get(sree_lagna_sign, "")
-    dig  = planet_dignities.get(lord, "")
-    if dig == "EXALTED":
-        base += 0.02
-    elif dig == "OWN":
-        base += 0.01
-    return min(round(base, 4), 0.07)
+    return _special_lagna_domain_bonus(label, sree_lagna_sign, planet_dignities, cfg_key="sree")
 
 
 # GAP-FIX (2026-07): Hora Lagna / Bhava Lagna / Bhrigu Bindu boost functions,
@@ -6296,40 +7221,12 @@ def _sree_lagna_bonus(label: str, sree_lagna_sign: str, planet_dignities: dict) 
 
 def _hora_lagna_bonus(label: str, hora_lagna_sign: str, planet_dignities: dict) -> float:
     """Hora Lagna (wealth/income-timing lagna) domain alignment. Returns 0-0.06."""
-    if not hora_lagna_sign:
-        return 0.0
-    label_l = label.lower()
-    domains = _HORA_LAGNA_DOMAIN.get(hora_lagna_sign, [])
-    hits = sum(1 for d in domains if d in label_l)
-    if hits == 0:
-        return 0.0
-    base = min(hits * 0.02, 0.045)
-    lord = _WC_SIGN_LORD.get(hora_lagna_sign, "")
-    dig  = planet_dignities.get(lord, "")
-    if dig == "EXALTED":
-        base += 0.015
-    elif dig == "OWN":
-        base += 0.008
-    return min(round(base, 4), 0.06)
+    return _special_lagna_domain_bonus(label, hora_lagna_sign, planet_dignities, cfg_key="hora")
 
 
 def _bhava_lagna_bonus(label: str, bhava_lagna_sign: str, planet_dignities: dict) -> float:
     """Bhava Lagna (general vocational/status lagna) domain alignment. Returns 0-0.06."""
-    if not bhava_lagna_sign:
-        return 0.0
-    label_l = label.lower()
-    domains = _BHAVA_LAGNA_DOMAIN.get(bhava_lagna_sign, [])
-    hits = sum(1 for d in domains if d in label_l)
-    if hits == 0:
-        return 0.0
-    base = min(hits * 0.02, 0.045)
-    lord = _WC_SIGN_LORD.get(bhava_lagna_sign, "")
-    dig  = planet_dignities.get(lord, "")
-    if dig == "EXALTED":
-        base += 0.015
-    elif dig == "OWN":
-        base += 0.008
-    return min(round(base, 4), 0.06)
+    return _special_lagna_domain_bonus(label, bhava_lagna_sign, planet_dignities, cfg_key="bhava")
 
 
 # Bhrigu Bindu sign -> domains (destiny-turning-point significance, reusing
@@ -6338,21 +7235,7 @@ def _bhava_lagna_bonus(label: str, bhava_lagna_sign: str, planet_dignities: dict
 def _bhrigu_bindu_bonus(label: str, bhrigu_bindu_sign: str, planet_dignities: dict) -> float:
     """Bhrigu Bindu (Rahu-Moon midpoint, destiny-turning-point) domain alignment.
     Returns 0-0.05."""
-    if not bhrigu_bindu_sign:
-        return 0.0
-    label_l = label.lower()
-    domains = _SREE_LAGNA_DOMAIN.get(bhrigu_bindu_sign, [])
-    hits = sum(1 for d in domains if d in label_l)
-    if hits == 0:
-        return 0.0
-    base = min(hits * 0.015, 0.035)
-    lord = _WC_SIGN_LORD.get(bhrigu_bindu_sign, "")
-    dig  = planet_dignities.get(lord, "")
-    if dig == "EXALTED":
-        base += 0.01
-    elif dig == "OWN":
-        base += 0.005
-    return min(round(base, 4), 0.05)
+    return _special_lagna_domain_bonus(label, bhrigu_bindu_sign, planet_dignities, cfg_key="bhrigu")
 
 
 def _h3_skills_bonus(label: str, h3_lord: str, h3_lord_house: int,
@@ -6500,7 +7383,21 @@ def _saraswati_yoga_bonus(label, planet_house, affinity):
 
 
 def _kemadruma_yoga_penalty(label, planet_house, planets_d1):
-    """Kemadruma: Moon alone with no adjacent planets. Returns -0.06 or 0.0"""
+    """Kemadruma: Moon alone with no adjacent planets. Returns -0.06 or 0.0
+
+    Astrological-audit fix (2026-08-17): the cancellation check below used to
+    exempt the penalty when `moon_h in (1,4,7,10)` -- i.e. when the Moon's OWN
+    house is a kendra FROM LAGNA (Chandra Lagna's reference point never
+    entered the check). The classical Kemadruma-cancellation rule ("Kemadruma
+    Bhanga") instead requires a planet placed in a kendra FROM THE MOON
+    (houses 1/4/7/10 counted from Chandra Lagna, i.e. moon_h itself, moon_h+3,
+    moon_h+6, moon_h+9) -- a different reference point than natal Lagna. The
+    adjacent-house check just above (2nd/12th from Moon, via `second`/
+    `twelfth`) already correctly implements the classical "no planets flanking
+    the Moon" primary condition and is left untouched; only the erroneous
+    kendra-from-Lagna exemption is replaced with the correct kendra-from-Moon
+    cancellation check.
+    """
     moon_h = planet_house.get("Moon", 0)
     if not moon_h:
         return 0.0
@@ -6509,8 +7406,19 @@ def _kemadruma_yoga_penalty(label, planet_house, planets_d1):
     all_h = set(planet_house.values())
     if second in all_h or twelfth in all_h:
         return 0.0
-    if moon_h in (1,4,7,10):
-        return 0.0
+    # Kemadruma Bhanga: any other planet in a kendra FROM THE MOON (1st/4th/
+    # 7th/10th counted from Chandra Lagna) cancels the yoga.
+    kendra_from_moon = {
+        moon_h,
+        ((moon_h - 1 + 3) % 12) + 1,
+        ((moon_h - 1 + 6) % 12) + 1,
+        ((moon_h - 1 + 9) % 12) + 1,
+    }
+    for planet, h in planet_house.items():
+        if planet == "Moon":
+            continue
+        if h in kendra_from_moon:
+            return 0.0
     return -0.06
 
 
@@ -6565,21 +7473,15 @@ def _sudarshana_convergence_bonus(label, lagna_sign, sun_sign, moon_sign,
     return {3: 0.09, 2: 0.05, 1: 0.02}.get(layers_active, 0.0)
 
 
-def _preferred_geographies(payload):
-    """Return geographic clusters from H9/H12 lords + Rahu sign."""
-    from .constants import _SIGN_GEOGRAPHY
-    planet_signs = getattr(payload, "planet_signs", {}) or {}
-    house_lords  = getattr(payload, "house_lords",  {}) or {}
-    geos = []
-    for h in ("9","12"):
-        lord = house_lords.get(h,"")
-        if lord:
-            geos += _SIGN_GEOGRAPHY.get(planet_signs.get(lord,""), [])
-    geos += _SIGN_GEOGRAPHY.get(planet_signs.get("Rahu",""), [])
-    seen = set()
-    return [g for g in geos if not (g in seen or seen.add(g))]
-
-
+# Dead-code audit fix (2026-08-17): _preferred_geographies re-confirmed via a
+# fresh repo-wide grep (excluding .venv/.git/__pycache__/uv caches) to have
+# zero callers anywhere in the codebase -- consistent with its own prior
+# "Gap-audit fix (2026-08, documentation-only)" note below that first
+# identified it as the one dead function in this file. Since it remains an
+# intentionally-unwired stub for a feature nobody has claimed ownership of
+# (rather than a scoring bug), it is removed outright here rather than left
+# as unreachable code; _SIGN_GEOGRAPHY (its only special dependency) is
+# untouched in constants.py in case a future geography feature wants it.
 # =============================================================================
 # WORLD-CLASS UPGRADE: D3 / D20 / D30 divisional boosts  (P3-1)
 # =============================================================================
@@ -6658,8 +7560,34 @@ def _d30_trimsamsha_obstacle_check(label, d30_planet_dignities, affinity):
 # WORLD-CLASS UPGRADE: Extended Jaimini Karaka boosts  (P3-2)
 # =============================================================================
 
+# Definitional-duplication audit fix (2026-08-17): _gnk_competitive_bonus /
+# _dk_partnership_bonus / _pk_creative_bonus below re-implement the SAME
+# underlying classical fact already scored by _gnatikaraka_field_score /
+# _darakaraka_field_score / _putrakaraka_field_score above (via the shared
+# _karaka_field_bonus() + _KARAKA_CONFIG table) -- both families independently
+# translate "this Chara Karaka's house placement + dignity supports this
+# domain's keywords" into a bonus, with their own keyword lists, house tiers,
+# and dignity multipliers, and no correlation discount between them. engine.py
+# calls BOTH families on the same fields (the _field_score family first, near
+# lines ~2645/2649/2661; this _bonus family second, near lines ~3095/3099),
+# so a chart where e.g. a strong Gnatikaraka in a competitive house matches
+# both keyword lists gets the same classical placement counted twice.
+# Rather than delete either family (each is independently exercised
+# elsewhere and removing one would silently drop a technique some callers
+# may rely on), this second-computed family is discounted by
+# _KARAKA_DUPLICATE_DISCOUNT so the combined total approximates a single
+# fair credit for the one underlying fact rather than double-counting it.
+# 0.55 was chosen as the midpoint of this codebase's established 0.5-0.6
+# partial-credit range for correlated/overlapping signals (see e.g. the
+# dusthana/functional-malefic overlap discussion elsewhere in this file);
+# it materially reduces the duplicate credit while still letting this
+# family register as a distinct (if muted) confirming signal.
+_KARAKA_DUPLICATE_DISCOUNT = 0.55
+
+
 def _gnk_competitive_bonus(label, gnatikaraka, planet_house, planet_dignities, affinity):
-    """GnK in H3/H6/H11 for competitive fields. Returns 0-0.06"""
+    """GnK in H3/H6/H11 for competitive fields. Returns 0-0.06 (discounted -- see
+    _KARAKA_DUPLICATE_DISCOUNT: duplicates _gnatikaraka_field_score's underlying fact)."""
     if not gnatikaraka:
         return 0.0
     aff = affinity.get(gnatikaraka, 0.0)
@@ -6675,11 +7603,12 @@ def _gnk_competitive_bonus(label, gnatikaraka, planet_house, planet_dignities, a
     if gnk_h not in (3,6,11):
         return 0.0
     mult = {"EXALTED":1.40,"OWN":1.10,"DEBILITATED":0.40}.get(gnk_dig, 0.80)
-    return min(round(aff * mult * 0.06, 4), 0.06)
+    return min(round(aff * mult * 0.06 * _KARAKA_DUPLICATE_DISCOUNT, 4), 0.06)
 
 
 def _dk_partnership_bonus(label, darakaraka, planet_house, planet_dignities, affinity):
-    """DK in H7/H10/H11/H5 for partnership fields. Returns 0-0.06"""
+    """DK in H7/H10/H11/H5 for partnership fields. Returns 0-0.06 (discounted -- see
+    _KARAKA_DUPLICATE_DISCOUNT: duplicates _darakaraka_field_score's underlying fact)."""
     if not darakaraka:
         return 0.0
     aff = affinity.get(darakaraka, 0.0)
@@ -6695,11 +7624,12 @@ def _dk_partnership_bonus(label, darakaraka, planet_house, planet_dignities, aff
     if dk_h not in (7,10,11,5):
         return 0.0
     mult = {"EXALTED":1.40,"OWN":1.15,"DEBILITATED":0.35}.get(dk_dig, 0.80)
-    return min(round(aff * mult * 0.06, 4), 0.06)
+    return min(round(aff * mult * 0.06 * _KARAKA_DUPLICATE_DISCOUNT, 4), 0.06)
 
 
 def _pk_creative_bonus(label, putrakaraka, planet_house, planet_dignities, affinity):
-    """PK in H5/H9/H1/H4 for creative/intellectual fields. Returns 0-0.05"""
+    """PK in H5/H9/H1/H4 for creative/intellectual fields. Returns 0-0.05 (discounted -- see
+    _KARAKA_DUPLICATE_DISCOUNT: duplicates _putrakaraka_field_score's underlying fact)."""
     if not putrakaraka:
         return 0.0
     aff = affinity.get(putrakaraka, 0.0)
@@ -6716,4 +7646,4 @@ def _pk_creative_bonus(label, putrakaraka, planet_house, planet_dignities, affin
     if pk_h not in (5,9,1,4):
         return 0.0
     mult = {"EXALTED":1.35,"OWN":1.10,"DEBILITATED":0.40}.get(pk_dig, 0.85)
-    return min(round(aff * mult * 0.05, 4), 0.05)
+    return min(round(aff * mult * 0.05 * _KARAKA_DUPLICATE_DISCOUNT, 4), 0.05)

@@ -14,7 +14,22 @@ from typing import Any, Mapping
 class CalculationPolicy:
     version: str = "jyotish-calculation-policy.2026-07-18.v1"
     ephemeris: str = "Skyfield DE421"
-    ayanamsha: str = "KRISHNAMURTI"
+    # GAP FIX (2026-08-21, audit/CURRENT_ASTROLOGICAL_LOGIC..._2026-07-17.md,
+    # ayanamsha/sidereal-policy row + Gap_Analysis_2026-07 §1.8): this string
+    # is descriptive/reporting-only (grepped repo-wide; nothing reads
+    # `.ayanamsha` to select an actual sidereal-mode constant), but it must
+    # still name the engine's single live ayanamsha so a reader of this
+    # policy object isn't misled. The one live control is
+    # jyotish/llm_policy.py::AYANAMSHA = "KP_KRISHNAMURTI", which is what
+    # jyotish/ephemeris.py's `_DEFAULT_AYANAMSA` and every Skyfield/swisseph
+    # call site actually use. Corrected from the previous "KRISHNAMURTI" (no
+    # "KP_" prefix) to match that canonical string exactly. Investigated the
+    # rest of the repo for actual (not just label) ayanamsha divergence:
+    # the only real fallback found is Job_Career/micro_timing.py's
+    # already self-disclosed linear-Lahiri approximation, used solely for
+    # tactical micro-timing advisories (never core dignity/strength/
+    # final_score), not touched here -- see that module's own docstring.
+    ayanamsha: str = "KP_KRISHNAMURTI"
     node_type: str = "TRUE_NODE"
     natal_house_system: str = "WHOLE_SIGN"
     kp_house_system: str = "PLACIDUS"

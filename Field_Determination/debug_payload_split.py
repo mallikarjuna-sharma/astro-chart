@@ -50,6 +50,89 @@ SUMMARY_KEYS = {
     "admission_exams_canonical", "score_semantics", "norm_note",
     "graph_note", "parent_friendly_explanation", "astrological_reason",
     "sudarshana_score", "family_cohesion_adjustment_pct",
+    # Bug fix (2026-08 gap-audit round 2, "fix as per sequence" item 3):
+    # siddhamsha_score/shashtiamsha_score (D24/D60 method scores) were added
+    # to engine.py's published row dicts alongside the other six
+    # *_score keys (knrao_score, kp_score, jaimini_score, dashamsha_score,
+    # parashara_score, sudarshana_score -- all already in SUMMARY_KEYS above),
+    # but were never added here, so split_debug_payload() silently dropped
+    # them into the audit-only file instead of the summary file every
+    # consumer (UI/report/LLM prompt) actually reads. Confirmed missing from
+    # redacted_engine_summary.json on a live Midhula-chart run (2026-08-14)
+    # before this fix.
+    "siddhamsha_score", "shashtiamsha_score",
+    # Stage 1 (Astro-OS v3 gap-audit implementation plan, 2026-08):
+    # structural_patterns_score (D1 house-occupancy clustering, 9th voting
+    # method) -- same class of always-relevant *_score key as the seven
+    # above; classified here up front, same as confidence_dimensions below.
+    "structural_patterns_score",
+    # Stage 4 (Astro-OS v3 gap-audit implementation plan, 2026-08):
+    # multi-dimensional confidence decomposition (structural/educational/
+    # professional/research/leadership/timing fit) -- exactly the kind of
+    # small, high-value, always-relevant field a UI/report/LLM prompt needs,
+    # per this file's own SUMMARY_KEYS criteria. Classified here up front
+    # rather than left to fall into the audit-only file, unlike
+    # siddhamsha_score/shashtiamsha_score above which had to be fixed after
+    # the fact.
+    "confidence_dimensions",
+    # Stage 3 (Astro-OS v3 gap-audit implementation plan, 2026-08): career
+    # archetype discovery -- chart-level, additive-only descriptive output,
+    # same class of always-relevant field as confidence_dimensions above.
+    "career_archetype",
+    # Fix A (2026-08 gap-audit, "fix all identified gaps" round): these are
+    # already-computed, already-legitimate ranking-adjacent diagnostics
+    # (ranking_policy.annotate_rank_differentiation / defensibility.py) that
+    # were being written into the row but classified nowhere here, so they
+    # silently fell into the audit-only file and never reached the
+    # report/summary layer any UI/LLM-prompt consumer reads. score_ceiling_tie
+    # and low_rank_differentiation flag exactly the "convincing-looking but
+    # statistically undifferentiated" rank clusters found on both the Akash
+    # and Ramsunder audits (e.g. computational_finance/econometrics tied at
+    # the 100.00 ceiling); publication_ranking_adjustments is the bounded,
+    # auditable adjustment trail apply_publication_ranking_policy() already
+    # produces; the defensibility_summary subset surfaces tier/specificity
+    # without touching ranking (ranking_effect stays NONE -- see
+    # jyotish/defensibility.py docstring; this is transparency only). The
+    # row key produced by release_candidate.py is "defensibility" (full
+    # dict: tier/specificity_score/independent_supported_groups/
+    # advisory_codes/ranking_effect) -- classified here as-is rather than
+    # inventing a new key, since evaluate_defensibility() already keeps it
+    # small and self-describing.
+    "score_ceiling_tie", "low_rank_differentiation",
+    "publication_ranking_adjustments", "defensibility",
+    # Gap fix (2026-08-18, tiered-ranking audit): jyotish/tiered_ranking.py
+    # attaches these on every published row (tier1/2/3_score = the 3-tier
+    # classical-authority sub-scores that now decide field ranking;
+    # tier_decision_trace = human-readable "why this field landed here";
+    # final_score_legacy_blend = the retired flat-9-method-blend score, for
+    # audit/comparison). Confirmed missing from redacted_engine_summary.json
+    # and the HTML report on a live Ramsunder run (2026-08-18) -- same
+    # silent-drop failure mode as the siddhamsha_score/shashtiamsha_score
+    # gap above, and the earlier "LS12 fix" method_normalized_scores rename
+    # this session: a new field gets added to the row dict, but not to this
+    # allow-list, so it never reaches a report/UI/LLM-prompt consumer even
+    # though the code that renders it (career_field_report_v2.py's
+    # enriched_top20_payload() and its tier-trace method-card note) was
+    # already fixed to read it.
+    "tier1_score", "tier2_score", "tier3_score", "tier_decision_trace",
+    "final_score_legacy_blend", "tier1_leakage_discounted",
+    # Gap fix (2026-08-18, "Best UG Route" astrological-alignment review):
+    # career_field_report_v2.py::_select_headline_routes() reads
+    # row["method_breakdown"]["siddhamsha"]["normalized_score"] to check
+    # whether D24/Siddhamsha independently favors a different field for PG
+    # than the locked UG pick (pg_divergence_alert). That read happens on
+    # `results` AFTER slim_for_render() has already run (see
+    # career_field_report_v2.py's build flow), and method_breakdown was not
+    # on this allow-list -- same silent-drop failure mode as every other
+    # entry in this list's history. Confirmed live: pg_divergence_alert never
+    # fired on a real report (Akash Shanmugham, 2026-08-18) because
+    # _d24_support() always read an empty dict and returned 0.0 for every
+    # candidate, not because no real divergence existed. method_breakdown is
+    # per-method {raw_score, normalized_score, weight, ...} for all 10
+    # field-determination tiers -- small (10 short dicts), not the bulky
+    # audit trail (method_log/calc_trace/evidence_ledger_v2) this file's
+    # slimming step exists to drop.
+    "method_breakdown",
 }
 
 # Registry/ontology/catalog reference data backing a field.
@@ -60,6 +143,14 @@ REFERENCE_KEYS = {
     "siddhamsha_education", "shashtiamsha_confirmation",
     "navamsha_confirmation", "d10_verification", "affinity_planets",
     "micro_niches", "exact_field_contract", "graph_broadness_penalty",
+    # Bug fix (2026-08 gap-audit round 2, item 2 follow-through): these two
+    # confirmation/timing objects are the same class of content as
+    # navamsha_confirmation/siddhamsha_education just above (per-field
+    # corroboration detail a reference/audit consumer wants), but were never
+    # classified here, so -- once engine.py's row-builder allow-list gap for
+    # them is also fixed -- they would still have fallen through to the
+    # audit-only file instead of *_reference.json.
+    "d9_navamsha_confirmation", "jaimini_chara_dasha_timing",
 }
 
 # Small identifier/aliasing keys some downstream code (SBC, suitability,

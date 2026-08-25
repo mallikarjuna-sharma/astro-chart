@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import warnings
 from typing import Any, Dict, List
 
 RULES_VERSION = "jyotish-rules.2026-07-17.v2"
@@ -1682,6 +1683,38 @@ RULE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "implementation": "jyotish/engine.py",
         "confidence": "attributed_not_independently_verified",
     },
+    "SIGNAL.TRIKONA_SHODHANA": {
+        "school": "Parashari (BPHS Ch.5, Ashtakavarga reduction)",
+        "source": "Trikona Shodhana (trine normalization of raw Bhinnashtakavarga bindus) "
+                  "is a well-attested classical reduction step described across standard "
+                  "Ashtakavarga secondary literature and matched by common Jyotish software "
+                  "convention (the same class of source already used for this module's bindu "
+                  "tables, see jyotish/ashtakavarga.py module docstring); this session did not "
+                  "independently retrieve a primary BPHS verse pinning the exact "
+                  "subtract-the-group-minimum arithmetic implemented, so this is treated as "
+                  "attributed-but-not-independently-verified for the precise mechanics, while "
+                  "the existence and purpose of the reduction step itself is well attested.",
+        "statement": "Within each trikona group of houses (1-5-9, 2-6-10, 3-7-11, 4-8-12), "
+                     "every house's Bhinnashtakavarga bindu count is reduced by the minimum "
+                     "bindu count found anywhere in that same group.",
+        "implementation": "jyotish/ashtakavarga.py:apply_trikona_shodhana",
+        "confidence": "attributed_not_independently_verified",
+    },
+    "SIGNAL.EKADHIPATYA_SHODHANA": {
+        "school": "Parashari (BPHS Ch.5, Ashtakavarga reduction)",
+        "source": "Ekadhipatya Shodhana (same-lord-house normalization) is a well-attested "
+                  "classical reduction step for planets ruling two signs (every graha except "
+                  "Sun/Moon); this session did not independently retrieve a primary BPHS verse "
+                  "pinning the exact reduce-the-lower-house-to-zero arithmetic implemented, so "
+                  "this is treated as attributed-but-not-independently-verified for the precise "
+                  "mechanics, while the existence and purpose of the reduction step itself is "
+                  "well attested across standard Ashtakavarga secondary literature.",
+        "statement": "For any planet ruling two houses (via whole-sign houses from Lagna), if "
+                     "the Bhinnashtakavarga bindu counts in its two ruled houses are unequal, "
+                     "the house with the lower count is reduced to zero.",
+        "implementation": "jyotish/ashtakavarga.py:apply_ekadhipatya_shodhana",
+        "confidence": "attributed_not_independently_verified",
+    },
     "SIGNAL.SUN_LEADERSHIP_FORCE": {
         "school": "modern_engineering_or_unclassified",
         "source": "N/A -- not a discrete classical rule; modern scoring/engineering construct built on top of classical inputs (see 'statement')",
@@ -1872,8 +1905,87 @@ def _register_all_emitted_signals() -> None:
         re.compile(r'gap_detail\[\s*["\']([^"\']+)["\']\s*\]'),
         re.compile(r'components\[\s*["\']([^"\']+)["\']\s*\]'),
     )
-    for path in [root / "engine.py", *sorted((root / "field_methods").glob("*.py"))]:
+    # GAP-FIX (2026-07-20, signal-class exposure pass): field_methods/ moved
+    # from jyotish/field_methods/ to Field_Determination/field_methods/ during
+    # a later repo split (commit a7b280d). The old hardcoded path silently
+    # globbed to nothing after that move, so every component key emitted by
+    # knrao.py/kp.py/jaimini.py/parashara.py/dashamsha.py has been getting
+    # NO provenance coverage at all (not even the UNREVIEWED_PROVENANCE
+    # fallback) since the split -- this is the same class of stale-path bug
+    # documented for the earlier consolidated audit's grep checks. Point at
+    # both the current field_methods location and the repo root's
+    # Job_Career/timeline.py, which also emits components[...]/gap_detail[...]
+    # literals for career-timeline signals.
+    _candidate_dirs = [
+        root / "field_methods",                                    # legacy, kept in case it's restored
+        root.parent / "Field_Determination" / "field_methods",
+    ]
+    _paths = [root / "engine.py"]
+    _field_methods_hits = 0
+    for _d in _candidate_dirs:
+        if _d.is_dir():
+            _found = sorted(_d.glob("*.py"))
+            _paths.extend(_found)
+            _field_methods_hits += len(_found)
+
+    # Gap-audit fix (2026-08): the hardcoded candidate-dir list above has
+    # ALREADY silently broken once (the 2026-07-20 fix above documents that
+    # a repo split moved field_methods/ and every emitted signal from
+    # knrao.py/kp.py/jaimini.py/parashara.py/dashamsha.py got zero coverage,
+    # with no error raised, for as long as the move went unnoticed). A second
+    # move (e.g. to a src/ layout, or a package rename) would reproduce the
+    # exact same silent failure. Two mitigations, both non-behavior-changing
+    # when the hardcoded paths are correct (as they are today):
+    #   1. A bounded upward/sideways filesystem search for any sibling
+    #      directory literally named "field_methods" that isn't already one
+    #      of the candidates above, so a future rename/move is still found.
+    #   2. A loud warnings.warn() (not a silent no-op) if, after all of the
+    #      above, zero field_methods .py files were located -- so a future
+    #      break surfaces as a visible warning at import time instead of a
+    #      silent provenance-coverage gap discovered only by manual audit.
+    if _field_methods_hits == 0:
+        _known = {d.resolve() for d in _candidate_dirs}
+        for _sibling in sorted(root.parent.glob("*/field_methods")):
+            if _sibling.is_dir() and _sibling.resolve() not in _known:
+                _found = sorted(_sibling.glob("*.py"))
+                _paths.extend(_found)
+                _field_methods_hits += len(_found)
+                _known.add(_sibling.resolve())
+        if _field_methods_hits == 0:
+            warnings.warn(
+                "rule_registry._register_all_emitted_signals(): no "
+                "field_methods/*.py files found in any candidate location "
+                f"({[str(d) for d in _candidate_dirs]}) or via fallback "
+                f"sibling search under {root.parent}. Provenance coverage "
+                "for every parashara/jaimini/kp/knrao/dashamsha-emitted "
+                "signal will silently be missing (same failure class as the "
+                "2026-07-20 repo-split incident documented above) unless "
+                "this path list is updated to match the current repo "
+                "layout.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+    _timeline = root.parent / "Job_Career" / "timeline.py"
+    if _timeline.is_file():
+        _paths.append(_timeline)
+    else:
+        warnings.warn(
+            f"rule_registry._register_all_emitted_signals(): expected "
+            f"timeline file not found at {_timeline}; career-timeline "
+            "signals will get no provenance coverage until this path is "
+            "corrected.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    for path in _paths:
         text = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            _impl_path = path.relative_to(root).as_posix()
+            _impl_path = f"jyotish/{_impl_path}"
+        except ValueError:
+            # path lives outside jyotish/ (Field_Determination/, Job_Career/)
+            # after the module split -- record relative to the repo root instead.
+            _impl_path = path.relative_to(root.parent).as_posix()
         for pattern in patterns:
             for key in pattern.findall(text):
                 rule_id = f"SIGNAL.{key.upper()}"
@@ -1881,7 +1993,7 @@ def _register_all_emitted_signals() -> None:
                     "school": "modern_engineering_or_unclassified",
                     "source": "SOURCE NOT ESTABLISHED",
                     "statement": f"Engine-emitted signal '{key}'.",
-                    "implementation": f"jyotish/{path.relative_to(root).as_posix()}",
+                    "implementation": _impl_path,
                     "inputs": [], "output": key, "exclusions": [],
                     "implementation_version": RULES_VERSION,
                     "confidence": "UNREVIEWED_PROVENANCE",
@@ -1889,6 +2001,32 @@ def _register_all_emitted_signals() -> None:
 
 
 _register_all_emitted_signals()
+
+
+def signal_class(component_key: str) -> str:
+    """P0-5 gap-fix: honest three-way classification for a single component/
+    trace key, reusing the same source-string logic provenance_coverage()
+    already applies chart-wide, but scoped to one signal so callers (results
+    builders, reports, LLM prompts) can tag output as factual-calculation vs.
+    classical-doctrine vs. modern-heuristic without a full data-model rewrite.
+
+    Returns one of: "classically_sourced", "modern_heuristic",
+    "unreviewed_provenance" (registered but not yet source-checked), or
+    "source_not_established" (component key not found in the registry at all
+    -- should be rare after _register_all_emitted_signals(), but reported
+    honestly rather than defaulted to something reassuring-sounding).
+    """
+    rule_id = f"SIGNAL.{component_key.upper()}"
+    entry = RULE_REGISTRY.get(rule_id)
+    if not entry:
+        return "source_not_established"
+    source = entry.get("source", "SOURCE NOT ESTABLISHED")
+    confidence = str(entry.get("confidence", ""))
+    if source == "SOURCE NOT ESTABLISHED":
+        return "unreviewed_provenance" if confidence == "UNREVIEWED_PROVENANCE" else "source_not_established"
+    if source.startswith("N/A --"):
+        return "modern_heuristic"
+    return "classically_sourced"
 
 
 def lookup_rule(rule_id: str) -> Dict[str, Any]:

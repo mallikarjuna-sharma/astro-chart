@@ -75,7 +75,27 @@ DEFAULT_INCLUDE_FIELD_DERIVED_EVIDENCE = False
 
 
 def is_eligible(payload: Any, age_threshold: float = AGE_THRESHOLD_YEARS) -> bool:
-    """True if this chart belongs to this engine (current_age < threshold)."""
+    """True if this chart belongs to this engine (current_age < threshold).
+
+    2026-08-22 audit fix (gap 10): this is a HARD cutoff -- a chart at
+    age=threshold-epsilon runs entirely through this under-15 engine, while
+    the same chart at age=threshold runs entirely through Field_Determination's
+    199-branch adult engine instead, with no blending/smoothing across the
+    boundary. Two independently-designed, independently-tuned engines can
+    genuinely disagree, so a chart evaluated a day apart across the boundary
+    could see a large, discontinuous score/recommendation jump. Verified this
+    is a KNOWN, ACCEPTED LIMITATION rather than adding a blend here: the
+    actual age-routing decision (which engine runs at all) lives in
+    Field_Determination/education_engine.py's __main__ block, OUTSIDE this
+    module (see adult_engine_bridge.py's own "Age-router note" -- this file
+    only decides eligibility for callers that already reached it, it does not
+    own the dispatch). A same-run linear blend would require running BOTH
+    full engines for every chart near the boundary and reconciling two
+    differently-shaped report contracts, which is a bigger change than is
+    safe here; the safe fix is to name the limitation so a caller near the
+    boundary knows to treat the result as one point in a genuinely fuzzy
+    transition, not a precise cliff.
+    """
     try:
         raw_age = getattr(payload, "current_age", None)
         if raw_age is None or str(raw_age).strip() == "":

@@ -162,10 +162,25 @@ def d10_chart_native_archetype_profile(payload:Any)->dict:
     h10=set(occupancy.get("10",occupancy.get(10,[])) or []);support=set()
     for h in (3,10,11):support.update(occupancy.get(str(h),occupancy.get(h,[])) or [])
     if "Rahu" in h10 and {"Mars","Saturn"}&support:
+        # Fix (2026-08-19): "technology" is a DOMAIN name (see DOMAIN_ARCHETYPES),
+        # not one of the ten planet-level archetypes in ARCHETYPE_NAMES/
+        # PLANET_ARCHETYPES -- this module's own docstring says "technology"
+        # was folded into "research" during the V1.3 merge, closing the
+        # vocabulary to ten modes. Writing into totals["technology"] here
+        # therefore added a key that scale_raw_support()/archetype_vector()
+        # never read (ARCHETYPE_NAMES is derived only from PLANET_ARCHETYPES),
+        # so this Rahu-in-D10-H10-with-Mars/Saturn signal was silently
+        # discarded before it could reach `scores` or any domain_score() call
+        # -- it only ever showed up, inertly, in raw_support. Redirected to
+        # "research" (the archetype this contribution was actually folded
+        # into) and the ledger now records both contributions so the evidence
+        # trail matches what's actually scored.
         totals["engineering_systems"]=totals.get("engineering_systems",0)+.45
-        totals["technology"]=totals.get("technology",0)+.35
-        ledger.append({"evidence_id":"d10:technical_signature","archetype":"engineering_systems",
+        totals["research"]=totals.get("research",0)+.35
+        ledger.append({"evidence_id":"d10:technical_signature:engineering_systems","archetype":"engineering_systems",
                        "contribution":.45,"polarity":"POSITIVE","source":"RAHU_H10_WITH_MARS_OR_SATURN"})
+        ledger.append({"evidence_id":"d10:technical_signature:research","archetype":"research",
+                       "contribution":.35,"polarity":"POSITIVE","source":"RAHU_H10_WITH_MARS_OR_SATURN"})
     scores={k:round(min(100.0,v/2.0*100.0),2) for k,v in totals.items()}
     return {"contract_version":"d10-archetypes.v2","scores":scores,"raw_support":{k:round(v,6) for k,v in totals.items()},
             "support_ledger":ledger,"planet_roles":roles,"status":"CALCULATED" if lagna else "DEGRADED_OCCUPANCY_ONLY","source":"D10_CHART_ONLY",

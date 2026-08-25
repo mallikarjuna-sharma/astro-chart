@@ -13,6 +13,10 @@ services:
         value: "*"
       - key: AWS_REGION
         value: ap-south-1
+      - key: SES_REGION
+        value: ap-south-1
+      - key: SES_FROM_EMAIL
+        value: noreply@jothishai.in
       - key: DYNAMODB_USERS_TABLE_NAME
         value: JyotishUsers
       - key: DYNAMODB_PROFILES_TABLE_NAME

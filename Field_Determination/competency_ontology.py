@@ -35,8 +35,11 @@ Design decisions (see COMPETENCY_ONTOLOGY_UPGRADE_2026-07.md for full rationale)
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
+
+_logger = logging.getLogger("jyotish_engine_v11_0")
 
 # =============================================================================
 # SECTION 1 — COMPETENCY NODES  (G1, G5-G9, G13, G14)
@@ -295,6 +298,13 @@ FIELD_TO_FAMILY: Dict[str, str] = {
     "computer_science_engineering":          "software_cs",
     "information_technology":                "software_cs",
     "cloud_devops":                          "software_cs",
+    "information_systems":                   "software_cs",
+    "it_systems_planning":               "software_cs",
+    "software_infrastructure_engineering":                  "software_cs",
+    "operations_research":                   "data_quant_analytics",
+    "engineering_management":                "management_enterprise",
+    "it_business_advisory":                 "management_enterprise",
+    "it_governance":                         "cyber_distributed",
 
     "artificial_intelligence":               "ai_ml",
     "data_science_engineering":              "ai_ml",
@@ -431,6 +441,10 @@ FIELD_TO_FAMILY: Dict[str, str] = {
     "forensic_science":                      "forensic_investigative",
 
     # ---- Governance / Public / Law / Defence ----
+    # civil_services re-added (2026-08-18, explicit user request): restored as
+    # a career_route branch, same family as public_policy below. Re-added to
+    # jyotish/affinity.py + jyotish/india_course_registry_v12.json together to
+    # keep registry/affinity/ontology coverage consistent.
     "civil_services":                        "civil_admin_services",
     "public_policy":                         "civil_admin_services",
 
@@ -538,6 +552,20 @@ FIELD_TO_FAMILY: Dict[str, str] = {
 
     "environmental_engineering":             "environmental_engineering_fam",
     "water_resources_engineering":           "environmental_engineering_fam",
+
+    # GAP-FIX (2026-08-17, registry coverage regression): 7 fields added to
+    # india_course_registry_v12.json + jyotish/affinity.py earlier today were
+    # never mapped here, tripping registry_coverage_validator's
+    # registry_not_in_ontology / affinity_not_in_ontology checks. Mapped to
+    # the closest classical/domain-analog family, mirroring the sibling
+    # field noted per entry.
+    "aviation_pilot_training":               "aerospace_aeronautics",  # sibling: aerospace_engineering
+    "dairy_technology":                      "environmental_ecological",  # sibling: food_science_technology
+    "industrial_product_design":             "design_thinking",  # sibling: design_ux_product
+    "jyotish_vedic_astrology":               "humanities_scholarship",  # sibling: sanskrit_classical_studies
+    "nautical_science":                      "marine_ocean",  # sibling: marine_engineering
+    "siddha_medicine":                       "alternative_holistic_med",  # sibling: ayurveda/unani_medicine
+    "transportation_automotive_design":      "design_thinking",  # sibling: design_ux_product
 }
 
 # Remove placeholder guard duplicates (kept above only to document the
@@ -628,14 +656,42 @@ CONFIDENCE_BAND_CAVEAT = (
 )
 
 
-def confidence_band(score_pct: float) -> str:
-    """Map a 0-100 (or 20-100 display-normalized) score to a qualitative,
-    same-chart-relative score tier. NOT a statistical confidence level --
-    see CONFIDENCE_BAND_CAVEAT."""
+def confidence_band(score_pct: float, top_score: float = None) -> str:
+    """Map a score to a qualitative, same-chart-relative score tier. NOT a
+    statistical confidence level -- see CONFIDENCE_BAND_CAVEAT.
+
+    SCALE FIX (2026-08-18, tiered-ranking rollout): despite the "(relative)"
+    labels and the docstring above always having claimed this is a
+    same-chart RELATIVE tier, the original implementation applied the
+    _CONFIDENCE_BANDS cutoffs directly to the raw score -- which only
+    behaved relatively by coincidence, because the old flat 9-method blend
+    happened to produce final_score in a ~45-100 range where the #1 field
+    usually did clear 70-85. jyotish/tiered_ranking.py can now produce a
+    much lower/tighter absolute range (e.g. ~13-27 on a real chart), where
+    every field -- #1 and #20 alike -- fell into "Weak (relative)"
+    regardless of actual rank, silently breaking the relative promise the
+    label makes.
+
+    `top_score` (when supplied by the caller -- this chart's own top
+    final_score/family_score among the population being compared) makes
+    this genuinely relative: `score_pct` is expressed as a percentage OF
+    that leader before the band lookup, so the #1 field is always at or
+    near 100% regardless of what absolute scale final_score happens to be
+    on. Callers that don't yet pass `top_score` fall back to the old
+    absolute-cutoff behavior (still correct for anything already on a
+    0-100 scale) rather than raising, so this stays backward compatible.
+    """
     try:
         s = float(score_pct)
     except (TypeError, ValueError):
         return "Weak (relative)"
+    if top_score:
+        try:
+            top = float(top_score)
+        except (TypeError, ValueError):
+            top = 0.0
+        if top > 0:
+            s = max(0.0, min(100.0, (s / top) * 100.0))
     for threshold, label in _CONFIDENCE_BANDS:
         if s >= threshold:
             return label
@@ -708,7 +764,7 @@ def build_explanation_chain(result: Dict[str, Any]) -> List[str]:
 # SECTION 7 — CONTRADICTORY EVIDENCE SUMMARY  (G25)
 # =============================================================================
 
-def build_evidence_summary(result: Dict[str, Any]) -> Dict[str, Any]:
+def build_evidence_summary(result: Dict[str, Any], top_score: float = None) -> Dict[str, Any]:
     """Summarize supporting vs contradicting planetary evidence for one field.
 
     Uses the already-computed per-planet contribution and any structural
@@ -733,11 +789,37 @@ def build_evidence_summary(result: Dict[str, Any]) -> Dict[str, Any]:
     war_losers = result.get("war_losers", []) or []
     contradicting.extend(f"-{p} (planetary war loss)" for p in war_losers)
 
+    # 2026-08 architecture-audit gap-fix (Gap 8): the review's own worked
+    # example named "Limited KP authority" and "D24 combustion penalty" as
+    # exactly the kind of conflicting-evidence entries a legible audit trail
+    # should surface. Both signals already exist on `result` by the time
+    # this function runs (score_confidence_note from engine.py's KP-
+    # authority gate; confidence_dimensions.educational_fit's combustion
+    # note from this session's earlier gap-fix) -- pull them in rather than
+    # recomputing anything new. Defensive .get() chains throughout: this
+    # function must degrade gracefully (skip the note) if either upstream
+    # field isn't present yet, rather than assume a fixed call order.
+    score_confidence_note = str(result.get("score_confidence_note", "") or "")
+    if "could NOT be independently verified" in score_confidence_note or "little or no authority" in score_confidence_note:
+        contradicting.append("-KP (cusp/sub-lord chain not independently verified -- little or no authority weight)")
+
+    conf_dims = result.get("confidence_dimensions", {}) or {}
+    edu_basis = ((conf_dims.get("educational_fit") or {}).get("basis") or [])
+    for note in edu_basis:
+        if isinstance(note, str) and note.startswith("NOTE:") and "combust" in note.lower():
+            contradicting.append("-D24 education-signal karaka(s) combust in D1 (chart-wide, not field-specific)")
+            break
+    timing_basis = ((conf_dims.get("timing_fit") or {}).get("basis") or [])
+    for note in timing_basis:
+        if isinstance(note, str) and note.startswith("NOTE:") and "not in this field's affinity table" in note:
+            contradicting.append("-active dasha lord not in this field's affinity table (generic strength credited instead)")
+            break
+
     return {
         "supporting_evidence": supporting,
-        "contradicting_evidence": contradicting[:5],
+        "contradicting_evidence": contradicting[:8],
         "final_score": result.get("final_score", 0.0),
-        "confidence_band": confidence_band(result.get("final_score", 0.0)),
+        "confidence_band": confidence_band(result.get("final_score", 0.0), top_score),
     }
 
 
@@ -876,6 +958,12 @@ def build_cluster_report(
 
     aggregates = compute_family_aggregates(population)
     ranked_families = sorted(aggregates.values(), key=lambda a: -a["family_score"])[:top_n_families]
+    # Scale fix (2026-08-18, tiered-ranking rollout): see confidence_band()'s
+    # docstring -- this run's own top family_score/final_score makes the
+    # confidence_band() calls below genuinely relative regardless of
+    # whichever ranking authority produced final_score.
+    _pop_top_score = float(population[0].get("final_score", 0.0) or 0.0) if population else 0.0
+    _fam_top_score = float(ranked_families[0]["family_score"]) if ranked_families else 0.0
 
     result_by_id = {r.get("field_id"): r for r in population}
     clusters = []
@@ -886,14 +974,14 @@ def build_cluster_report(
             "career_family": fam["label"],
             "competency": fam["competency_label"],
             "family_score": fam["family_score"],
-            "confidence_band": confidence_band(fam["family_score"]),
+            "confidence_band": confidence_band(fam["family_score"], _fam_top_score),
             "demand_tag": fam["demand_tag"],
             "members": [
                 {
                     "field_id": m.get("field_id"),
                     "field_label": m.get("field_label"),
                     "final_score": m.get("final_score"),
-                    "confidence_band": confidence_band(m.get("final_score", 0.0)),
+                    "confidence_band": confidence_band(m.get("final_score", 0.0), _pop_top_score),
                 }
                 for m in members[:6]
             ],
@@ -1000,7 +1088,7 @@ _YOGA_LABELS: Dict[str, str] = {
     "Malavya":        "Malavya Mahapurusha Yoga (Venus exalted/own in a kendra — aesthetic mastery)",
     "ChandraMangala": "Chandra-Mangala Yoga (Moon-Mars combination — driven, enterprising energy)",
 }
-_MAJOR_YOGA_BONUS_PCT = 0.05   # Mahapurusha / Gajakesari / Saraswati / RajaYoga
+_MAJOR_YOGA_BONUS_PCT = 0.05   # Mahapurusha / Gajakesari / Saraswati / RajaYoga / DhanaYoga
 _MINOR_YOGA_BONUS_PCT = 0.02   # Parivartana / NakParivartana / Amala / ChandraMangala
 
 
@@ -1008,10 +1096,21 @@ def _yoga_planets(yoga_name: str) -> Tuple[str, ...]:
     """Return the planet(s) a detected_yogas entry is actually about,
     covering both static names (Ruchaka, GajaKesari, ...) and the
     dynamically-named ones astro.py emits (Parivartana_Mars_Saturn,
-    RajaYoga_Sun_Jupiter, Amala_Venus, NakParivartana_Moon_Mercury)."""
+    RajaYoga_Sun_Jupiter, Amala_Venus, NakParivartana_Moon_Mercury,
+    DhanaYoga_Mercury_Venus, DhanaYogaParivartana_Mercury_Venus).
+
+    Fix (2026-08-20): DhanaYoga_/DhanaYogaParivartana_ (astro.py's 2nd/11th
+    -lord wealth-yoga family, added 2026-08-17 specifically for career/
+    wealth support) were never added to this prefix list when they were
+    introduced, so they always fell through to the `return ()` below --
+    zero planet overlap with any competency, zero yoga_alignment_bonus_pct,
+    forever, for the entire yoga family. Added here so they get the same
+    bounded alignment nudge every other dynamically-named yoga already gets.
+    """
     if yoga_name in _YOGA_STATIC_PLANETS:
         return _YOGA_STATIC_PLANETS[yoga_name]
-    for prefix in ("Parivartana_", "NakParivartana_", "RajaYoga_"):
+    for prefix in ("Parivartana_", "NakParivartana_", "RajaYoga_",
+                   "DhanaYogaParivartana_", "DhanaYoga_"):
         if yoga_name.startswith(prefix):
             return tuple(yoga_name[len(prefix):].split("_"))
     if yoga_name.startswith("Amala_"):
@@ -1037,6 +1136,12 @@ def _yoga_label(yoga_name: str) -> str:
     if yoga_name.startswith("RajaYoga_"):
         p1, p2 = (yoga_name[len("RajaYoga_"):].split("_") + ["", ""])[:2]
         return f"Raja Yoga ({p1}-{p2} kendra-trikona lord conjunction — status & authority)"
+    if yoga_name.startswith("DhanaYogaParivartana_"):
+        p1, p2 = (yoga_name[len("DhanaYogaParivartana_"):].split("_") + ["", ""])[:2]
+        return f"Dhana Yoga Parivartana ({p1}-{p2} 2nd/11th-lord sign exchange — wealth-career mutual reinforcement)"
+    if yoga_name.startswith("DhanaYoga_"):
+        p1, p2 = (yoga_name[len("DhanaYoga_"):].split("_") + ["", ""])[:2]
+        return f"Dhana Yoga ({p1}-{p2} wealth-lord conjunction — material support for career results)"
     if yoga_name.startswith("Amala_"):
         _rest = yoga_name[len("Amala_"):]
         if "_Partial_" in _rest:
@@ -1055,6 +1160,14 @@ def _is_major_yoga(yoga_name: str) -> bool:
     return (
         yoga_name in ("Saraswati", "GajaKesari", "Shasha", "Hamsa", "Ruchaka", "Bhadra", "Malavya")
         or yoga_name.startswith("RajaYoga_")
+        # Fix (2026-08-20): Dhana Yoga (2nd/11th/10th/9th wealth-lord family)
+        # is a career-support yoga of comparable classical significance to
+        # Raja Yoga -- previously it wasn't even reachable here (see
+        # _yoga_planets' fix note above), so this tier assignment was moot;
+        # now that it can match, treat it as major rather than defaulting to
+        # the minor tier.
+        or yoga_name.startswith("DhanaYoga_")
+        or yoga_name.startswith("DhanaYogaParivartana_")
     )
 
 
@@ -1110,6 +1223,161 @@ def build_yoga_aware_framing(result: Dict[str, Any], detected_yogas: List[str]) 
     }
 
 
+_ARCHETYPE_ALIGN_BONUS_PCT = 0.05    # matches yoga-alignment's own +5% cap
+_ARCHETYPE_MISALIGN_PENALTY_PCT = 0.05  # symmetric, same magnitude as the bonus
+
+
+def apply_archetype_alignment_adjustment(
+    results: List[Dict[str, Any]],
+    max_adjust_pct: float = _ARCHETYPE_ALIGN_BONUS_PCT,
+) -> List[Dict[str, Any]]:
+    """2026-08 architecture-audit gap-fix (Gap 1): bounded (+/-5%, hard-capped)
+    score nudge based on whether a field's domain is covered by the chart's
+    own dominant career archetype (career_archetype.py, Stage 3 -- discovered
+    from D1 planetary strength + house concentration, chart-level not
+    field-level).
+
+    This is the "soft re-rank" version of the review's Gap-1 recommendation
+    ("add an explicit Career Archetype Layer before field scoring"), NOT a
+    hard gate. career_archetype.py's own module docstring explicitly
+    rejected letting the (unvalidated, no labeled benchmark) 8-archetype
+    classification REPLACE or filter the 205-field affinity table that has
+    been validated end-to-end across 25 real charts -- that risk assessment
+    still holds. What changes here is that the archetype layer stops being
+    purely descriptive and starts exerting a small, bounded, transparent
+    influence on ranking, using the exact same bounded-nudge convention
+    already proven safe by apply_family_cohesion_adjustment (+/-4%) and
+    apply_yoga_alignment_adjustment (+0-5%) just above -- capped so it can
+    only move rankings at the margin, never substitute for or dominate the
+    deterministic 9-method astrology blend.
+
+    Rule (symmetric, deterministic, no new astrology):
+      - field's `domain` in top_archetype's `domains` list        -> +5%
+      - field's `domain` in runner-up (top_2[1]) archetype's list  -> +2.5%
+      - field's `domain` in NEITHER of the top-2 archetypes' lists
+        AND the chart's archetype pick is CLEAR/LEANING (not BLENDED,
+        i.e. the chart has a genuinely dominant archetype, this isn't a
+        coin-flip call) -> -5%
+      - otherwise (BLENDED chart, or domain matches nothing meaningfully) -> 0%
+    """
+    if not results:
+        return results
+
+    for r in results:
+        archetype = r.get("career_archetype") or {}
+        top_2 = archetype.get("top_2_archetypes") or []
+        distinctness = archetype.get("distinctness", "")
+        field_domain = r.get("domain", "")
+
+        adj = 0.0
+        note = ""
+        if top_2 and field_domain and field_domain in (top_2[0].get("domains") or []):
+            adj = max_adjust_pct
+            note = f"domain '{field_domain}' matches dominant archetype " \
+                   f"'{top_2[0].get('label','')}' (+{adj*100:.1f}%)"
+        elif len(top_2) > 1 and field_domain and field_domain in (top_2[1].get("domains") or []):
+            adj = max_adjust_pct * 0.5
+            note = f"domain '{field_domain}' matches runner-up archetype " \
+                   f"'{top_2[1].get('label','')}' (+{adj*100:.1f}%)"
+        elif (
+            top_2 and field_domain and distinctness in ("CLEAR", "LEANING")
+            and field_domain not in (top_2[0].get("domains") or [])
+            and field_domain not in ((top_2[1].get("domains") if len(top_2) > 1 else []) or [])
+        ):
+            adj = -_ARCHETYPE_MISALIGN_PENALTY_PCT
+            note = f"domain '{field_domain}' outside this chart's dominant/runner-up " \
+                   f"archetype domains ({adj*100:.1f}%)"
+
+        if adj:
+            r["final_score"] = round(r.get("final_score", 0.0) * (1.0 + adj), 2)
+        r["archetype_alignment_adjustment_pct"] = round(adj, 4)
+        r["archetype_alignment_note"] = note
+
+    results.sort(key=lambda x: -x.get("final_score", 0.0))
+    return results
+
+
+# =============================================================================
+# SECTION 8b — GAP 6: ARCHETYPE-FIRST HIERARCHICAL VIEW
+# =============================================================================
+
+def build_archetype_hierarchy(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """2026-08 architecture-audit gap-fix (Gap 6): a derived, read-only
+    Career Archetype -> Industry/Domain -> Career Family -> Field hierarchy
+    for explainability, built purely by regrouping the existing 205-field
+    flat results -- NOT a registry rewrite. The review's own recommendation
+    ("organize hierarchically ... improves explainability and reduces
+    overfitting to narrowly defined fields") is about presentation/framing;
+    physically re-indexing india_course_registry_v12.json (205 hand-curated
+    field records, each independently validated) around an 8-archetype
+    ontology would be a genuine, high-risk data-migration project with no
+    established benchmark for whether the archetype boundaries are even
+    correct -- exactly the same risk career_archetype.py's own docstring
+    already flagged for Gap 1. This function gets the explainability benefit
+    without that risk: every field keeps its existing field_id/domain/
+    career_family, this just adds one more read-only view over the same data.
+    """
+    if not results:
+        return {"archetypes": {}}
+
+    archetype = (results[0].get("career_archetype") or {})
+    all_archetypes = archetype.get("all_archetypes") or {}
+
+    domain_to_archetypes: Dict[str, List[str]] = {}
+    for name, entry in all_archetypes.items():
+        for d in entry.get("domains", []):
+            domain_to_archetypes.setdefault(d, []).append(name)
+
+    hierarchy: Dict[str, Any] = {
+        name: {
+            "label": entry.get("label", name),
+            "match_score": entry.get("match_score", 0.0),
+            "description": entry.get("description", ""),
+            "industries": {},
+        }
+        for name, entry in all_archetypes.items()
+    }
+    unmapped: List[Dict[str, Any]] = []
+
+    for r in results:
+        domain = r.get("domain", "")
+        matches = domain_to_archetypes.get(domain, [])
+        if not matches:
+            unmapped.append({
+                "field_id": r.get("field_id", ""),
+                "field_label": r.get("field_label", ""),
+                "domain": domain,
+            })
+            continue
+        for arch_name in matches:
+            industry_bucket = hierarchy[arch_name]["industries"].setdefault(domain, {
+                "career_families": {},
+            })
+            fam = r.get("career_family") or "unclassified"
+            fam_bucket = industry_bucket["career_families"].setdefault(fam, {
+                "label": r.get("career_family_label", fam),
+                "fields": [],
+            })
+            fam_bucket["fields"].append({
+                "field_id": r.get("field_id", ""),
+                "field_label": r.get("field_label", ""),
+                "final_score": r.get("final_score", 0.0),
+            })
+
+    for arch in hierarchy.values():
+        for industry in arch["industries"].values():
+            for fam in industry["career_families"].values():
+                fam["fields"].sort(key=lambda f: -f.get("final_score", 0.0))
+
+    return {
+        "contract_version": "archetype-hierarchy.v1",
+        "dominant_archetype": archetype.get("top_archetype", {}).get("name", ""),
+        "archetypes": hierarchy,
+        "unmapped_domains": sorted({u["domain"] for u in unmapped}),
+        "unmapped_field_count": len(unmapped),
+    }
+
+
 def apply_yoga_alignment_adjustment(
     results: List[Dict[str, Any]],
     detected_yogas: List[str],
@@ -1121,6 +1389,20 @@ def apply_yoga_alignment_adjustment(
     philosophy as engine.py's tie-break cascade / medical governance cap —
     this can only move rankings at the margin, never substitute for the
     deterministic astrology score.
+
+    AUDIT NOTE + FIX (2026-08-22): `results[i]["final_score"]` entering this
+    function already reflects `jyotish/boosts.py::_yoga_bonus`, which folds a
+    domain-matched bonus for these SAME classical yogas (GajaKesari, Ruchaka,
+    Shasha, Malavya, Bhadra, Hamsa, Saraswati, BudhaAditya, etc. via
+    `_YOGA_DOMAIN_KW`) directly into final_score during the base engine pass.
+    This function re-matches the same `detected_yogas` against the field's
+    competency planet-set (a coarser generalization of the same domains) and
+    was applying a further bonus on top with no awareness the fact had
+    already been counted once. Rather than drop this signal (competency-level
+    matching is a genuinely distinct, coarser lens worth keeping), the
+    resulting adjustment is halved -- the same correlation-discount pattern
+    used throughout this audit pass -- so the double-counted portion is
+    reduced rather than fully doubled.
     """
     if not results or not detected_yogas:
         for r in results:
@@ -1131,6 +1413,7 @@ def apply_yoga_alignment_adjustment(
         framing = build_yoga_aware_framing(r, detected_yogas)
         r["yoga_framing"] = framing
         adj = min(framing["yoga_alignment_bonus_pct"] / 100.0, max_adjust_pct)
+        adj *= 0.5  # correlation discount: already partially counted via boosts.py::_yoga_bonus
         if adj > 0:
             r["final_score"] = round(r.get("final_score", 0.0) * (1.0 + adj), 2)
 
@@ -1371,7 +1654,38 @@ def _load_family_score_reference() -> Dict[str, Any]:
     try:
         with open(_FAMILY_SCORE_REFERENCE_PATH, "r", encoding="utf-8") as f:
             _family_score_reference_cache = json.load(f)
-    except Exception:
+    except FileNotFoundError as exc:
+        # This reference file is an optional, explicitly-caveated PROXY
+        # calibration artifact (see SECTION 12 docstring above) generated
+        # once from a 500-scenario stress-test corpus. Most deployments of
+        # this codebase (this one included) do not ship that corpus or a
+        # pre-generated reference file, so its absence is an expected,
+        # already-safe degraded mode, not a defect: normalize_family_score_cross_chart()
+        # returns cross_chart_percentile=None / band="insufficient_reference_data"
+        # for every family when the reference is empty, so no field's score
+        # or ranking is affected -- only the optional cross-chart-percentile
+        # annotation is unavailable. Logged at INFO (once, cached) rather
+        # than WARNING so it doesn't read as an actionable error.
+        _logger.info(
+            "competency_ontology._load_family_score_reference: no reference "
+            "file at %s -- this deployment has not generated the optional "
+            "500-scenario cross-chart percentile corpus, so cross-chart "
+            "percentile annotations will be omitted (scores/ranks are "
+            "unaffected). To enable this feature, generate the corpus and "
+            "run compute_family_aggregates() to produce this file.",
+            _FAMILY_SCORE_REFERENCE_PATH,
+        )
+        _family_score_reference_cache = {"families": {}, "meta": {}}
+    except Exception as exc:
+        # A file that DOES exist but fails to parse is a real bug (corrupted
+        # or malformed JSON), not an expected missing-corpus case -- keep
+        # this loud.
+        _logger.warning(
+            "competency_ontology._load_family_score_reference: failed to "
+            "load %s (%s); percentile interpolation will use an empty "
+            "reference (all family percentiles unavailable).",
+            _FAMILY_SCORE_REFERENCE_PATH, exc,
+        )
         _family_score_reference_cache = {"families": {}, "meta": {}}
     return _family_score_reference_cache
 
@@ -1440,6 +1754,7 @@ def apply_competency_ontology_layer(
     current_age: Optional[float] = None,
     enable_yoga_framing: bool = True,
     enable_cross_chart_norm: bool = True,
+    enable_archetype_alignment: bool = True,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """Single entry point called by engine.py right after the deterministic
     score + tie-break cascade are finalized.
@@ -1464,16 +1779,64 @@ def apply_competency_ontology_layer(
         r["career_family"] = onto["career_family"]
         r["career_family_label"] = onto["career_family_label"]
 
+    # AUDIT NOTE (2026-08-22): each of the three bounded nudges below
+    # (family-cohesion +/-4%, yoga-alignment +0-5%, archetype-alignment
+    # +/-5%) is individually capped and individually documented as "safe" --
+    # but chained multiplicatively with no combined check, their worst-case
+    # stack is roughly 1.04*1.05*1.05 ~= +14.7% (or symmetric negative
+    # combinations down to roughly -8.8%), well beyond what any single
+    # docstring promises as "the margin." Snapshot final_score before the
+    # cascade so a combined cap can be enforced once, after all three have
+    # run, rather than trusting each one's individual bound to compose safely.
+    _pre_cascade_scores = {
+        r.get("field_id", i): float(r.get("final_score", 0.0) or 0.0)
+        for i, r in enumerate(results)
+    }
+
     if enable_cohesion_adjustment:
         results = apply_family_cohesion_adjustment(results)
 
     if enable_yoga_framing:
         results = apply_yoga_alignment_adjustment(results, detected_yogas or [])
 
+    # 2026-08 architecture-audit gap-fix (Gap 1): bounded archetype-alignment
+    # nudge, applied last in the adjustment cascade (same ordering convention
+    # -- each bounded adjustment sees the already-adjusted score from the
+    # previous one, exactly like cohesion -> yoga above), so it's a small
+    # correction on top of everything else rather than compounding blindly.
+    if enable_archetype_alignment:
+        results = apply_archetype_alignment_adjustment(results)
+
+    # AUDIT FIX (2026-08-22): enforce the combined cap the comment above
+    # promises but the individual per-function bounds don't actually
+    # guarantee once chained. Clamp the NET multiplicative change across all
+    # three nudges to +/-10% of the pre-cascade final_score (tighter than the
+    # ~14.7%/~-8.8% theoretical worst case, but roomier than any single
+    # nudge's own bound, so a genuine multi-signal convergence still counts
+    # for more than one nudge alone would).
+    _CASCADE_NET_CAP = 0.10
+    for i, r in enumerate(results):
+        _pre = _pre_cascade_scores.get(r.get("field_id", i), 0.0)
+        _post = float(r.get("final_score", 0.0) or 0.0)
+        if _pre > 0:
+            _net_ratio = _post / _pre
+            _lo, _hi = 1.0 - _CASCADE_NET_CAP, 1.0 + _CASCADE_NET_CAP
+            if _net_ratio > _hi:
+                r["final_score"] = round(_pre * _hi, 2)
+                r["competency_cascade_capped"] = "high"
+            elif _net_ratio < _lo:
+                r["final_score"] = round(_pre * _lo, 2)
+                r["competency_cascade_capped"] = "low"
+
+    # Scale fix (2026-08-18, tiered-ranking rollout): see confidence_band()'s
+    # docstring. This run's own top final_score makes every confidence_band
+    # call below genuinely relative to this chart's own candidates.
+    _results_top_score = max((float(r.get("final_score", 0.0) or 0.0) for r in results), default=0.0)
+
     for r in results:
         r["explanation_chain"] = build_explanation_chain(r)
-        r["confidence_band"] = confidence_band(r.get("final_score", 0.0))
-        r["evidence_summary"] = build_evidence_summary(r)
+        r["confidence_band"] = confidence_band(r.get("final_score", 0.0), _results_top_score)
+        r["evidence_summary"] = build_evidence_summary(r, _results_top_score)
         r["aptitude_explanation"] = build_aptitude_explanation(r)
 
     cluster_report = build_cluster_report(results)
@@ -1496,6 +1859,14 @@ def apply_competency_ontology_layer(
             "stages": stages,
             "narrative": build_life_stage_narrative(stages, current_age),
         }
+
+    # 2026-08 architecture-audit gap-fix (Gap 6): archetype-first hierarchical
+    # view, read-only, built once per chart from the already-final `results`
+    # (post archetype-alignment adjustment, so final_score is the same value
+    # every other consumer sees). See build_archetype_hierarchy()'s own
+    # docstring for why this stays a derived view rather than a registry
+    # rewrite.
+    cluster_report["archetype_hierarchy"] = build_archetype_hierarchy(results)
 
     for r in results:
         r["career_cluster_report"] = cluster_report
