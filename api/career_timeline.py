@@ -216,6 +216,127 @@ def _extract_foreign(timeline: list[dict]) -> tuple[list[dict[str, Any]], dict[s
     }
 
 
+def _build_chart_insights(
+    payload: NatalPayloadV2,
+    blocks: list[dict[str, Any]],
+    confidence: dict[str, Any],
+    display_confidence_label: str,
+) -> dict[str, Any]:
+    """Sidebar dashboard data — mirrors jyotish/web_report._tl_sidebar_html()."""
+    em = "—"
+    current = next((b for b in blocks if b.get("is_current")), blocks[0] if blocks else {})
+    md_lord = current.get("md_lord", "") or em
+    ad_lord = current.get("ad_lord", "") or em
+
+    house_lords = getattr(payload, "house_lords", None) or {}
+    planet_house = getattr(payload, "planet_house", {}) or {}
+    true_dignities = (
+        getattr(payload, "true_planet_dignities", None)
+        or getattr(payload, "planet_dignities", {})
+        or {}
+    )
+    planet_strength = getattr(payload, "planet_strength", {}) or {}
+    kp_cusps = getattr(payload, "kp_cusp_data", {}) or {}
+    d10_house_lords = getattr(payload, "d10_house_lords", {}) or {}
+    d10_house_occupancy = getattr(payload, "d10_house_occupancy", {}) or {}
+    ak = getattr(payload, "atmakaraka", "") or ""
+    amk = getattr(payload, "amatyakaraka", "") or ""
+
+    md_houses_ruled = sorted(
+        (h for h, lord in house_lords.items() if lord == md_lord),
+        key=lambda x: int(x) if str(x).isdigit() else 0,
+    )
+    md_house = planet_house.get(md_lord)
+    md_house_str = f"House {md_house}" if md_house else em
+
+    planets: list[dict[str, Any]] = []
+    for pname in ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"):
+        score = planet_strength.get(pname)
+        if score is None:
+            continue
+        tags: list[str] = []
+        if pname == ak:
+            tags.append("AK")
+        if pname == amk:
+            tags.append("AmK")
+        planets.append({
+            "name": pname,
+            "score": round(float(score), 2),
+            "pct": max(0, min(100, round(float(score) / 2.5 * 100))),
+            "dignity": true_dignities.get(pname, "") or "",
+            "tags": tags,
+        })
+
+    h10_cusp = (kp_cusps or {}).get("H10", {}) or {}
+    kp_policy = getattr(payload, "calculation_policy", None)
+    kp_precise = bool(getattr(kp_policy, "precise_cusps_allowed", True))
+
+    yogas = getattr(payload, "yogas_present", None) or getattr(payload, "detected_yogas", None) or []
+
+    return {
+        "snapshot": {
+            "lagna_sign": getattr(payload, "lagna_sign", "") or em,
+            "current_dasha": f"{md_lord}–{ad_lord}" if md_lord != em else em,
+            "atmakaraka": ak or em,
+            "confidence": display_confidence_label or confidence.get("label") or confidence.get("tier") or em,
+        },
+        "planetary_strength": planets,
+        "d10": {
+            "lagna": getattr(payload, "d10_lagna_sign", "") or em,
+            "h10_lord": d10_house_lords.get("10", "") or em,
+            "h10_occupants": (d10_house_occupancy or {}).get("10", []) or [],
+            "strength_score": round(float(getattr(payload, "d10_strength", 0) or 0), 2),
+        },
+        "kp": {
+            "sign_lord": h10_cusp.get("sign_lord", "") or em,
+            "star_lord": h10_cusp.get("star_lord", "") or em,
+            "sub_lord": h10_cusp.get("sub_lord", "") or em,
+            "sub_sub_lord": h10_cusp.get("sub_sub_lord", "") or em,
+            "birth_time_uncertain": not kp_precise,
+        },
+        "kn_rao": {
+            "md_lord": md_lord,
+            "md_lord_house": md_house_str,
+            "md_houses_ruled": ", ".join(str(h) for h in md_houses_ruled) if md_houses_ruled else em,
+        },
+        "parashara": {
+            "lagna_lord": getattr(payload, "lagna_lord", "") or em,
+            "lagna_lord_dignity": true_dignities.get(getattr(payload, "lagna_lord", ""), "") or em,
+            "active_yogas": ", ".join(yogas[:6]) if yogas else em,
+        },
+        "jaimini": {
+            "atmakaraka": ak or em,
+            "amatyakaraka": amk or em,
+            "arudha_lagna": getattr(payload, "arudha_lagna", "") or em,
+            "karma_pada": getattr(payload, "a10_sign", "") or em,
+            "karakamsha": getattr(payload, "karakamsha_sign", "") or getattr(payload, "karakamsha", "") or em,
+            "darakaraka": getattr(payload, "darakaraka", "") or em,
+        },
+    }
+
+
+def _build_report_meta(
+    blocks: list[dict[str, Any]],
+    confidence: dict[str, Any],
+) -> dict[str, Any]:
+    """Confidence banners + outcome-strength table for the report header area."""
+    from Job_Career.gap_corrections_career_timeline_2026_07 import (
+        OUTCOME_STRENGTH_TABLE,
+        retro_confidence_label,
+    )
+
+    retro_matches = int((blocks[0].get("retro_matches", 0) if blocks else 0) or 0)
+    display_label, coverage_note = retro_confidence_label(confidence, retro_matches)
+    outcome_rows = [{"outcome": o, "strength": s} for o, s in OUTCOME_STRENGTH_TABLE]
+    return {
+        "confidence": confidence,
+        "display_confidence_label": display_label,
+        "confidence_coverage_note": coverage_note,
+        "retro_validation": (confidence or {}).get("retro_validation") or {},
+        "outcome_strength": outcome_rows,
+    }
+
+
 def _maybe_enrich_llm(payload: NatalPayloadV2) -> bool:
     """Run LLM narrative enrichment on payload.career_timeline in-place.
 
@@ -315,6 +436,15 @@ def run_career_timeline(
     md_arcs             = _build_md_arcs(timeline)
     foreign_opps, fmeta = _extract_foreign(timeline)
 
+    confidence = (timeline[0].get("confidence") if timeline else None) or {}
+    report_meta = _build_report_meta(timeline, confidence if isinstance(confidence, dict) else {})
+    chart_insights = _build_chart_insights(
+        payload,
+        timeline,
+        confidence if isinstance(confidence, dict) else {},
+        report_meta["display_confidence_label"],
+    )
+
     return {
         "engine_version": ENGINE_VERSION,
         "generated_at":   datetime.now(timezone.utc).isoformat(),
@@ -329,4 +459,6 @@ def run_career_timeline(
         "foreign_meta":   fmeta,
         "micro_timing":   payload.micro_timing or {},
         "llm_enriched":   llm_ran,
+        "chart_insights": chart_insights,
+        "report_meta":    report_meta,
     }

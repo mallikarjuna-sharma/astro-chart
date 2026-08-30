@@ -453,6 +453,66 @@ export interface CareerTimelineRequest {
   enrich_llm?: boolean;
 }
 
+export interface CareerChartInsights {
+  snapshot?: {
+    lagna_sign?: string;
+    current_dasha?: string;
+    atmakaraka?: string;
+    confidence?: string;
+  };
+  planetary_strength?: Array<{
+    name: string;
+    score: number;
+    pct: number;
+    dignity?: string;
+    tags?: string[];
+  }>;
+  d10?: {
+    lagna?: string;
+    h10_lord?: string;
+    h10_occupants?: string[];
+    strength_score?: number;
+  };
+  kp?: {
+    sign_lord?: string;
+    star_lord?: string;
+    sub_lord?: string;
+    sub_sub_lord?: string;
+    birth_time_uncertain?: boolean;
+  };
+  kn_rao?: {
+    md_lord?: string;
+    md_lord_house?: string;
+    md_houses_ruled?: string;
+  };
+  parashara?: {
+    lagna_lord?: string;
+    lagna_lord_dignity?: string;
+    active_yogas?: string;
+  };
+  jaimini?: {
+    atmakaraka?: string;
+    amatyakaraka?: string;
+    arudha_lagna?: string;
+    karma_pada?: string;
+    karakamsha?: string;
+    darakaraka?: string;
+  };
+}
+
+export interface CareerReportMeta {
+  confidence?: Record<string, unknown>;
+  display_confidence_label?: string;
+  confidence_coverage_note?: string;
+  retro_validation?: {
+    events_provided?: number;
+    events_matched?: number;
+    confidence_cap?: string;
+    reason?: string;
+  };
+  outcome_strength?: Array<{ outcome: string; strength: string }>;
+}
+
 export interface CareerTimelineResponse {
   engine_version: string;
   generated_at: string;
@@ -483,6 +543,8 @@ export interface CareerTimelineResponse {
   foreign_meta: CareerForeignMeta;
   micro_timing: Record<string, unknown>;
   llm_enriched: boolean;
+  chart_insights?: CareerChartInsights;
+  report_meta?: CareerReportMeta;
 }
 
 export interface BusinessKpi {

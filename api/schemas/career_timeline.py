@@ -104,3 +104,11 @@ class CareerTimelineResponse(BaseModel):
         default=False,
         description="True when AD blocks carry LLM-generated `llm_html` narratives.",
     )
+    chart_insights: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Sidebar snapshot: Shadbala, D10, KP, KN Rao, Parashara, Jaimini panels.",
+    )
+    report_meta: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Confidence banners, retro-validation summary, outcome-strength table.",
+    )
