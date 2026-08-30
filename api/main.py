@@ -40,6 +40,7 @@ from api.education_service import (
     get_or_create_education_analysis,
 )
 from api.career_timeline import CareerTimelineError, run_career_timeline
+from api.business_prediction import BusinessPredictionError, run_business_prediction
 from api.prashna import PrashnaError, list_prashna_categories, run_prashna_analysis, run_prashna_batch
 from api.schemas.education_analysis import (
     EducationAnalysisRequest,
@@ -48,6 +49,7 @@ from api.schemas.education_analysis import (
     PucAnalysisResponse,
 )
 from api.schemas.career_timeline import CareerTimelineRequest, CareerTimelineResponse
+from api.schemas.business_prediction import BusinessPredictionRequest, BusinessPredictionResponse
 from api.schemas.prashna import (
     PrashnaBatchRequest,
     PrashnaBatchResponse,
@@ -1131,6 +1133,30 @@ async def career_timeline_endpoint(body: CareerTimelineRequest) -> CareerTimelin
             status_code=502, detail=f"Career timeline analysis failed: {exc}"
         ) from exc
     return CareerTimelineResponse.model_validate(result)
+
+
+@app.post("/api/business-prediction", response_model=BusinessPredictionResponse)
+async def business_prediction_endpoint(body: BusinessPredictionRequest) -> BusinessPredictionResponse:
+    """Run the JyotishAI Business Prediction engine for a chart.
+
+    Returns the full engine output plus a UI-oriented report view (KPIs, sector
+    leaderboard, timed windows, recommendation verdict, significator evidence).
+    """
+    from fastapi.concurrency import run_in_threadpool
+    try:
+        result = await run_in_threadpool(
+            run_business_prediction,
+            body.user_json,
+            venture_type=body.venture_type,
+            years_ahead=body.years_ahead,
+        )
+    except BusinessPredictionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502, detail=f"Business prediction analysis failed: {exc}"
+        ) from exc
+    return BusinessPredictionResponse.model_validate(result)
 
 
 @app.get("/api/prashna/categories", response_model=PrashnaCategoriesResponse)

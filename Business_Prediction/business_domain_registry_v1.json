@@ -1,0 +1,914 @@
+{
+  "_registry_meta": {
+    "version": "business-domain-registry.v1",
+    "description": "Business sector archetype-weight mapping. Reuses the planet -> archetype vocabulary already defined in jyotish/d10_archetypes.py (PLANET_ARCHETYPES / ARCHETYPE_NAMES) so business sector scoring can share the same domain_score()/scale_raw_support() math as career-field domain scoring. Each sector's weights must sum to 1.0 (validated by validate_business_rule_pack() in business_engine.py).",
+    "archetype_source": "jyotish.d10_archetypes.ARCHETYPE_NAMES",
+    "archetype_family_note": "archetype_family groups sectors that share a genuinely dominant planetary/archetype signature (same top-weighted archetype(s) + overlapping core_planets), derived directly from each sector's weights/core_planets above -- used by diversify_sector_ranking() (business_determination/sectors.py) so near-duplicate sectors driven by the same underlying chart signature don't crowd out genuinely distinct top matches in client-facing sector lists. One of the enum values validated by validate_business_rule_pack().",
+    "capital_intensity_note": "capital_intensity (LOW/MODERATE/HIGH, one of the enum values validated by validate_business_rule_pack()) is a standard, disclosed business/economics classification of how much fixed capital (land, plant, equipment, regulated facilities) a sector typically requires before it can generate revenue -- NOT an astrological claim, and not derived from the chart. Used by business_determination/sectors.py's capital-feasibility check (item 33 of the astrological-completeness audit, 'sector capital intensity is not formally matched to capital capacity') to flag, purely mechanically, when a chart's own capital_strategy_lean (BOOTSTRAP_FAVORED / EXTERNAL_CAPITAL_FAVORED / BALANCED / INSUFFICIENT_DATA, computed in scoring.py from H2/H9/H11 vs H6/H8/H12/H12-lord strength) appears mismatched against a candidate sector's typical capital requirement -- e.g. a BOOTSTRAP_FAVORED chart matched to a HIGH-capital-intensity sector. capital_intensity_basis is a one-line, human-readable rationale for each sector's tier, so the classification is auditable rather than an opaque label."
+  },
+  "sectors": {
+    "trading_commerce": {
+      "label": "Trading & Commerce",
+      "weights": {
+        "commerce": 0.55,
+        "communication": 0.3,
+        "administration": 0.15
+      },
+      "core_houses": [
+        3,
+        7
+      ],
+      "core_planets": [
+        "Mercury",
+        "Venus"
+      ],
+      "archetype_family": "venus_mercury_commerce_communication",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Working-capital-driven (inventory financing, receivables) rather than fixed-asset heavy."
+    },
+    "manufacturing_industrial": {
+      "label": "Manufacturing & Industrial",
+      "weights": {
+        "engineering_systems": 0.55,
+        "field_operations": 0.3,
+        "administration": 0.15
+      },
+      "core_houses": [
+        6,
+        10
+      ],
+      "core_planets": [
+        "Mars",
+        "Saturn"
+      ],
+      "archetype_family": "mars_saturn_heavy_industrial",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Plant, machinery, and industrial facilities are prerequisites before production/revenue.",
+      "notes": "Audit fix: reassigned off the overcrowded mars_saturn_engineering_fieldops family (7 members pre-fix) into a narrower heavy-industrial-production sub-family shared only with automotive_transport_manufacturing."
+    },
+    "real_estate_construction": {
+      "label": "Real Estate & Construction (Umbrella)",
+      "weights": {
+        "field_operations": 0.45,
+        "engineering_systems": 0.35,
+        "administration": 0.2
+      },
+      "core_houses": [
+        4,
+        7,
+        10
+      ],
+      "core_planets": [
+        "Saturn",
+        "Mars",
+        "Venus"
+      ],
+      "archetype_family": "real_estate_value_chain_umbrella",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Land acquisition and construction capital are prerequisites before any unit is sellable/rentable.",
+      "role": "umbrella",
+      "notes": "Audit fix: broadened (H4/H10 -> H4/H7/H10, +Venus) so this no longer duplicates construction_contracting's exact H4/H10 Mars-Saturn signature -- now genuinely spans both the build side (construction_contracting) and the sell/deal side (real_estate_development_brokerage) rather than being a stale copy of one of its own children."
+    },
+    "consulting_professional_services": {
+      "label": "Consulting & Professional Services",
+      "weights": {
+        "scholarship_policy": 0.45,
+        "communication": 0.35,
+        "commerce": 0.2
+      },
+      "core_houses": [
+        1,
+        10
+      ],
+      "core_planets": [
+        "Jupiter",
+        "Mercury"
+      ],
+      "archetype_family": "jupiter_mercury_scholarship_commerce",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Primarily expertise/labor-based; minimal fixed assets needed to begin operating."
+    },
+    "finance_investment": {
+      "label": "Finance & Investment",
+      "weights": {
+        "commerce": 0.5,
+        "scholarship_policy": 0.3,
+        "administration": 0.2
+      },
+      "core_houses": [
+        2,
+        8,
+        11
+      ],
+      "core_planets": [
+        "Jupiter",
+        "Mercury"
+      ],
+      "archetype_family": "jupiter_mercury_scholarship_commerce",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Requires a substantial capital base to lend, underwrite, or invest at meaningful scale."
+    },
+    "hospitality_lifestyle": {
+      "label": "Hospitality & Lifestyle",
+      "weights": {
+        "design": 0.5,
+        "care": 0.3,
+        "communication": 0.2
+      },
+      "core_houses": [
+        7,
+        11
+      ],
+      "core_planets": [
+        "Venus"
+      ],
+      "archetype_family": "venus_design_experience_lifestyle",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Property/build-out costs vary widely by format (boutique service vs. full-scale hospitality venue)."
+    },
+    "tech_startup": {
+      "label": "Technology Startup",
+      "weights": {
+        "engineering_systems": 0.45,
+        "research": 0.35,
+        "communication": 0.2
+      },
+      "core_houses": [
+        10,
+        11
+      ],
+      "core_planets": [
+        "Rahu",
+        "Mercury"
+      ],
+      "archetype_family": "rahu_mercury_innovation_research",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Software/product development is comparatively low-capex versus physical-asset industries, though R&D runway still requires funding."
+    },
+    "import_export_foreign_trade": {
+      "label": "Import/Export & Foreign Trade",
+      "weights": {
+        "commerce": 0.45,
+        "research": 0.3,
+        "communication": 0.25
+      },
+      "core_houses": [
+        7,
+        9,
+        12
+      ],
+      "core_planets": [
+        "Rahu",
+        "Mercury"
+      ],
+      "archetype_family": "rahu_mercury_innovation_research",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Working capital for inventory-in-transit and logistics, but not fixed industrial infrastructure."
+    },
+    "agriculture_commodities": {
+      "label": "Agriculture & Commodities",
+      "weights": {
+        "field_operations": 0.55,
+        "care": 0.25,
+        "research": 0.2
+      },
+      "core_houses": [
+        4,
+        6
+      ],
+      "core_planets": [
+        "Mars",
+        "Saturn"
+      ],
+      "archetype_family": "mars_saturn_agriculture_fieldops",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Land, irrigation/storage infrastructure, and equipment are prerequisites before harvest revenue.",
+      "notes": "Audit fix: reassigned off the overcrowded mars_saturn_engineering_fieldops family into its own singleton family -- agriculture's H4/H6 signature is genuinely distinct from industrial production or land-extraction sectors sharing the same two planets."
+    },
+    "media_creative_business": {
+      "label": "Media & Creative Business",
+      "weights": {
+        "communication": 0.5,
+        "design": 0.35,
+        "public_authority": 0.15
+      },
+      "core_houses": [
+        3,
+        5
+      ],
+      "core_planets": [
+        "Venus",
+        "Mercury"
+      ],
+      "archetype_family": "venus_mercury_commerce_communication",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Production costs scale with ambition but entry-level creative ventures are comparatively low-capex."
+    },
+    "healthcare_wellness_venture": {
+      "label": "Healthcare & Wellness Venture",
+      "weights": {
+        "care": 0.55,
+        "field_operations": 0.25,
+        "research": 0.2
+      },
+      "core_houses": [
+        6,
+        12
+      ],
+      "core_planets": [
+        "Moon",
+        "Jupiter"
+      ],
+      "archetype_family": "moon_care_compassion",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Clinical facilities, equipment, and regulatory compliance require substantial upfront capital."
+    },
+    "family_business_continuation": {
+      "label": "Family Business Continuation",
+      "weights": {
+        "administration": 0.4,
+        "care": 0.3,
+        "commerce": 0.3
+      },
+      "core_houses": [
+        2,
+        4
+      ],
+      "core_planets": [
+        "Moon",
+        "Venus"
+      ],
+      "archetype_family": "moon_care_compassion",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Typically inherits an existing capital base rather than starting from zero, but scale varies by the underlying business."
+    },
+    "education_institutions": {
+      "label": "Education & Training Institutions",
+      "weights": {
+        "scholarship_policy": 0.5,
+        "care": 0.3,
+        "administration": 0.2
+      },
+      "core_houses": [
+        5,
+        9
+      ],
+      "core_planets": [
+        "Jupiter",
+        "Mercury"
+      ],
+      "archetype_family": "jupiter_mercury_scholarship_commerce",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Physical/institutional infrastructure needed, though scale (tutoring vs. campus) varies widely."
+    },
+    "logistics_transportation": {
+      "label": "Logistics & Transportation",
+      "weights": {
+        "field_operations": 0.5,
+        "commerce": 0.3,
+        "engineering_systems": 0.2
+      },
+      "core_houses": [
+        3,
+        9
+      ],
+      "core_planets": [
+        "Mars",
+        "Rahu"
+      ],
+      "archetype_family": "mars_rahu_logistics_mobility",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Vehicle fleets, warehousing, and route infrastructure are substantial fixed-capital prerequisites."
+    },
+    "retail": {
+      "label": "Retail",
+      "weights": {
+        "commerce": 0.5,
+        "communication": 0.3,
+        "design": 0.2
+      },
+      "core_houses": [
+        2,
+        7
+      ],
+      "core_planets": [
+        "Venus",
+        "Mercury"
+      ],
+      "archetype_family": "venus_mercury_commerce_communication",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Inventory and storefront/lease costs, but not heavy industrial fixed assets."
+    },
+    "legal_services": {
+      "label": "Legal Services",
+      "weights": {
+        "scholarship_policy": 0.45,
+        "public_authority": 0.35,
+        "communication": 0.2
+      },
+      "core_houses": [
+        6,
+        9
+      ],
+      "core_planets": [
+        "Jupiter",
+        "Saturn"
+      ],
+      "archetype_family": "jupiter_saturn_dharma_authority",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Primarily expertise/labor-based; minimal fixed assets needed to begin operating.",
+      "notes": "Audit fix: reassigned from jupiter_mercury_scholarship_commerce (a family name promising Mercury, which this sector's Jupiter-Saturn core_planets never included) to its own correctly-named family."
+    },
+    "entertainment_sports": {
+      "label": "Entertainment & Sports (Umbrella)",
+      "weights": {
+        "design": 0.45,
+        "communication": 0.35,
+        "field_operations": 0.2
+      },
+      "core_houses": [
+        5,
+        7,
+        11
+      ],
+      "core_planets": [
+        "Sun",
+        "Mars",
+        "Venus"
+      ],
+      "archetype_family": "entertainment_sports_umbrella",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Production/venue costs vary widely by format and scale.",
+      "role": "umbrella",
+      "notes": "Audit fix: broadened (H5/H11 -> H5/H7/H11, +Venus) so this no longer duplicates sports_athletics_business's exact H5/H11 Sun-Mars signature, and now actually carries the Venus significator entertainment needs -- previously this sector had zero Venus despite being the entertainment/creative-adjacent parent."
+    },
+    "energy_utilities": {
+      "label": "Energy & Utilities (Umbrella)",
+      "weights": {
+        "engineering_systems": 0.5,
+        "field_operations": 0.3,
+        "administration": 0.2
+      },
+      "core_houses": [
+        4,
+        6,
+        8
+      ],
+      "core_planets": [
+        "Sun",
+        "Saturn",
+        "Mercury"
+      ],
+      "archetype_family": "energy_utilities_umbrella",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Generation/distribution infrastructure requires very substantial upfront capital.",
+      "role": "umbrella",
+      "notes": "Audit fix: broadened (H6/H8 -> H4/H6/H8, +Mercury) and reassigned off mars_saturn_engineering_fieldops (a family name promising Mars, which this sector never had) so it now spans both energy_production_extraction (Sun-Saturn) and utilities_distribution_infrastructure (Saturn-Mercury) as a genuine umbrella instead of a mislabeled near-duplicate of the first."
+    },
+    "pharma_biotech": {
+      "label": "Pharma & Biotech",
+      "weights": {
+        "research": 0.35,
+        "care": 0.4,
+        "engineering_systems": 0.25
+      },
+      "core_houses": [
+        6,
+        8,
+        12
+      ],
+      "core_planets": [
+        "Mars",
+        "Saturn",
+        "Mercury"
+      ],
+      "archetype_family": "mars_saturn_mercury_technical_care",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "R&D, regulated manufacturing, and compliance require substantial and sustained capital."
+    },
+    "banking_lending_credit": {
+      "label": "Banking, Lending & Credit",
+      "weights": {
+        "commerce": 0.5,
+        "administration": 0.35,
+        "scholarship_policy": 0.15
+      },
+      "core_houses": [2, 8, 11],
+      "core_planets": ["Saturn", "Jupiter"],
+      "archetype_family": "jupiter_saturn_capital_discipline",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Regulatory capital reserves and large loan books are prerequisites for lending at scale.",
+      "notes": "Added: previously finance_investment (H2/H11, Jupiter-Mercury) covered wealth accumulation/asset management but had no 8th-house (leverage, other people's money, underwriting) significator -- banking/lending specifically needs it."
+    },
+    "insurance_risk_underwriting": {
+      "label": "Insurance & Risk Underwriting",
+      "weights": {
+        "administration": 0.45,
+        "commerce": 0.35,
+        "research": 0.2
+      },
+      "core_houses": [6, 8, 12],
+      "core_planets": ["Saturn", "Jupiter"],
+      "archetype_family": "jupiter_saturn_capital_discipline",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Reserve capital held against underwritten risk is a regulatory prerequisite.",
+      "notes": "Added: distinct from healthcare_wellness_venture and finance_investment -- underwriting risk (6th=liability/disputes, 8th=risk/actuarial, 12th=loss) is its own classical signature."
+    },
+    "it_services_outsourcing": {
+      "label": "IT Services & Outsourcing",
+      "weights": {
+        "engineering_systems": 0.45,
+        "administration": 0.35,
+        "communication": 0.2
+      },
+      "core_houses": [6, 10],
+      "core_planets": ["Mercury", "Saturn"],
+      "archetype_family": "mercury_saturn_technical_service",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Labor/service delivery model; minimal fixed assets beyond workstations and infrastructure access.",
+      "notes": "Added: split conceptually from tech_startup -- steady service-delivery/outsourcing (Mercury-Saturn, H6 service + H10 karma) is a different chart signature from Rahu-driven disruptive/innovation startups."
+    },
+    "ecommerce_digital_retail": {
+      "label": "E-commerce & Digital Retail",
+      "weights": {
+        "commerce": 0.45,
+        "communication": 0.3,
+        "engineering_systems": 0.25
+      },
+      "core_houses": [3, 7, 11],
+      "core_planets": ["Rahu", "Mercury", "Venus"],
+      "archetype_family": "rahu_venus_mercury_digital_commerce",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Inventory/logistics and platform-technology costs, lower than physical retail's storefront/lease overhead.",
+      "notes": "Added: distinct from retail (no Rahu/digital-platform significator) and tech_startup (no commerce/trade significator) -- combines both."
+    },
+    "fmcg_consumer_goods": {
+      "label": "FMCG & Consumer Goods",
+      "weights": {
+        "commerce": 0.45,
+        "field_operations": 0.3,
+        "design": 0.25
+      },
+      "core_houses": [2, 7],
+      "core_planets": ["Venus", "Moon"],
+      "archetype_family": "venus_moon_consumer_goods",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Distribution networks and brand-building costs; asset intensity moderate relative to heavy manufacturing.",
+      "notes": "Added: fast-moving/daily consumer goods -- Moon (daily necessity, mass appeal) alongside Venus (brand/desirability), previously not represented as its own sector."
+    },
+    "textiles_fashion_apparel": {
+      "label": "Textiles, Fashion & Apparel",
+      "weights": {
+        "design": 0.45,
+        "commerce": 0.35,
+        "communication": 0.2
+      },
+      "core_houses": [5, 7],
+      "core_planets": ["Venus", "Mercury"],
+      "archetype_family": "venus_mercury_commerce_communication",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Fabric/inventory and production-run costs; moderate relative to heavy industry.",
+      "notes": "Added: previously absorbed into generic trading_commerce/retail with no design-forward (fashion) distinction. Audit fix: houses changed 3->5 (creative/design house, matching this sector's design-first weighting) after final validation found H3/H7+Mercury/Venus was an exact core_houses/core_planets duplicate of trading_commerce."
+    },
+    "telecommunications": {
+      "label": "Telecommunications",
+      "weights": {
+        "engineering_systems": 0.45,
+        "communication": 0.35,
+        "administration": 0.2
+      },
+      "core_houses": [3, 11],
+      "core_planets": ["Mercury", "Rahu", "Saturn"],
+      "archetype_family": "rahu_mercury_innovation_research",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Network infrastructure (towers, spectrum, cabling) requires very substantial upfront capital.",
+      "notes": "Added: communication-infrastructure business, distinct from tech_startup (software/product) and media (content). Audit fix: added Saturn -- a HIGH capital_intensity/heavy-fixed-infrastructure sector had no structural/durability significator, inconsistent with how Saturn is used for every other HIGH-capital infrastructure sector in this registry."
+    },
+    "mining_metals_extraction": {
+      "label": "Mining, Metals & Extraction",
+      "weights": {
+        "field_operations": 0.5,
+        "engineering_systems": 0.3,
+        "administration": 0.2
+      },
+      "core_houses": [4, 8],
+      "core_planets": ["Mars", "Saturn"],
+      "archetype_family": "mars_saturn_land_extraction",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Extraction rights, heavy equipment, and site infrastructure are prerequisites before ore/output revenue.",
+      "notes": "Added: split out of the old energy_utilities H6/H8 pairing -- extraction is more accurately anchored on H4 (land/subsurface resources) + H8 (hidden/transformative) than H6 (labor/service)."
+    },
+    "automotive_transport_manufacturing": {
+      "label": "Automotive & Transport Manufacturing",
+      "weights": {
+        "engineering_systems": 0.5,
+        "field_operations": 0.3,
+        "administration": 0.2
+      },
+      "core_houses": [3, 4],
+      "core_planets": ["Mars", "Saturn", "Rahu"],
+      "archetype_family": "mars_saturn_heavy_industrial",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Plant, tooling, and assembly-line infrastructure are prerequisites before unit revenue.",
+      "notes": "Added: split out of manufacturing_industrial as a named vertical (vehicles/transport equipment) rather than generic industrial production. Audit fix: houses changed 4/6->3/4 (3rd/4th are the classical vehicle/vahana houses) and Rahu added (modern automotive tech/EV significator) after final validation found H4/H6+Mars/Saturn was an exact core_houses/core_planets duplicate of agriculture_commodities."
+    },
+    "beauty_personal_care": {
+      "label": "Beauty & Personal Care",
+      "weights": {
+        "design": 0.45,
+        "care": 0.35,
+        "commerce": 0.2
+      },
+      "core_houses": [7, 11],
+      "core_planets": ["Venus", "Moon"],
+      "archetype_family": "venus_moon_consumer_goods",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Product formulation/services scale with brand ambition but entry-level ventures are comparatively low-capex.",
+      "notes": "Added: previously had no dedicated sector -- distinct from hospitality_lifestyle (which is venue/experience-based) and healthcare_wellness_venture (which is clinical)."
+    },
+    "publishing_content_creation": {
+      "label": "Publishing & Content Creation",
+      "weights": {
+        "scholarship_policy": 0.4,
+        "communication": 0.4,
+        "design": 0.2
+      },
+      "core_houses": [3, 5],
+      "core_planets": ["Mercury", "Jupiter"],
+      "archetype_family": "jupiter_mercury_scholarship_commerce",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Primarily intellectual-property/content-based; minimal fixed assets to begin operating.",
+      "notes": "Added: split out of media_creative_business -- publishing/authorship (Jupiter=knowledge authority) is a different signature from performance/visual media (Venus)."
+    },
+    "nonprofit_social_enterprise": {
+      "label": "Non-Profit & Social Enterprise",
+      "weights": {
+        "care": 0.45,
+        "scholarship_policy": 0.3,
+        "administration": 0.25
+      },
+      "core_houses": [9, 12],
+      "core_planets": ["Jupiter", "Moon"],
+      "archetype_family": "moon_care_compassion",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Grant/donor-funded operating model; infrastructure needs vary widely by mission scale.",
+      "notes": "Added: dharma-and-service orientation (9th=dharma, 12th=charity/selfless expenditure) previously unrepresented among for-profit-framed sectors."
+    },
+    "sports_athletics_business": {
+      "label": "Sports & Athletics Business",
+      "weights": {
+        "field_operations": 0.45,
+        "public_authority": 0.3,
+        "commerce": 0.25
+      },
+      "core_houses": [5, 11],
+      "core_planets": ["Sun", "Mars"],
+      "archetype_family": "sun_mars_competitive_authority_sports",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Venue/training/franchise infrastructure costs vary widely by scale.",
+      "split_of": "entertainment_sports",
+      "notes": "Split from Entertainment & Sports: the competitive/athletic side (leagues, academies, franchises) keeps the original Sun-Mars signature, which fits sports far better than creative/performance entertainment."
+    },
+    "performing_arts_entertainment": {
+      "label": "Performing Arts & Entertainment",
+      "weights": {
+        "design": 0.45,
+        "communication": 0.35,
+        "public_authority": 0.2
+      },
+      "core_houses": [5, 7],
+      "core_planets": ["Venus", "Sun"],
+      "archetype_family": "venus_design_experience_lifestyle",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Production/venue costs vary widely by format and scale.",
+      "split_of": "entertainment_sports",
+      "notes": "Split from Entertainment & Sports: film/music/stage/performance ventures. Venus restored as core significator (aesthetics, audience appeal, performance arts) -- the original combined sector had no Venus at all, a gap flagged in astrologer review."
+    },
+    "energy_production_extraction": {
+      "label": "Energy Production & Extraction",
+      "weights": {
+        "engineering_systems": 0.45,
+        "field_operations": 0.35,
+        "administration": 0.2
+      },
+      "core_houses": [4, 8],
+      "core_planets": ["Sun", "Saturn"],
+      "archetype_family": "sun_saturn_energy_power",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Generation/extraction infrastructure requires very substantial upfront capital.",
+      "split_of": "energy_utilities",
+      "notes": "Split from Energy & Utilities: generation/extraction (oil, power plants, mining-adjacent energy) re-anchored on H4 (land/subsurface resource) + H8 (transformation/extraction) instead of the original H6, which read as a stretch for this activity."
+    },
+    "utilities_distribution_infrastructure": {
+      "label": "Utilities & Distribution Infrastructure",
+      "weights": {
+        "engineering_systems": 0.4,
+        "administration": 0.35,
+        "field_operations": 0.25
+      },
+      "core_houses": [4, 6],
+      "core_planets": ["Saturn", "Mercury"],
+      "archetype_family": "saturn_mercury_infrastructure_networks",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Distribution grids/networks (power lines, water mains, pipelines) require very substantial upfront capital.",
+      "split_of": "energy_utilities",
+      "notes": "Split from Energy & Utilities: distribution/network side (power grids, water utilities, pipelines) -- Mercury added for network/routing logic, distinguishing it from the extraction side above."
+    },
+    "real_estate_development_brokerage": {
+      "label": "Real Estate Development & Brokerage",
+      "weights": {
+        "design": 0.35,
+        "commerce": 0.35,
+        "communication": 0.3
+      },
+      "core_houses": [4, 7],
+      "core_planets": ["Venus", "Saturn"],
+      "archetype_family": "venus_design_experience_lifestyle",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Land-banking and marketing costs, but brokerage itself is comparatively low-capex; development scales with project size.",
+      "split_of": "real_estate_construction",
+      "notes": "Split from Real Estate & Construction: sales/development/brokerage side. Venus added as core significator (property appeal, deal-making, buyer relationships) -- absent from the original construction-anchored Mars-Saturn pairing."
+    },
+    "construction_contracting": {
+      "label": "Construction & Contracting",
+      "weights": {
+        "field_operations": 0.5,
+        "engineering_systems": 0.3,
+        "administration": 0.2
+      },
+      "core_houses": [4, 10],
+      "core_planets": ["Mars", "Saturn"],
+      "archetype_family": "mars_saturn_land_extraction",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Land acquisition and construction capital are prerequisites before any unit is sellable/rentable.",
+      "split_of": "real_estate_construction",
+      "notes": "Split from Real Estate & Construction: the physical building/contracting execution side, keeping the original Mars-Saturn/land-labor signature unchanged."
+    },
+    "spiritual_religious_occult_services": {
+      "label": "Spiritual, Religious & Occult Services",
+      "weights": {
+        "scholarship_policy": 0.45,
+        "care": 0.35,
+        "administration": 0.2
+      },
+      "core_houses": [9, 12],
+      "core_planets": ["Ketu", "Jupiter"],
+      "archetype_family": "ketu_jupiter_moksha_dharma",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Primarily practice/teaching-based; minimal fixed assets needed to begin operating.",
+      "notes": "Audit fix (gap #4): Ketu appeared in zero sectors of the prior 37-sector registry despite being a standard graha for moksha/spiritual practice, astrology, occult sciences, and alternative healing -- any chart with a dominant, well-placed Ketu had no sector to match against. H9 (dharma, guru, higher belief) + H12 (moksha, ashram, seclusion) is the classical house pairing for this domain."
+    },
+    "cybersecurity_it_security": {
+      "label": "Cybersecurity & IT Security",
+      "weights": {
+        "engineering_systems": 0.45,
+        "research": 0.35,
+        "administration": 0.2
+      },
+      "core_houses": [6, 8],
+      "core_planets": ["Ketu", "Saturn"],
+      "archetype_family": "ketu_saturn_security_research",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Expertise/service-based; minimal fixed assets beyond technical infrastructure access.",
+      "notes": "Audit fix (gap #4/#7): distinct from it_services_outsourcing (general Mercury-Saturn service delivery) -- Ketu is the standard contemporary significator for hidden vulnerabilities/breaches, H6 for defending against covert opponents/threats, H8 for hidden/concealed risk, Saturn for systematic protective discipline."
+    },
+    "waste_management_recycling": {
+      "label": "Waste Management & Recycling",
+      "weights": {
+        "field_operations": 0.45,
+        "administration": 0.3,
+        "engineering_systems": 0.25
+      },
+      "core_houses": [8, 12],
+      "core_planets": ["Ketu", "Saturn"],
+      "archetype_family": "ketu_saturn_transformation_fieldops",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Processing facilities and regulated disposal/recycling infrastructure require substantial upfront capital.",
+      "notes": "Audit fix (gap #4): Ketu (dissolution, what is discarded/let go) + Saturn (labor, regulation, long-cycle discipline) on H8 (transformation) + H12 (loss, disposal, unseen expenditure) -- previously unrepresented category."
+    },
+    "government_contracting_public_sector": {
+      "label": "Government Contracting & Public Sector Business",
+      "weights": {
+        "administration": 0.5,
+        "public_authority": 0.35,
+        "commerce": 0.15
+      },
+      "core_houses": [10, 11],
+      "core_planets": ["Sun", "Saturn"],
+      "archetype_family": "sun_saturn_authority_administration",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Bidding/compliance overhead and large-scale project delivery typically require substantial working capital and bonding capacity.",
+      "notes": "Audit fix (gap #5): Sun (government, public authority, official office) appeared in only 4 of 37 sectors, and no sector represented government-facing/public-sector business at all -- the domain most directly tied to Sun's classical significations. H10 (karma/authority/status) + H11 (gains/networks) with Sun-Saturn (authority + institutional discipline) closes this gap."
+    },
+    "food_beverage_restaurants": {
+      "label": "Food & Beverage / Restaurants",
+      "weights": {
+        "care": 0.4,
+        "commerce": 0.35,
+        "field_operations": 0.25
+      },
+      "core_houses": [2, 6],
+      "core_planets": ["Moon", "Venus"],
+      "archetype_family": "venus_moon_consumer_goods",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Kitchen/venue build-out and inventory turnover costs, but not heavy fixed industrial assets.",
+      "notes": "Audit fix (gap #7): previously absorbed into the venue-based hospitality_lifestyle (Venus-only, H7/H11) with no distinct sector for food/beverage production and service specifically. H2 (food, sustenance, accumulated resources) + H6 (daily service/labor) with Moon (nourishment, public taste) + Venus (palatability, hospitality) gives it its own signature, sharing the venus_moon_consumer_goods family with fmcg_consumer_goods and beauty_personal_care."
+    },
+    "aviation_aerospace": {
+      "label": "Aviation & Aerospace",
+      "weights": {
+        "engineering_systems": 0.45,
+        "field_operations": 0.3,
+        "administration": 0.25
+      },
+      "core_houses": [9, 10],
+      "core_planets": ["Rahu", "Saturn"],
+      "archetype_family": "rahu_saturn_aviation_infrastructure",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Fleet, regulatory certification, and airport/hangar infrastructure require very substantial upfront capital.",
+      "notes": "Audit fix (gap #7): previously absorbed into the generic logistics_transportation sector (Mars-Rahu, H3/H9) with no distinction for air/long-distance transport specifically -- H9 (long-distance travel, foreign reach) + H10 (large-scale enterprise/status) with Rahu (altitude, foreign, disruption) + Saturn (heavy regulated infrastructure) closes this gap."
+    },
+    "defense_security_services": {
+      "label": "Defense & Security Services",
+      "weights": {
+        "field_operations": 0.45,
+        "administration": 0.35,
+        "engineering_systems": 0.2
+      },
+      "core_houses": [8, 10],
+      "core_planets": ["Mars", "Saturn"],
+      "archetype_family": "mars_saturn_defense_security",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Personnel/training-driven for private security services; scales to HIGH for defense manufacturing/contracting specifically, not distinguished at this registry granularity.",
+      "notes": "Audit fix (gap #7): private security, guarding, and defense-contracting services -- distinct from manufacturing_industrial/mars_saturn_heavy_industrial (production) and government_contracting_public_sector (broader public-sector business) despite sharing Mars-Saturn, via its own H8 (hidden threats, danger) + H10 (authority, enforcement) house pairing and dedicated family."
+    },
+    "maritime_shipping_ports": {
+      "label": "Maritime, Shipping & Ports",
+      "weights": {
+        "field_operations": 0.45,
+        "commerce": 0.3,
+        "administration": 0.25
+      },
+      "core_houses": [9, 12],
+      "core_planets": ["Moon", "Rahu"],
+      "archetype_family": "moon_rahu_maritime_foreign_trade",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Vessels, port infrastructure, and fleet maintenance require very substantial upfront capital.",
+      "notes": "Audit fix (2nd gap-audit pass, item 1): logistics_transportation (Mars-Rahu, H3/H9) reads land/air-leaning; sea trade/shipping/ports is its own large vertical -- Moon (water) + Rahu (foreign/cross-border) on H9 (foreign reach) + H12 (deep water, foreign land) is the classical pairing, previously unrepresented."
+    },
+    "jewelry_gems_precious_metals": {
+      "label": "Jewelry, Gems & Precious Metals",
+      "weights": {
+        "commerce": 0.45,
+        "design": 0.35,
+        "administration": 0.2
+      },
+      "core_houses": [2, 7],
+      "core_planets": ["Venus", "Sun"],
+      "archetype_family": "venus_sun_luxury_gems",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Precious-metal/gem inventory carries very high per-unit value, tying up substantial working capital.",
+      "notes": "Audit fix (item 2): H2 (wealth, gems -- classically the house of precious stones) + H7 (trade) with Venus (gems/luxury) + Sun (gold) -- previously absorbed into generic retail/fmcg with no dedicated significator match."
+    },
+    "renewable_clean_energy": {
+      "label": "Renewable & Clean Energy",
+      "weights": {
+        "engineering_systems": 0.45,
+        "research": 0.3,
+        "administration": 0.25
+      },
+      "core_houses": [4, 11],
+      "core_planets": ["Sun", "Rahu"],
+      "archetype_family": "sun_rahu_renewable_innovation",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Generation infrastructure (solar/wind farms, storage) requires very substantial upfront capital.",
+      "notes": "Audit fix (item 3): distinct from energy_production_extraction (Sun-Saturn, fossil/extraction-flavored) -- Sun (power/solar) + Rahu (unconventional/disruptive technology) on H4 (land/resource) + H11 (forward-looking gains) for solar/wind/clean-tech ventures specifically."
+    },
+    "advertising_marketing_agencies": {
+      "label": "Advertising & Marketing Agencies",
+      "weights": {
+        "communication": 0.45,
+        "commerce": 0.3,
+        "design": 0.25
+      },
+      "core_houses": [3, 7],
+      "core_planets": ["Mercury", "Venus", "Rahu"],
+      "archetype_family": "rahu_venus_mercury_digital_commerce",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Primarily talent/service-based; minimal fixed assets beyond creative and media-buying capability.",
+      "notes": "Audit fix (item 4): distinct from media_creative_business (content production) and publishing_content_creation (authorship) -- advertising is persuasion-through-communication, Mercury (messaging) + Venus (branding/persuasion) + Rahu (digital ad-tech), sharing the ecommerce_digital_retail family since both are Rahu-Venus-Mercury digitally-native businesses."
+    },
+    "hr_staffing_recruitment": {
+      "label": "HR, Staffing & Recruitment",
+      "weights": {
+        "administration": 0.4,
+        "communication": 0.35,
+        "care": 0.25
+      },
+      "core_houses": [6, 7],
+      "core_planets": ["Mercury", "Saturn", "Moon"],
+      "archetype_family": "moon_mercury_saturn_people_placement",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Primarily service/placement-based; minimal fixed assets needed to begin operating.",
+      "notes": "Audit fix (item 5): people-placement/administration -- Mercury (matching/negotiation) + Saturn (structured process) + Moon (people-reading) on H6 (service/employment) + H7 (placement/deals), distinct from consulting_professional_services' broader advisory signature."
+    },
+    "fintech": {
+      "label": "FinTech",
+      "weights": {
+        "commerce": 0.4,
+        "engineering_systems": 0.35,
+        "research": 0.25
+      },
+      "core_houses": [2, 11],
+      "core_planets": ["Rahu", "Jupiter", "Mercury"],
+      "archetype_family": "rahu_jupiter_mercury_fintech_innovation",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Digital-first delivery is lower-capex than traditional banking, though regulatory/compliance runway still requires funding.",
+      "notes": "Audit fix (item 6): distinct from banking_lending_credit (Saturn-Jupiter, institutional) and tech_startup (generic Rahu-Mercury) -- Rahu (disruption) + Jupiter (finance/commerce wisdom) + Mercury (technical execution) on H2/H11 (wealth/gains), for digital-first financial-services ventures specifically."
+    },
+    "edtech": {
+      "label": "EdTech",
+      "weights": {
+        "scholarship_policy": 0.45,
+        "communication": 0.3,
+        "engineering_systems": 0.25
+      },
+      "core_houses": [5, 9],
+      "core_planets": ["Rahu", "Jupiter", "Mercury"],
+      "archetype_family": "rahu_jupiter_mercury_edtech_innovation",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Digital content/platform delivery is comparatively low-capex versus physical campus infrastructure.",
+      "notes": "Audit fix (item 7): the digital-delivery counterpart to education_institutions (same H5/H9 houses, same Jupiter-Mercury core) with Rahu added as the disruption/digital-platform significator -- mirrors the tech_startup/it_services_outsourcing split logic applied to education."
+    },
+    "gaming_esports": {
+      "label": "Gaming & Esports",
+      "weights": {
+        "design": 0.4,
+        "communication": 0.35,
+        "engineering_systems": 0.25
+      },
+      "core_houses": [5, 11],
+      "core_planets": ["Mercury", "Venus", "Rahu"],
+      "archetype_family": "rahu_venus_mercury_digital_commerce",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Platform/development costs scale with production ambition; competitive/esports operations add venue and prize-pool overhead.",
+      "notes": "Audit fix (item 8): distinct from tech_startup (generic), entertainment_sports_umbrella, and sports_athletics_business (Sun-Mars, physical competition) -- gaming/esports is a genuine hybrid of Mercury (code/interactivity), Venus (entertainment value), and Rahu (competitive-digital), previously unrepresented by any adjacent sector."
+    },
+    "interior_design_architecture": {
+      "label": "Interior Design & Architecture",
+      "weights": {
+        "design": 0.45,
+        "engineering_systems": 0.3,
+        "communication": 0.25
+      },
+      "core_houses": [4, 10],
+      "core_planets": ["Venus", "Saturn", "Mercury"],
+      "archetype_family": "venus_saturn_mercury_design_architecture",
+      "capital_intensity": "LOW",
+      "capital_intensity_basis": "Primarily design/planning-expertise-based; minimal fixed assets needed to begin operating.",
+      "notes": "Audit fix (item 9): sits between real_estate_development_brokerage (sales) and construction_contracting (execution) without being either -- Venus (aesthetics) + Saturn (structural discipline) + Mercury (technical drafting) on H4 (property/space) + H10 (professional career)."
+    },
+    "chemicals_industrial_materials": {
+      "label": "Chemicals & Industrial Materials",
+      "weights": {
+        "engineering_systems": 0.45,
+        "field_operations": 0.3,
+        "research": 0.25
+      },
+      "core_houses": [6, 8],
+      "core_planets": ["Mars", "Ketu"],
+      "archetype_family": "mars_ketu_chemical_transformation",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Processing plants, regulated handling, and safety infrastructure require substantial upfront capital.",
+      "notes": "Audit fix (item 10): previously forced into manufacturing_industrial or pharma_biotech, neither a clean fit -- Mars (processing/transformation) + Ketu (chemical reaction, catalytic change) on H6 (labor/processing) + H8 (transformation)."
+    },
+    "event_management_hospitality_services": {
+      "label": "Event Management & Hospitality Services",
+      "weights": {
+        "design": 0.4,
+        "communication": 0.35,
+        "commerce": 0.25
+      },
+      "core_houses": [5, 11],
+      "core_planets": ["Venus", "Mercury"],
+      "archetype_family": "venus_mercury_event_experience_design",
+      "capital_intensity": "MODERATE",
+      "capital_intensity_basis": "Project-based service delivery; costs scale with event scale rather than fixed infrastructure.",
+      "notes": "Audit fix (item 11): distinct from venue-based hospitality_lifestyle -- project-based occasion/event delivery, Venus (occasion aesthetics) + Mercury (coordination/logistics) on H5 (celebration) + H11 (guest network/gains)."
+    },
+    "real_estate_investment_rental_income": {
+      "label": "Real Estate Investment & Rental Income",
+      "weights": {
+        "commerce": 0.4,
+        "administration": 0.35,
+        "care": 0.25
+      },
+      "core_houses": [4, 11],
+      "core_planets": ["Moon", "Saturn"],
+      "archetype_family": "moon_saturn_passive_income_holding",
+      "capital_intensity": "HIGH",
+      "capital_intensity_basis": "Property acquisition capital is a prerequisite before rental-income generation.",
+      "notes": "Audit fix (item 12): distinct from real_estate_development_brokerage (active dealing) and real_estate_construction (building) -- passive holding/rental-income model, Moon (steady recurring income) + Saturn (long-term holding) on H4 (property) + H11 (recurring gains)."
+    }
+  }
+}

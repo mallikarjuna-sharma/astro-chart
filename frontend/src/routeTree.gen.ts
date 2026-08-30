@@ -24,6 +24,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as ConfidenceRouteImport } from './routes/confidence'
 import { Route as ChartsRouteImport } from './routes/charts'
 import { Route as CareerTimelineRouteImport } from './routes/career-timeline'
+import { Route as BusinessRouteImport } from './routes/business'
 import { Route as BirthDataRouteImport } from './routes/birth-data'
 import { Route as AiRouteImport } from './routes/ai'
 import { Route as IndexRouteImport } from './routes/index'
@@ -106,6 +107,11 @@ const CareerTimelineRoute = CareerTimelineRouteImport.update({
   path: '/career-timeline',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BusinessRoute = BusinessRouteImport.update({
+  id: '/business',
+  path: '/business',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BirthDataRoute = BirthDataRouteImport.update({
   id: '/birth-data',
   path: '/birth-data',
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/birth-data': typeof BirthDataRoute
+  '/business': typeof BusinessRoute
   '/career-timeline': typeof CareerTimelineRoute
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/birth-data': typeof BirthDataRoute
+  '/business': typeof BusinessRoute
   '/career-timeline': typeof CareerTimelineRoute
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
@@ -188,6 +196,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/birth-data': typeof BirthDataRoute
+  '/business': typeof BusinessRoute
   '/career-timeline': typeof CareerTimelineRoute
   '/charts': typeof ChartsRoute
   '/confidence': typeof ConfidenceRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai'
     | '/birth-data'
+    | '/business'
     | '/career-timeline'
     | '/charts'
     | '/confidence'
@@ -236,6 +246,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai'
     | '/birth-data'
+    | '/business'
     | '/career-timeline'
     | '/charts'
     | '/confidence'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai'
     | '/birth-data'
+    | '/business'
     | '/career-timeline'
     | '/charts'
     | '/confidence'
@@ -283,6 +295,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiRoute: typeof AiRoute
   BirthDataRoute: typeof BirthDataRoute
+  BusinessRoute: typeof BusinessRoute
   CareerTimelineRoute: typeof CareerTimelineRoute
   ChartsRoute: typeof ChartsRoute
   ConfidenceRoute: typeof ConfidenceRoute
@@ -410,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CareerTimelineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/business': {
+      id: '/business'
+      path: '/business'
+      fullPath: '/business'
+      preLoaderRoute: typeof BusinessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/birth-data': {
       id: '/birth-data'
       path: '/birth-data'
@@ -459,6 +479,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiRoute: AiRoute,
   BirthDataRoute: BirthDataRoute,
+  BusinessRoute: BusinessRoute,
   CareerTimelineRoute: CareerTimelineRoute,
   ChartsRoute: ChartsRoute,
   ConfidenceRoute: ConfidenceRoute,

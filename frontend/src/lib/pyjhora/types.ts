@@ -485,6 +485,104 @@ export interface CareerTimelineResponse {
   llm_enriched: boolean;
 }
 
+export interface BusinessKpi {
+  key: string;
+  label: string;
+  hint: string;
+  value: number | null;
+  tier: "strong" | "moderate" | "weak" | "unknown";
+}
+
+export interface BusinessSectorRow {
+  rank: number;
+  sector?: string;
+  label?: string;
+  score: number | null;
+  archetype_family?: string;
+  match_confidence?: string;
+  capital_intensity?: string;
+  core_houses_used?: number[];
+  core_planets_used?: string[];
+}
+
+export interface BusinessTimedWindow {
+  start_date?: string;
+  end_date?: string;
+  md_lord?: string;
+  ad_lord?: string;
+  label?: string;
+  net_score?: number | null;
+  evidence?: string[];
+}
+
+export interface BusinessReportView {
+  name: string;
+  generated: string;
+  rule_pack_version: string;
+  verdict: {
+    final_category?: string;
+    action_level?: string;
+    business_promise?: number | null;
+    job_promise?: number | null;
+    comparative_advantage?: boolean;
+    hybrid_suggested?: boolean;
+    proceed?: boolean;
+    reasoning?: string;
+  };
+  kpis: BusinessKpi[];
+  top_sector?: { label?: string; score?: number | null } | null;
+  top_window?: {
+    start_date?: string;
+    end_date?: string;
+    md_lord?: string;
+    ad_lord?: string;
+    label?: string;
+  } | null;
+  top_risk?: string | null;
+  sectors: BusinessSectorRow[];
+  timed_windows: BusinessTimedWindow[];
+  yogas: Array<{
+    yoga_name?: string;
+    sanskrit_name?: string;
+    confidence_tier?: string;
+    effect?: string;
+    detail?: string;
+  }>;
+  significators: {
+    positive: Array<{ note?: string; weight?: number; family?: string }>;
+    negative: Array<{ note?: string; weight?: number; family?: string }>;
+  };
+  financial_readiness: {
+    status?: string;
+    certified?: boolean;
+    missing_fields?: string[];
+    note?: string;
+  };
+  confidence: {
+    label?: string;
+    score_0_1?: number;
+    method_agreement?: number;
+    overall_leaning?: string;
+  };
+  contradictions: Array<{ note?: string; weight?: number; mode?: string }>;
+  narrative?: {
+    astrologer_paragraphs?: string[];
+    client_paragraphs?: string[];
+    disclaimer?: string;
+  } | null;
+}
+
+export interface BusinessPredictionResponse {
+  engine_version: string;
+  generated_at: string;
+  student: CareerTimelineResponse["student"];
+  prediction: Record<string, unknown>;
+  report: BusinessReportView;
+  model_status: string;
+  calibration_status: string;
+  rule_pack_version: string;
+}
+
 export interface AiDiagnostics {
   success?: string;
   error?: string;
@@ -581,6 +679,8 @@ export interface ChartSession {
   careerTimeline?: CareerTimelineResponse;
   careerTimelineError?: string;
   careerContextInput?: CareerContextInput;
+  businessPrediction?: BusinessPredictionResponse;
+  businessPredictionError?: string;
   savedAt?: string;
 }
 

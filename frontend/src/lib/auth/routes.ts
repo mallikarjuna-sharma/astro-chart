@@ -13,6 +13,7 @@ export const PROTECTED_ROUTES = [
   "/parashari",
   "/education-analysis",
   "/career-timeline",
+  "/business",
 ] as const;
 
 export function isAuthRoute(pathname: string): boolean {

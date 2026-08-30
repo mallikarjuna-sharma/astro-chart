@@ -3,7 +3,7 @@ import { type ComponentType, ReactNode, useEffect, useState } from "react";
 import {
   Sparkles, Star, BookOpen, Compass, ClipboardList, GraduationCap,
   LineChart, MessageCircleQuestion, Bot, Settings,
-  FileText, User2, Sun, Moon, LogIn, LogOut, Menu,
+  FileText, User2, Sun, Moon, LogIn, LogOut, Menu, Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -44,6 +44,7 @@ const NAV: NavItem[] = [
     ],
   },
   { to: "/career-timeline", label: "Job Timeline", icon: LineChart, group: "Intelligence" },
+  { to: "/business", label: "Business", icon: Briefcase, group: "Intelligence" },
 
   { to: "/ai", label: "AI Assistant", icon: Bot, group: "AI Assistance" },
   { to: "/prashna", label: "Prashna (Horary)", icon: MessageCircleQuestion, group: "AI Assistance" },

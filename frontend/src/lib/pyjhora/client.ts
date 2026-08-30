@@ -1,6 +1,7 @@
 import type {
   AshtakavargaResponse,
   BirthInput,
+  BusinessPredictionResponse,
   CareerContextInput,
   CareerTimelineResponse,
   ConsolidatedRequest,
@@ -210,6 +211,20 @@ export const pyjhora = {
         user_json: userJson,
         career_context: opts?.careerContext,
         enrich_llm: opts?.enrichLlm ?? true,
+      }),
+    }),
+
+  businessPrediction: (
+    userJson: Record<string, unknown>,
+    opts?: { ventureType?: string; yearsAhead?: number },
+  ) =>
+    request<BusinessPredictionResponse>("/api/business-prediction", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_json: userJson,
+        venture_type: opts?.ventureType ?? "business",
+        years_ahead: opts?.yearsAhead ?? 15,
       }),
     }),
 
