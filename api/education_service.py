@@ -14,28 +14,25 @@ from typing import Any
 from botocore.exceptions import ClientError
 from fastapi import HTTPException
 
+from api.ai_status import ai_status
 from api.auth_service import get_current_user
 from api.db import education_repository
 from api.db.dynamo import DynamoDBNotConfiguredError
 from api.education_analysis import EducationAnalysisError, run_education_analysis
-from jyotish.payload import ENGINE_VERSION
 
 logger = logging.getLogger(__name__)
 
 
-def _is_stale(hit: dict[str, Any]) -> bool:
-    """A stored analysis is stale when it was produced by a different engine
-    build than the one currently deployed. When the engine is upgraded the
-    ranking/report can change materially, so such analyses are recomputed once
-    (and re-persisted) rather than served forever."""
-    if str(hit.get("engine_version") or "") != ENGINE_VERSION:
-        return True
-    # Legacy rows saved before AI diagnostics were persisted.
-    return "AI" not in hit
+def _ensure_ai(hit: dict[str, Any]) -> dict[str, Any]:
+    """Legacy rows were saved before AI diagnostics existed.
 
-
-def _missing_ai_diagnostics(hit: dict[str, Any]) -> bool:
-    return "AI" not in hit
+    Missing ``AI`` must not trigger a full engine recompute.
+    """
+    if hit.get("AI") is not None:
+        return hit
+    out = dict(hit)
+    out["AI"] = ai_status(error="AI diagnostics were not stored for this analysis.")
+    return out
 
 
 def _require_user_id(authorization: str | None) -> str:
@@ -98,38 +95,14 @@ def get_or_create_education_analysis(
     # always return it — even with refresh=True — so the LLM-backed report stays
     # deterministic across reads. The only way to recompute is to delete first.
     hit = _cached(profile_id, user_id)
-    if hit is not None and not _is_stale(hit):
+    if hit is not None:
         if refresh:
             logger.info(
                 "[education_service] refresh=true ignored for %s: returning the stored "
                 "analysis to preserve deterministic LLM output (delete it to recompute).",
                 profile_id,
             )
-        return hit
-
-    if hit is not None and _missing_ai_diagnostics(hit) and not user_json:
-        from api.ai_status import ai_status
-
-        hit = dict(hit)
-        hit["AI"] = ai_status(
-            error="AI diagnostics not stored for this profile; refresh with chart JSON to recompute.",
-        )
-        return hit
-
-    if hit is not None:
-        # Stored under an older engine build. Recompute on the current engine
-        # when we have the chart to do so; otherwise serve the stale copy so
-        # reads never hard-fail after an engine upgrade.
-        logger.info(
-            "[education_service] stored analysis for %s is stale (engine %s != %s); recomputing.",
-            profile_id, hit.get("engine_version"), ENGINE_VERSION,
-        )
-        if not user_json:
-            logger.warning(
-                "[education_service] cannot recompute stale analysis for %s without user_json; "
-                "serving stale copy.", profile_id,
-            )
-            return hit
+        return _ensure_ai(hit)
 
     if not user_json:
         raise HTTPException(

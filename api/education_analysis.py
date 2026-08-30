@@ -1,6 +1,7 @@
 """Education / career analysis — UG field determination + PUC stream routing."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,6 +14,34 @@ from jyotish.payload import ENGINE_VERSION, NatalPayloadV2
 
 class EducationAnalysisError(RuntimeError):
     """Raised when education analysis cannot complete."""
+
+
+def jsonable_copy(value: Any) -> Any:
+    """Return a JSON-tree copy with no shared object identities.
+
+    Pydantic v2 ``dump_json`` raises ``Circular reference detected (id repeated)``
+    when the same dict/list appears twice in the response (e.g. ``results`` and
+    ``fields`` aliasing one list). ``json.dumps`` allows that aliasing; round-
+    tripping produces distinct objects so FastAPI can serialize the response.
+    """
+
+    def _default(obj: Any) -> Any:
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump()
+        if hasattr(obj, "item") and callable(obj.item) and not isinstance(obj, (bytes, str)):
+            try:
+                return obj.item()
+            except Exception:  # noqa: BLE001
+                pass
+        if hasattr(obj, "tolist") and callable(obj.tolist):
+            return obj.tolist()
+        if isinstance(obj, (set, frozenset)):
+            return list(obj)
+        if isinstance(obj, bytes):
+            return obj.decode("utf-8", errors="replace")
+        return str(obj)
+
+    return json.loads(json.dumps(value, default=_default, ensure_ascii=False))
 
 
 def _student_summary(payload: NatalPayloadV2) -> dict[str, Any]:
@@ -76,7 +105,12 @@ def _report_payload(
         "top_match_field_ids": [r["field_id"] for r in match_fields],
         "soul_field_id": soul_fields[0]["field_id"] if soul_fields else None,
         "fields": sorted_results,
-        "payload": payload.model_dump(),
+        # Full NatalPayload dump is multi-MB and reuses nested objects that
+        # Pydantic then refuses to serialize. Keep only what the UG report UI reads.
+        "payload": {
+            "corporate_entrepreneurial": getattr(payload, "corporate_entrepreneurial", None),
+            "chart_type": getattr(payload, "chart_type", None),
+        },
         "career_field_report": career_field_report,
     }
 
@@ -105,28 +139,30 @@ def run_ug_analysis(chart: dict[str, Any]) -> dict[str, Any]:
 
     report_bundle = _report_payload(results, payload, narrative, bundle)
 
-    return {
-        "analysis_type": "ug",
-        "engine_version": ENGINE_VERSION,
-        "generated_at": generated_at,
-        "default_tab": default_education_tab(payload.current_age),
-        "student": _student_summary(payload),
-        "summary": _summary_from_report(narrative, bundle),
-        "results": results,
-        "macro_clusters": bundle.get("macro_clusters", []),
-        "report": narrative,
-        "chart_facts": bundle.get("chart_facts", {}),
-        "fields": results,
-        "report_bundle": report_bundle,
-        "career_field_report": career_field_report,
-        "AI": ai_status_from_ug_report(
-            llm_attempted=bool(llm_meta.get("attempted")),
-            llm_succeeded=bool(llm_meta.get("succeeded")),
-            provider=str(llm_meta.get("provider") or ""),
-            model=str(llm_meta.get("model") or ""),
-            error_message=str(llm_meta.get("error_message") or ""),
-        ),
-    }
+    return jsonable_copy(
+        {
+            "analysis_type": "ug",
+            "engine_version": ENGINE_VERSION,
+            "generated_at": generated_at,
+            "default_tab": default_education_tab(payload.current_age),
+            "student": _student_summary(payload),
+            "summary": _summary_from_report(narrative, bundle),
+            "results": results,
+            "macro_clusters": bundle.get("macro_clusters", []),
+            "report": narrative,
+            "chart_facts": bundle.get("chart_facts", {}),
+            "fields": results,
+            "report_bundle": report_bundle,
+            "career_field_report": career_field_report,
+            "AI": ai_status_from_ug_report(
+                llm_attempted=bool(llm_meta.get("attempted")),
+                llm_succeeded=bool(llm_meta.get("succeeded")),
+                provider=str(llm_meta.get("provider") or ""),
+                model=str(llm_meta.get("model") or ""),
+                error_message=str(llm_meta.get("error_message") or ""),
+            ),
+        }
+    )
 
 
 def run_education_analysis(chart: dict[str, Any]) -> dict[str, Any]:

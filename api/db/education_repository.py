@@ -26,6 +26,27 @@ from typing import Any
 
 _COMPRESSION = "gzip+base64"
 
+# Audit/debug keys that bloat DynamoDB past the 400 KB item limit.
+_HEAVY_ROW_KEYS = frozenset(
+    {
+        "method_breakdown",
+        "registry_v12",
+        "ontology_v12",
+        "tier_decision_trace",
+        "step9_convergence",
+        "publication_ranking_adjustments",
+        "defensibility",
+        "confidence_dimensions",
+        "jaimini_chara_dasha_timing",
+        "exact_field_contract",
+        "tier1_leakage_discounted",
+        "curriculum",
+        "competency",
+        "explainability_matrix",
+        "confidence_matrix",
+    }
+)
+
 
 class EducationRepositoryError(RuntimeError):
     """Domain error for education-analysis persistence."""
@@ -58,6 +79,17 @@ def _from_decimal(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _from_decimal(v) for k, v in value.items()}
     return value
+
+
+def _slim_rows(rows: list[Any], extra_drop: frozenset[str] | None = None) -> list[Any]:
+    drop = _HEAVY_ROW_KEYS if extra_drop is None else (_HEAVY_ROW_KEYS | extra_drop)
+    slimmed: list[Any] = []
+    for row in rows:
+        if isinstance(row, dict):
+            slimmed.append({k: v for k, v in row.items() if k not in drop})
+        else:
+            slimmed.append(row)
+    return slimmed
 
 
 def _pack(value: Any) -> str:
@@ -145,7 +177,9 @@ def response_from_item(item: dict[str, Any]) -> dict[str, Any]:
     }
     if ai is not None:
         out["AI"] = ai
-    return out
+    # Unpack aliases share the same dict/list objects; Pydantic dump_json treats
+    # that as a circular reference. json round-trip makes each branch distinct.
+    return json.loads(json.dumps(out, default=str))
 
 
 def get_education_analysis(profile_id: str, user_id: str | None = None) -> dict[str, Any] | None:
@@ -173,10 +207,12 @@ def save_education_analysis(
     generated_at, student, summary, results, macro_clusters, report, chart_facts,
     career_field_report...). Returns the rebuilt response (with ``cached`` False).
     """
+    from botocore.exceptions import ClientError
+
     from api.db.education_dynamo import get_education_table
 
     cfr = result.get("career_field_report") or {}
-    fields = result.get("results") or result.get("fields") or []
+    fields = _slim_rows(result.get("results") or result.get("fields") or [])
     macro_clusters = result.get("macro_clusters") or cfr.get("macro_clusters") or []
     narrative = result.get("report") or cfr.get("narrative") or {}
     chart_facts = result.get("chart_facts") or cfr.get("chart_facts") or {}
@@ -197,7 +233,6 @@ def save_education_analysis(
         "student": _to_decimal(result.get("student") or {}),
         "summary": _to_decimal(result.get("summary") or {}),
         "ai": _to_decimal(ai) if ai else None,
-        # The four frozen LLM payloads (see Job_Career/html_payload_contract.py):
         "results_gz": _pack(fields),
         "macro_clusters_gz": _pack(macro_clusters),
         "report_gz": _pack(narrative),
@@ -205,7 +240,16 @@ def save_education_analysis(
         "created_at": now,
         "updated_at": now,
     }
-    get_education_table().put_item(Item=item)
+    table = get_education_table()
+    try:
+        table.put_item(Item=item)
+    except ClientError as exc:
+        msg = str(exc)
+        if "maximum allowed size" not in msg:
+            raise
+        fields = fields[:20]
+        item["results_gz"] = _pack(fields)
+        table.put_item(Item=item)
 
     out = response_from_item(item)
     out["cached"] = False
