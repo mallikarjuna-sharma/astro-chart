@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Callout,
   DataTable,
+  Meter,
   Panel,
   ReportShell,
   SectionTitle,
@@ -264,6 +265,60 @@ function EducationRouteMap({ routes, avoidLabel }: { routes: EducationRoute[]; a
   );
 }
 
+function ClusterScorePanels({
+  clusters,
+  labelToRow,
+}: {
+  clusters: MacroCluster[];
+  labelToRow: Map<string, EducationFieldResult>;
+}) {
+  if (!clusters.length) return null;
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {clusters.map((c, i) => {
+        const rows = (c.member_fields ?? [])
+          .map((name) => labelToRow.get(name))
+          .filter((r): r is EducationFieldResult => Boolean(r))
+          .sort((a, b) => (b.final_score ?? 0) - (a.final_score ?? 0));
+        return (
+          <div key={c.cluster ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
+            <div className="flex items-baseline justify-between gap-2 mb-3">
+              <h3 className="font-semibold text-foreground text-[0.95rem] leading-snug">
+                {c.rank ? `#${c.rank} · ` : ""}
+                {c.cluster}
+              </h3>
+              <span className="text-[11px] font-bold text-gold shrink-0">
+                {Math.round(c.strength_pct ?? 0)}% strength
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {rows.length ? (
+                rows.map((r, idx) => {
+                  const sc = r.final_score ?? 0;
+                  return (
+                    <div key={r.field_id} className="flex items-center gap-2.5">
+                      <span className="w-5 text-[11px] font-bold text-muted-foreground shrink-0 text-right">{idx + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] font-medium text-foreground truncate">{r.field_label}</div>
+                        <Meter value={Math.max(0, Math.min(100, sc))} tone="gold" className="mt-1 h-1.5" />
+                      </div>
+                      <span className="text-[11.5px] font-bold text-muted-foreground w-12 text-right shrink-0">
+                        {sc.toFixed(2)}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-muted-foreground">No top-20 fields in this cluster.</p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function EducationCareerReport({ data }: Props) {
   const { student, summary } = data;
   const displayName = useSelectedProfileName(student.name);
@@ -295,6 +350,12 @@ export function EducationCareerReport({ data }: Props) {
     (topFields[0]?.chart_type as ChartType | undefined) ??
     (payload?.chart_type as ChartType | undefined) ??
     {};
+
+  const labelToRow = useMemo(() => {
+    const m = new Map<string, EducationFieldResult>();
+    for (const r of topFields) m.set(r.field_label, r);
+    return m;
+  }, [topFields]);
 
   const avoidPills = (report.fields_to_avoid ?? [])
     .map((a) => a.field)
@@ -371,6 +432,17 @@ export function EducationCareerReport({ data }: Props) {
 
         {/* ── Top fields ───────────────────────────────────────────── */}
         <TabsContent value="fields" className="mt-5 space-y-5">
+          {macroClusters.length ? (
+            <Panel>
+              <SectionTitle title="Field scores by cluster" />
+              <ClusterScorePanels clusters={macroClusters} labelToRow={labelToRow} />
+              <p className="text-[11px] text-muted-foreground mt-3 leading-snug">
+                Cluster panels are ordered highest to lowest by engine-normalized strength; fields inside
+                each panel are ranked highest to lowest by score.
+              </p>
+            </Panel>
+          ) : null}
+
           <Panel>
             <SectionTitle title="Top 20 field matrix" />
             {summary.parent_overview ? (
