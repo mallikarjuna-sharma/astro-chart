@@ -43,10 +43,24 @@ export const profilesApi = {
     });
   },
 
-  delete(profileId: string) {
-    return request<{ status: string; profile_id: string }>(`/api/profiles/${profileId}`, {
+  async delete(profileId: string) {
+    const token = getStoredAuthToken();
+    const res = await fetch(`${getPyJHoraApiBase()}/api/profiles/${profileId}`, {
       method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     });
+    const body = await res.json().catch(() => ({}));
+    // Profile may have been removed directly in the DB — treat as already deleted.
+    if (res.status === 404 && (body as { detail?: string }).detail === "Profile not found.") {
+      return { status: "deleted", profile_id: profileId };
+    }
+    if (!res.ok) {
+      throw new Error(parseApiErrorBody(body, `Request failed (${res.status})`));
+    }
+    return body as { status: string; profile_id: string };
   },
 
   persistSections(profileId: string, payload: PersistProfileSectionsPayload) {
