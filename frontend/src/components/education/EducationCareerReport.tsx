@@ -6,16 +6,14 @@ import type {
   EducationFieldResult,
 } from "@/lib/pyjhora/types";
 import { EducationFieldCard } from "@/components/education/EducationFieldCard";
-import { useDisplayName } from "@/hooks/use-display-name";
+import { useSelectedProfileName } from "@/hooks/use-display-name";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Callout,
   DataTable,
-  Meter,
   Panel,
   ReportShell,
   SectionTitle,
-  StatTile,
   Tag,
 } from "@/components/report/primitives";
 import { resolveEducationRoutes } from "@/lib/education-report/routes";
@@ -56,15 +54,6 @@ function sortMacroClustersByStrength(clusters: MacroCluster[]): MacroCluster[] {
       return (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER);
     })
     .map((cluster, index) => ({ ...cluster, rank: index + 1 }));
-}
-
-function fieldsInCluster(
-  cluster: MacroCluster,
-  rankedFields: EducationFieldResult[],
-): EducationFieldResult[] {
-  const members = new Set(cluster.member_fields ?? []);
-  if (!members.size) return [];
-  return rankedFields.filter((row) => members.has(row.field_label));
 }
 
 interface AstroSignatureRow {
@@ -219,144 +208,65 @@ function ClusterBanner({ chartType }: { chartType: ChartType }) {
   );
 }
 
-function DecisionSnapshot({
-  identity,
-  snapshot,
-  topCluster,
-  dominantClusterLabel,
-  topScore,
-  v12Count,
-  v12Total,
-  top1,
-  top3,
-  signaturePills,
-  avoidPills,
-}: {
-  identity: FinalIdentity;
-  snapshot: Snapshot;
-  topCluster: MacroCluster;
-  dominantClusterLabel: string;
-  topScore: number;
-  v12Count: number;
-  v12Total: number;
-  top1: string;
-  top2: string;
-  top3: string;
-  signaturePills: string[];
-  avoidPills: string[];
-}) {
+function EducationRouteMap({ routes, avoidLabel }: { routes: EducationRoute[]; avoidLabel: string }) {
+  if (!routes.length && avoidLabel === "—") return null;
+
   return (
-    <div className="space-y-4">
-      <Panel>
-        <SectionTitle title="Decision Snapshot" chip="At a glance" chipTone="gold" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <StatTile value={`${Math.round(topCluster.strength_pct ?? 0)}%`} label="Dominant macro-cluster strength" />
-          <StatTile value={topScore.toFixed(2)} label="Top normalized field score" />
-          <StatTile value={identity.confidence || "—"} label="Final recommendation confidence" tone="success" />
-          <StatTile value={`${v12Count}/${v12Total}`} label="Top-20 rows with v12 registry data" tone="info" />
+    <Panel>
+      {routes.length ? (
+        <>
+          <SectionTitle title="Education route map" chip="UG to PG to career" chipTone="info" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {routes.map((route, i) => (
+              <article key={route.route_name ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
+                <div className="mb-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-gold">
+                    {route.route_name}
+                  </div>
+                  <h3 className="font-semibold text-foreground text-[0.98rem] leading-snug">{route.title}</h3>
+                </div>
+                <div className="space-y-1 text-[12.5px] text-muted-foreground">
+                  {route.ug_options ? <p><span className="font-semibold text-foreground/70">UG:</span> {route.ug_options}</p> : null}
+                  {route.pg_options ? <p><span className="font-semibold text-foreground/70">PG:</span> {route.pg_options}</p> : null}
+                  {route.phd_options ? <p><span className="font-semibold text-foreground/70">PhD:</span> {route.phd_options}</p> : null}
+                  {route.careers ? <p><span className="font-semibold text-foreground/70">Careers:</span> {route.careers}</p> : null}
+                  {route.best_for ? <p><span className="font-semibold text-foreground/70">Best for:</span> {route.best_for}</p> : null}
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {route.risk_level ? <Tag>{route.risk_level}</Tag> : null}
+                  {route.long_term_value ? <Tag>{route.long_term_value}</Tag> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {routes.length ? (
+        <div className="mt-5 pt-5 border-t border-border">
+          <div className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5 max-w-xl">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Avoid As Primary</div>
+            <div className="text-[0.98rem] font-semibold text-foreground leading-snug mb-1.5">{avoidLabel}</div>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Use only as backups unless there is strong independent motivation.
+            </p>
+          </div>
         </div>
-        <Callout tone="gold" label="Plain answer">
-          <strong className="text-foreground">{top1}</strong> is the cleanest starting point in{" "}
-          <strong className="text-foreground">{dominantClusterLabel}</strong> (
-          {Math.round(topCluster.strength_pct ?? 0)}% cluster strength).
-          {top3 ? <> {top3} is the best specialization direction.</> : null}
-        </Callout>
-      </Panel>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Panel>
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-3">Best Choices</div>
-          <div className="space-y-1.5 text-sm text-foreground">
-            <p><span className="font-semibold text-muted-foreground">UG:</span> {top1}</p>
-            <p><span className="font-semibold text-muted-foreground">PG:</span> {top3 || "—"}</p>
-            <p><span className="font-semibold text-muted-foreground">Cluster:</span> {dominantClusterLabel}</p>
-            <p><span className="font-semibold text-muted-foreground">Work style:</span> {snapshot.best_working_style || "—"}</p>
-          </div>
-        </Panel>
-        <Panel>
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-3">Chart Signature</div>
-          <div className="flex flex-wrap gap-1.5">
-            {signaturePills.length
-              ? signaturePills.map((p) => <Tag key={p} tone="royal">{p}</Tag>)
-              : <span className="text-xs text-muted-foreground">No chart anchors available.</span>}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-3 leading-snug">
-            Factual chart anchors passed to the interpretation layer.
+      ) : avoidLabel !== "—" ? (
+        <div className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5 max-w-xl">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Avoid As Primary</div>
+          <div className="text-[0.98rem] font-semibold text-foreground leading-snug mb-1.5">{avoidLabel}</div>
+          <p className="text-[11px] text-muted-foreground leading-snug">
+            Use only as backups unless there is strong independent motivation.
           </p>
-        </Panel>
-        <Panel>
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-3">Avoid As Primary</div>
-          <div className="flex flex-wrap gap-1.5">
-            {avoidPills.length
-              ? avoidPills.map((p) => <Tag key={p} tone="danger">{p}</Tag>)
-              : <span className="text-xs text-muted-foreground">No fields flagged to avoid.</span>}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-3 leading-snug">
-            Use these only as backups or interest areas unless there is strong independent motivation.
-          </p>
-        </Panel>
-      </div>
-    </div>
-  );
-}
-
-function ClusterScorePanels({
-  clusters,
-  labelToRow,
-}: {
-  clusters: MacroCluster[];
-  labelToRow: Map<string, EducationFieldResult>;
-}) {
-  if (!clusters.length) return null;
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {clusters.map((c, i) => {
-        const rows = (c.member_fields ?? [])
-          .map((name) => labelToRow.get(name))
-          .filter((r): r is EducationFieldResult => Boolean(r))
-          .sort((a, b) => (b.final_score ?? 0) - (a.final_score ?? 0));
-        return (
-          <div key={c.cluster ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
-            <div className="flex items-baseline justify-between gap-2 mb-3">
-              <h3 className="font-semibold text-foreground text-[0.95rem] leading-snug">
-                {c.rank ? `#${c.rank} · ` : ""}
-                {c.cluster}
-              </h3>
-              <span className="text-[11px] font-bold text-gold shrink-0">
-                {Math.round(c.strength_pct ?? 0)}% strength
-              </span>
-            </div>
-            <div className="space-y-2.5">
-              {rows.length ? (
-                rows.map((r, idx) => {
-                  const sc = r.final_score ?? 0;
-                  return (
-                    <div key={r.field_id} className="flex items-center gap-2.5">
-                      <span className="w-5 text-[11px] font-bold text-muted-foreground shrink-0 text-right">{idx + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12.5px] font-medium text-foreground truncate">{r.field_label}</div>
-                        <Meter value={Math.max(0, Math.min(100, sc))} tone="gold" className="mt-1 h-1.5" />
-                      </div>
-                      <span className="text-[11.5px] font-bold text-muted-foreground w-12 text-right shrink-0">
-                        {sc.toFixed(2)}
-                      </span>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-xs text-muted-foreground">No top-20 fields in this cluster.</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+        </div>
+      ) : null}
+    </Panel>
   );
 }
 
 export function EducationCareerReport({ data }: Props) {
   const { student, summary } = data;
-  const displayName = useDisplayName(student.name);
+  const displayName = useSelectedProfileName(student.name);
   const generated = data.generated_at
     ? new Date(data.generated_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : "";
@@ -386,63 +296,12 @@ export function EducationCareerReport({ data }: Props) {
     (payload?.chart_type as ChartType | undefined) ??
     {};
 
-  const topCluster = macroClusters[0] ?? { cluster: identity.macro_identity, strength_pct: 0 };
-  const topClusterFields = useMemo(
-    () => fieldsInCluster(topCluster, topFields),
-    [topCluster, topFields],
-  );
-
-  const top1Label =
-    topClusterFields[0]?.field_label ??
-    topFields[0]?.field_label ??
-    snapshot.best_ug_route ??
-    "Undetermined";
-  const top2Label =
-    topClusterFields[1]?.field_label ??
-    topFields[1]?.field_label ??
-    snapshot.strong_backup_route ??
-    "";
-  const top3Label =
-    topClusterFields.find((field) => {
-      const realism = field.registry as { education_realism?: { pg_required_for_good_outcome?: boolean } } | undefined;
-      return realism?.education_realism?.pg_required_for_good_outcome;
-    })?.field_label ??
-    snapshot.best_pg_route ??
-    topClusterFields[2]?.field_label ??
-    topFields[2]?.field_label ??
-    "";
-  const topScore = topClusterFields[0]?.final_score ?? topFields[0]?.final_score ?? 0;
-  const dominantClusterLabel = topCluster.cluster ?? identity.macro_identity ?? "Undetermined";
-
-  const activeLord = summary.active_dasha_lord ?? chartFacts.active_mahadasha_lord ?? "";
-  const peakLord = summary.peak_career_dasha ?? chartFacts.peak_career_mahadasha_lord ?? "";
-  const careerPhase = summary.career_phase ?? "";
-
-  const labelToRow = useMemo(() => {
-    const m = new Map<string, EducationFieldResult>();
-    for (const r of topFields) m.set(r.field_label, r);
-    return m;
-  }, [topFields]);
-
-  const v12Count = topFields.filter(
-    (r) => r.registry && Object.keys(r.registry).length > 0,
-  ).length;
-
-  const signaturePills = useMemo(() => {
-    const pills: string[] = [];
-    if (chartFacts.lagna_sign) pills.push(chartFacts.lagna_sign);
-    if (chartFacts.h10_lord) pills.push(`H10 lord: ${chartFacts.h10_lord}`);
-    if (activeLord) pills.push(`Active: ${activeLord}`);
-    if (peakLord) pills.push(`Peak: ${peakLord}`);
-    for (const pair of chartFacts.eff_strengths_top3 ?? []) {
-      if (Array.isArray(pair) && pair[0]) pills.push(String(pair[0]));
-    }
-    return pills;
-  }, [chartFacts, activeLord, peakLord]);
-
   const avoidPills = (report.fields_to_avoid ?? [])
     .map((a) => a.field)
     .filter((f): f is string => Boolean(f));
+  const avoidLabel = avoidPills.length
+    ? avoidPills.join(", ")
+    : snapshot.avoid_as_primary || "—";
 
   const clusterInterp = new Map(
     (report.macro_cluster_interpretations ?? []).map((i) => [i.cluster, i.interpretation]),
@@ -451,16 +310,6 @@ export function EducationCareerReport({ data }: Props) {
   const routeCautions = report.route_cautions?.length ? report.route_cautions : report.fields_to_avoid ?? [];
 
   const educationRoutes = useMemo(() => resolveEducationRoutes(report), [report]);
-
-  const ugStartYear = Number(chartFacts.ug_start_year);
-  const timelinePhases = Number.isFinite(ugStartYear) && ugStartYear > 0
-    ? [
-        [ugStartYear - 1, ugStartYear, "Strengthen fundamentals aligned with the recommended UG route."],
-        [ugStartYear, ugStartYear + 2, "Build the core technical base, tools, projects, and disciplined study rhythm."],
-        [ugStartYear + 2, ugStartYear + 4, "Use internships, projects, and electives to test the strongest specializations."],
-        [ugStartYear + 4, ugStartYear + 7, "Move toward the PG route and career cluster identified by this report."],
-      ] as Array<[number, number, string]>
-    : [];
 
   const jsonPayload = useMemo(
     () => ({
@@ -487,41 +336,10 @@ export function EducationCareerReport({ data }: Props) {
         <div className="text-[11px] font-bold tracking-[0.22em] text-gold uppercase mb-3">
           JyotishAI Career Engine
         </div>
-        <h2 className="font-serif text-3xl md:text-[2.5rem] font-semibold text-foreground mb-3 leading-tight">
+        <h2 className="font-serif text-3xl md:text-[2.5rem] font-semibold text-foreground leading-tight">
           {displayName} · Career Field Report
         </h2>
-        {identity.one_line_summary ? (
-          <p className="text-[1.02rem] leading-relaxed text-muted-foreground max-w-3xl mx-auto mb-4">
-            {identity.one_line_summary}
-          </p>
-        ) : null}
-        <div className="flex justify-center flex-wrap gap-2">
-          {dominantClusterLabel ? <Tag tone="gold">{dominantClusterLabel}</Tag> : null}
-          {topCluster.strength_pct != null ? (
-            <Tag tone="gold">{Math.round(topCluster.strength_pct)}% cluster strength</Tag>
-          ) : null}
-          {careerPhase ? <Tag tone="info">Phase: {careerPhase}</Tag> : null}
-          {activeLord ? <Tag tone="royal">Active MD: {activeLord}</Tag> : null}
-          {peakLord ? <Tag tone="royal">Peak MD: {peakLord}</Tag> : null}
-          {student.lagna_sign ? <Tag>Lagna: {student.lagna_sign}</Tag> : null}
-          {student.atmakaraka ? <Tag>AK: {student.atmakaraka}</Tag> : null}
-        </div>
       </header>
-
-      <DecisionSnapshot
-        identity={identity}
-        snapshot={snapshot}
-        topCluster={topCluster}
-        dominantClusterLabel={dominantClusterLabel}
-        topScore={topScore}
-        v12Count={v12Count}
-        v12Total={topFields.length}
-        top1={top1Label}
-        top2={top2Label}
-        top3={top3Label}
-        signaturePills={signaturePills}
-        avoidPills={avoidPills}
-      />
 
       {corpProfile?.style_label || corpProfile?.corporate_pct != null ? (
         <CorporateGauge profile={corpProfile} />
@@ -531,72 +349,30 @@ export function EducationCareerReport({ data }: Props) {
 
       {/* Grouped detail — keeps the wall of sections digestible */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="fields">Top fields</TabsTrigger>
-          <TabsTrigger value="routes">Routes & plan</TabsTrigger>
           <TabsTrigger value="evidence">Evidence</TabsTrigger>
         </TabsList>
 
         {/* ── Overview ─────────────────────────────────────────────── */}
         <TabsContent value="overview" className="mt-5 space-y-5">
-          <Panel>
-            <SectionTitle title="Recommendation snapshot" chip="Actionable" chipTone="success" />
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              {[
-                ["Best UG Route", top1Label, "Main education decision."],
-                ["Strong Backup", top2Label || "—", "Keep available, but secondary to the primary identity."],
-                ["Best PG Route", top3Label || "—", "Specialization direction after the core UG base."],
-                ["Career Cluster", dominantClusterLabel, `Dominant macro identity (${Math.round(topCluster.strength_pct ?? 0)}% strength).`],
-              ].map(([label, value, note]) => (
-                <div key={label} className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
-                  <div className="text-[0.98rem] font-semibold text-foreground leading-snug mb-1.5">{value}</div>
-                  <p className="text-[11px] text-muted-foreground leading-snug">{note}</p>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
           {report.final_recommendation ? (
             <Panel>
-              <SectionTitle title="Final recommendation" chip="Summary" chipTone="gold" />
+              <SectionTitle title="Summary" chipTone="gold" />
               <div className="rounded-xl bg-primary/8 border-l-4 border-gold px-5 py-4 text-[1.02rem] text-foreground leading-relaxed">
                 {report.final_recommendation}
               </div>
             </Panel>
           ) : null}
 
-          {report.parent_summary || report.student_summary ? (
-            <Panel>
-              <SectionTitle title="Parent & student versions" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {report.parent_summary ? (
-                  <Callout tone="success" label="Parent version">{report.parent_summary}</Callout>
-                ) : null}
-                {report.student_summary ? (
-                  <Callout tone="info" label="Student version">{report.student_summary}</Callout>
-                ) : null}
-              </div>
-            </Panel>
-          ) : null}
+          <EducationRouteMap routes={educationRoutes} avoidLabel={avoidLabel} />
         </TabsContent>
 
         {/* ── Top fields ───────────────────────────────────────────── */}
         <TabsContent value="fields" className="mt-5 space-y-5">
-          {macroClusters.length ? (
-            <Panel>
-              <SectionTitle title="Field scores by cluster" chip="Engine normalized scale" />
-              <ClusterScorePanels clusters={macroClusters} labelToRow={labelToRow} />
-              <p className="text-[11px] text-muted-foreground mt-3 leading-snug">
-                Cluster panels are ordered highest to lowest by engine-normalized strength; fields inside
-                each panel are ranked highest to lowest by score.
-              </p>
-            </Panel>
-          ) : null}
-
           <Panel>
-            <SectionTitle title="Top 20 field matrix" chip="Full detail" />
+            <SectionTitle title="Top 20 field matrix" />
             {summary.parent_overview ? (
               <Callout tone="success" className="mb-5">{summary.parent_overview}</Callout>
             ) : null}
@@ -609,7 +385,7 @@ export function EducationCareerReport({ data }: Props) {
 
           {macroClusters.length ? (
             <Panel>
-              <SectionTitle title="Macro-cluster ranking" chip="Deterministic + interpretation" chipTone="success" />
+              <SectionTitle title="Combined Field Rankings" />
               <DataTable
                 head={
                   <>
@@ -633,60 +409,6 @@ export function EducationCareerReport({ data }: Props) {
                   </tr>
                 ))}
               </DataTable>
-            </Panel>
-          ) : null}
-        </TabsContent>
-
-        {/* ── Routes & plan ────────────────────────────────────────── */}
-        <TabsContent value="routes" className="mt-5 space-y-5">
-          {educationRoutes.length ? (
-            <Panel>
-              <SectionTitle title="Education route map" chip="UG to PG to career" chipTone="info" />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {educationRoutes.map((route, i) => (
-                  <article key={route.route_name ?? i} className="rounded-xl border border-border bg-surface-soft/50 p-4">
-                    <div className="mb-2">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-gold">
-                        {route.route_name}
-                      </div>
-                      <h3 className="font-semibold text-foreground text-[0.98rem] leading-snug">{route.title}</h3>
-                    </div>
-                    <div className="space-y-1 text-[12.5px] text-muted-foreground">
-                      {route.ug_options ? <p><span className="font-semibold text-foreground/70">UG:</span> {route.ug_options}</p> : null}
-                      {route.pg_options ? <p><span className="font-semibold text-foreground/70">PG:</span> {route.pg_options}</p> : null}
-                      {route.phd_options ? <p><span className="font-semibold text-foreground/70">PhD:</span> {route.phd_options}</p> : null}
-                      {route.careers ? <p><span className="font-semibold text-foreground/70">Careers:</span> {route.careers}</p> : null}
-                      {route.best_for ? <p><span className="font-semibold text-foreground/70">Best for:</span> {route.best_for}</p> : null}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {route.risk_level ? <Tag>{route.risk_level}</Tag> : null}
-                      {route.long_term_value ? <Tag>{route.long_term_value}</Tag> : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </Panel>
-          ) : null}
-
-          {timelinePhases.length ? (
-            <Panel>
-              <SectionTitle title="Execution timeline" chip="Student-friendly" chipTone="info" />
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {timelinePhases.map(([a, b, txt]) => (
-                  <div key={`${a}-${b}`} className="rounded-xl border border-border bg-surface-soft/50 p-4">
-                    <div className="font-bold text-gold text-sm mb-1.5">{a}–{b}</div>
-                    <p className="text-[12.5px] text-muted-foreground leading-snug">{txt}</p>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-          ) : null}
-
-          {!educationRoutes.length && !timelinePhases.length ? (
-            <Panel>
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No education route map was generated for this chart.
-              </p>
             </Panel>
           ) : null}
         </TabsContent>

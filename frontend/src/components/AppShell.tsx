@@ -298,12 +298,14 @@ export function PageHeader({
   title,
   subtitle,
   action,
+  titleAction,
   eyebrow,
   compact,
 }: {
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  titleAction?: ReactNode;
   eyebrow?: string;
   compact?: boolean;
 }) {
@@ -322,11 +324,12 @@ export function PageHeader({
         )}
         <h1
           className={cn(
-            "font-serif font-semibold tracking-tight leading-tight",
+            "font-serif font-semibold tracking-tight leading-tight flex items-center gap-2",
             compact ? "text-xl md:text-2xl" : "text-3xl md:text-[2.15rem]",
           )}
         >
           {title}
+          {titleAction}
         </h1>
         {subtitle && (
           <p

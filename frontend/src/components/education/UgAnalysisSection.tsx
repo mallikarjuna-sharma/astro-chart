@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { pyjhora } from "@/lib/pyjhora/client";
 import { profilesApi } from "@/lib/profiles/client";
 import { ensureConsolidatedForEngine, consolidatedHasEngineData } from "@/lib/pyjhora/ensure-consolidated";
 import { patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
+import type { EducationAnalysisResponse } from "@/lib/pyjhora/types";
 import { EducationCareerReport } from "@/components/education/EducationCareerReport";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 
-export function UgAnalysisSection() {
+export function useUgAnalysis() {
   const session = useChartSession();
   const [loading, setLoading] = useState(false);
 
@@ -78,7 +78,18 @@ export function UgAnalysisSection() {
     }
   }, [data, error, loading, runAnalysis, session?.birthInput]);
 
-  if (!session) {
+  return { session, loading, error, data, runAnalysis };
+}
+
+type UgAnalysisSectionProps = {
+  loading: boolean;
+  error: string | null;
+  data?: EducationAnalysisResponse;
+  hasSession: boolean;
+};
+
+export function UgAnalysisSection({ loading, error, data, hasSession }: UgAnalysisSectionProps) {
+  if (!hasSession) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -90,24 +101,6 @@ export function UgAnalysisSection() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-row items-start justify-between gap-4 rounded-xl border border-border bg-card/60 px-4 py-3">
-        <div>
-          <div className="font-serif text-base font-semibold text-foreground">UG Career Field Analysis</div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Ranked vocational fields and education routes from consolidated chart JSON.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={loading || !session.birthInput}
-          onClick={() => void runAnalysis(true)}
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-          {loading ? "Analyzing…" : "Refresh"}
-        </Button>
-      </div>
-
       {loading && !data ? (
         <Card>
           <CardContent className="flex items-center gap-2 text-muted-foreground py-10 justify-center">
