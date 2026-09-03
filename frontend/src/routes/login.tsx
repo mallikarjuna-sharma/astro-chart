@@ -72,7 +72,7 @@ function LoginPage() {
             <Input
               id="identifier"
               autoComplete="username"
-              placeholder="you@example.com or johndoe"
+              placeholder="you@example.com or Shiva ramakrishanan"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
             />

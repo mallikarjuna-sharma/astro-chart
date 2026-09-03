@@ -120,7 +120,7 @@ function SignupPage() {
           <CardDescription>
             {step === "email" && "We will send a one-time code to your inbox."}
             {step === "otp" && `Enter the code sent to ${email} (dev: 0000)`}
-            {step === "credentials" && "Pick a unique username and a strong password (min 8 characters)."}
+            {step === "credentials" && "Pick a unique username and password (more than 6 characters each)."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -185,10 +185,13 @@ function SignupPage() {
                 <Input
                   id="username"
                   autoComplete="username"
-                  placeholder="Ram Sundar"
+                  placeholder="Shiva ramakrishanan"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  More than 6 characters. Spaces are allowed.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -201,7 +204,7 @@ function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  At least {AUTH_PASSWORD_MIN_LENGTH} characters.
+                  More than 6 characters.
                 </p>
               </div>
               <div className="space-y-2">

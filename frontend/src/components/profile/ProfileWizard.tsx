@@ -428,7 +428,7 @@ export function ProfileWizard() {
           <div>
             <Label>Profile name</Label>
             <Input
-              placeholder="Ram Sundar"
+              placeholder="Shiva ramakrishanan"
               value={form.profileName}
               onChange={(e) => update("profileName", e.target.value)}
             />

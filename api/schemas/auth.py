@@ -52,16 +52,14 @@ class SignupRequest(BaseModel):
     def username_format(cls, value: str) -> str:
         normalized = value.strip().lower()
         if len(normalized) < USERNAME_MIN_LENGTH:
-            raise ValueError(f"Username must be at least {USERNAME_MIN_LENGTH} characters.")
-        if not normalized.replace("_", "").replace(".", "").isalnum():
-            raise ValueError("Username may only contain letters, numbers, dots, and underscores.")
+            raise ValueError("Username must be more than 6 characters.")
         return normalized
 
     @field_validator("password")
     @classmethod
     def password_length(cls, value: str) -> str:
         if len(value) < PASSWORD_MIN_LENGTH:
-            raise ValueError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters.")
+            raise ValueError("Password must be more than 6 characters.")
         return value
 
     @field_validator("confirm_password")
@@ -109,7 +107,7 @@ class ResetPasswordRequest(BaseModel):
     @classmethod
     def password_length(cls, value: str) -> str:
         if len(value) < PASSWORD_MIN_LENGTH:
-            raise ValueError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters.")
+            raise ValueError("Password must be more than 6 characters.")
         return value
 
     @field_validator("confirm_new_password")

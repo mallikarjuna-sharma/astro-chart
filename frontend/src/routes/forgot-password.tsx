@@ -115,7 +115,7 @@ function ForgotPasswordPage() {
           <CardDescription>
             {step === "email" && "Enter the email address on your account."}
             {step === "otp" && `Enter the code sent to ${email} (dev: 0000)`}
-            {step === "reset" && "Choose a new password (min 8 characters)."}
+            {step === "reset" && "Choose a new password (more than 6 characters)."}
             {step === "done" && "Your password has been changed successfully."}
           </CardDescription>
         </CardHeader>
@@ -188,7 +188,7 @@ function ForgotPasswordPage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  At least {AUTH_PASSWORD_MIN_LENGTH} characters.
+                  More than 6 characters.
                 </p>
               </div>
               <div className="space-y-2">

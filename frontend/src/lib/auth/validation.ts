@@ -1,8 +1,8 @@
 /** Keep in sync with api/auth_validation.py */
 
-export const AUTH_PASSWORD_MIN_LENGTH = 8;
+export const AUTH_PASSWORD_MIN_LENGTH = 7;
 export const AUTH_PASSWORD_MAX_LENGTH = 128;
-export const AUTH_USERNAME_MIN_LENGTH = 3;
+export const AUTH_USERNAME_MIN_LENGTH = 7;
 export const AUTH_USERNAME_MAX_LENGTH = 32;
 export const AUTH_OTP_LENGTH = 4;
 export const AUTH_IDENTIFIER_MIN_LENGTH = 3;
@@ -17,19 +17,13 @@ export function validateUsername(username: string): ValidationResult {
   if (normalized.length < AUTH_USERNAME_MIN_LENGTH) {
     return {
       ok: false,
-      message: `Username must be at least ${AUTH_USERNAME_MIN_LENGTH} characters.`,
+      message: "Username must be more than 6 characters.",
     };
   }
   if (normalized.length > AUTH_USERNAME_MAX_LENGTH) {
     return {
       ok: false,
       message: `Username must be at most ${AUTH_USERNAME_MAX_LENGTH} characters.`,
-    };
-  }
-  if (!/^[a-z0-9._]+$/.test(normalized)) {
-    return {
-      ok: false,
-      message: "Username may only contain letters, numbers, dots, and underscores.",
     };
   }
   return { ok: true };
@@ -42,7 +36,7 @@ export function validatePassword(password: string): ValidationResult {
   if (password.length < AUTH_PASSWORD_MIN_LENGTH) {
     return {
       ok: false,
-      message: `Password must be at least ${AUTH_PASSWORD_MIN_LENGTH} characters.`,
+      message: "Password must be more than 6 characters.",
     };
   }
   if (password.length > AUTH_PASSWORD_MAX_LENGTH) {
