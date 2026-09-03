@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/AppShell";
+import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -20,9 +21,10 @@ function SettingsPage() {
   const displayName = useUserStore((s) => s.displayName);
   const email = useUserStore((s) => s.email);
   const setProfile = useUserStore((s) => s.setProfile);
-  const [language, setLanguage] = useState("English");
+  const [language] = useState("English");
   const [whatsapp, setWhatsapp] = useState(true);
   const [emailDigest, setEmailDigest] = useState(true);
+  const [comingSoonOpen, setComingSoonOpen] = useState(false);
 
   const save = () => {
     persistUserProfile({
@@ -53,10 +55,10 @@ function SettingsPage() {
           <CardContent className="space-y-4">
             <div>
               <Label>Report language</Label>
-              <Select value={language} onValueChange={setLanguage}>
+              <Select value={language}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["English","Hindi","Tamil","Telugu","Kannada","Malayalam"].map((l)=>(<SelectItem key={l} value={l}>{l}</SelectItem>))}
+                  <SelectItem value="English">English</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -75,12 +77,19 @@ function SettingsPage() {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Subscription</CardTitle><CardDescription>Professional plan · renews 2026-12-01.</CardDescription></CardHeader>
           <CardContent className="flex gap-2">
-            <Button variant="outline" onClick={() => toast("Plan compare opened")}>Compare plans</Button>
-            <Button variant="outline" onClick={() => toast("Billing portal opened")}>Manage billing</Button>
-            <Button variant="destructive" onClick={() => toast("Subscription will cancel at period end")}>Cancel subscription</Button>
+            <Button variant="outline" onClick={() => setComingSoonOpen(true)}>Compare plans</Button>
+            <Button variant="outline" onClick={() => setComingSoonOpen(true)}>Manage billing</Button>
+            <Button variant="destructive" onClick={() => setComingSoonOpen(true)}>Cancel subscription</Button>
           </CardContent>
         </Card>
       </div>
+
+      <ComingSoonModal
+        open={comingSoonOpen}
+        onOpenChange={setComingSoonOpen}
+        title="Subscription management"
+        description="Plan comparison, billing, and subscription changes are coming soon."
+      />
     </div>
   );
 }
