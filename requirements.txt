@@ -20,3 +20,7 @@ ephem>=4.1.0
 bcrypt>=4.2.0
 PyJWT>=2.9.0
 email-validator>=2.2.0
+
+-e ./packages/jyotish-core
+-e ./packages/jyotish-puc-streams
+-e ./packages/jyotish-ug-fields
