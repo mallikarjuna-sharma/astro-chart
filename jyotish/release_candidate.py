@@ -12,9 +12,6 @@ from .meaningful_margins import attach_meaningful_margin_tiers
 from Field_Determination.exact_field_defensibility import attach_exact_field_contract
 from .decision_summary import attach_decision_summaries
 from .broad_domain_promise import compute_broad_domain_promise
-from Field_Determination.field_methods.navamsha import score_navamsha_confirmation
-from Field_Determination.field_methods.siddhamsha import score_siddhamsha
-from Field_Determination.field_methods.shashtiamsha import score_shashtiamsha
 from .d10_archetypes import d10_chart_native_archetype_scores
 from .decision_axes import attach_decision_axes
 from .audit_ledgers import attach_audit_ledgers
@@ -24,6 +21,12 @@ READINESS_VERSION = "empirical-readiness.r7.v1"
 
 
 def apply_release_4_7(rows: list[dict], canonical_report: Mapping[str, Any], payload: Any = None) -> tuple[list[dict], dict]:
+    # Lazy imports: loading field_methods during jyotish.engine init would recurse
+    # (engine -> release_candidate -> field_methods -> jyotish.* while engine loads).
+    from jyotish_ug.field_methods.navamsha import score_navamsha_confirmation
+    from jyotish_ug.field_methods.siddhamsha import score_siddhamsha
+    from jyotish_ug.field_methods.shashtiamsha import score_shashtiamsha
+
     frozen = [(row.get("field_id"), row.get("final_score")) for row in rows]
     d10_archetypes = d10_chart_native_archetype_scores(payload) if payload is not None else {"contract_version":"d10-archetypes.v1","scores":{},"status":"MISSING"}
     d10_verification = assess_d10_verification(payload, canonical_report) if payload is not None else {"fact_status":"MISSING","authority_eligible":False}

@@ -141,7 +141,7 @@ class TestJaiminiNeutralPolicy:
     def test_neutral_planet_logged_not_silently_dropped(self):
         # Leo casts rasi drishti onto Aries (H7 sign for Aries lagna) per
         # the classical movable/fixed rule -- verified directly against
-        # Stream_Determination.stream_scoring._rasi_drishti_targets.
+        # jyotish_puc.stream_scoring._rasi_drishti_targets.
         class FakePayload:
             lagna_sign = "Aries"
             planet_signs = {"Mars": "Leo"}

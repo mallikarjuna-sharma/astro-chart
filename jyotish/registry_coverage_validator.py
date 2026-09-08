@@ -62,7 +62,7 @@ def coverage_report(registry_path: str | Path, check_v12_schema: bool = True) ->
     check still only applies when the loaded file actually claims to be v12.
     """
     from jyotish.affinity import BRANCH_PLANET_AFFINITY
-    from Field_Determination.competency_ontology import FIELD_TO_FAMILY, FAMILY_META, COMPETENCY_META
+    from jyotish_ug.competency_ontology import FIELD_TO_FAMILY, FAMILY_META, COMPETENCY_META
 
     registry = _load_registry(registry_path)
     registry_ids = set(registry) | GENERATED_REGISTRY_IDS

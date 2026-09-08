@@ -62,9 +62,9 @@ from jyotish.ontology_kg import _PLANET_MIN_SHADBALA
 # and no dependency back on this package, so importing them keeps the two
 # engines' Jaimini rasi-drishti/house-distance math identical instead of
 # risking two copies drifting apart over time.
-from Field_Determination.field_methods.jaimini import _house_distance, _check_chara_drishti
+from jyotish_ug.field_methods.jaimini import _house_distance, _check_chara_drishti
 
-from Field_Determination.field_methods.common import (
+from jyotish_ug.field_methods.common import (
     build_score_rubric,
     clamp_score,
     method_result,

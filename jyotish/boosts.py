@@ -7460,7 +7460,7 @@ def _sudarshana_convergence_bonus(label, lagna_sign, sun_sign, moon_sign,
     every existing caller is unaffected.
     """
     import types
-    from Field_Determination.field_methods.sudarshana import score_sudarshana
+    from jyotish_ug.field_methods.sudarshana import score_sudarshana
     shim = types.SimpleNamespace(
         planet_house=planet_house or {},
         planet_signs={"Sun": sun_sign, "Moon": moon_sign},

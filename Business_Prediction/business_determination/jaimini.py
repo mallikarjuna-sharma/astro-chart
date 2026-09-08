@@ -127,7 +127,7 @@ from .house_evidence import _dig_disclosure, _dig_factor, _dig_name, _effective_
 def _jaimini_rasi_drishti_evidence(payload: Any, reference_house: int = 7) -> Tuple[float, List[str]]:
     """Jaimini whole-sign (rasi) aspect onto a reference house's sign.
 
-    Reuses Stream_Determination.stream_scoring._rasi_drishti_targets
+    Reuses jyotish_puc.stream_scoring._rasi_drishti_targets
     verbatim (the only implementation of the classical movable/fixed/dual
     rasi-drishti rule found in this repo) rather than re-deriving the
     sign-aspect arithmetic. A natural benefic occupying a sign that casts
@@ -138,7 +138,7 @@ def _jaimini_rasi_drishti_evidence(payload: Any, reference_house: int = 7) -> Tu
     of a fixed classification. Sun's context-dependent nuance (functional
     lordship by Lagna) remains an open, undocumented-here simplification.
     """
-    from Stream_Determination.stream_scoring import _rasi_drishti_targets, _RASI_SIGNS
+    from jyotish_puc.stream_scoring import _rasi_drishti_targets, _RASI_SIGNS
 
     lagna_sign = getattr(payload, "lagna_sign", "") or ""
     planet_signs = getattr(payload, "planet_signs", {}) or {}

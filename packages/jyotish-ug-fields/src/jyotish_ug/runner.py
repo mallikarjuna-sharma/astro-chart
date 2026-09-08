@@ -5,7 +5,6 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from Job_Career.career_field_report_v2 import build_career_field_report_from_chart
 from jyotish.payload import ENGINE_VERSION, NatalPayloadV2
 
 
@@ -121,6 +120,9 @@ def _report_payload(
 
 def run_ug_analysis(chart: dict[str, Any]) -> dict[str, Any]:
     """Parse chart JSON, run the UG career-field engine, return JSON report payloads."""
+    # Lazy import avoids circular load: jyotish.engine -> field_methods -> jyotish_ug -> Job_Career -> jyotish.engine
+    from Job_Career.career_field_report_v2 import build_career_field_report_from_chart
+
     bundle = build_career_field_report_from_chart(chart, render_html=False, force_llm_report=True)
     payload = bundle["payload"]
     results = bundle.get("results") or []

@@ -15,9 +15,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from Field_Determination.field_methods.siddhamsha import score_siddhamsha
-from Field_Determination.field_methods.navamsha import score_navamsha_adjustment
-from Field_Determination.field_methods.shashtiamsha import score_d60_vote
+from jyotish_ug.field_methods.siddhamsha import score_siddhamsha
+from jyotish_ug.field_methods.navamsha import score_navamsha_adjustment
+from jyotish_ug.field_methods.shashtiamsha import score_d60_vote
 
 
 def _mock_payload(**overrides):

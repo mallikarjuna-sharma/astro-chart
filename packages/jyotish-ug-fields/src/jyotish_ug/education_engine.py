@@ -572,7 +572,7 @@ if __name__ == "__main__":
     # EduAlign moved to archive/career_prashna_cli.py), so this gate always applies
     # unconditionally -- no more --mode branching here.
     try:
-        from Stream_Determination.early_age_stream_engine import is_eligible, run_for_payload
+        from jyotish_puc.early_age_stream_engine import is_eligible, run_for_payload
     except ModuleNotFoundError:
         # Stream_Determination/ was removed from this repo checkout. Without
         # it we can't do the under-15 diversion check, so fall through to the

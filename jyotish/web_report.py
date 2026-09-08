@@ -914,7 +914,7 @@ def _gen_competency_hierarchy_section(results: List[Dict]) -> str:
     if not clusters:
         return ""
 
-    # Keys match Field_Determination.competency_ontology.confidence_band()'s
+    # Keys match jyotish_ug.competency_ontology.confidence_band()'s
     # output exactly (relabeled 2026-07-18 to "X (relative)" so the UI never
     # shows a bare "confidence" word next to a same-chart relative score
     # tier -- see CONFIDENCE_BAND_CAVEAT in that module).

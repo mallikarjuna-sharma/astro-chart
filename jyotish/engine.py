@@ -51,7 +51,6 @@ from .evidence_layers import evidence_layers
 
 from .affinity import BRANCH_PLANET_AFFINITY, compute_branch_affinity_score_llm, apply_vargottama_affinity_uplift, _GENERIC_9P_WEIGHTS
 from .engine_io import compute_aptitude_by_domain, _load_course_registry
-from Field_Determination.field_methods import compute_field_method_bundle
 # Tiered ranking override (2026-08-18): replaces the flat 9-method blend's
 # contribution to field RANKING order with a 3-tier classical-authority
 # model. See jyotish/tiered_ranking.py's module docstring for the full
@@ -70,10 +69,10 @@ from . import dasha_longevity
 # adds Competency -> Career Family grouping, confidence bands, explanation
 # chains, and a bounded family-cohesion adjustment on top of the existing
 # 199-branch deterministic scoring. See jyotish/competency_ontology.py.
-from Field_Determination.competency_ontology import apply_competency_ontology_layer
-from Field_Determination.competency_ontology import build_cluster_report
-from Field_Determination.competency_ontology import confidence_band
-from Field_Determination.competency_ontology import build_evidence_summary
+from jyotish_ug.competency_ontology import apply_competency_ontology_layer
+from jyotish_ug.competency_ontology import build_cluster_report
+from jyotish_ug.competency_ontology import confidence_band
+from jyotish_ug.competency_ontology import build_evidence_summary
 from .ontology_kg import attach_graph_diagnostics
 # 2026-07 gap-audit corrections: Ketu Classic/Analytical mode, student MD
 # weighting, Mrita-consistency, Venus branch-by-companion, interest-prior
@@ -90,7 +89,7 @@ from .gap_corrections_2026_07 import (
 # module reads its normalized score from bvb_eval instead of a second,
 # separate call. Import removed to avoid an unused, misleading duplicate
 # entry point.
-from Field_Determination.field_methods.common import (
+from jyotish_ug.field_methods.common import (
     FIELD_PRIORITY_GROUPS,
     METHOD_SCORE_CAP,
     METHOD_SCORE_CAPS,
@@ -905,7 +904,7 @@ def _apply_minmax_normalization(results: List[Dict]) -> List[Dict]:
     # disagreement pattern the audit flagged repeatedly. Both are folded into
     # the spread/friction diagnostic below whenever the bundle produced them.
     methods = ("knrao", "kp", "jaimini", "parashara")
-    from Field_Determination.field_methods import METHOD_WEIGHTS
+    from jyotish_ug.field_methods import METHOD_WEIGHTS
 
     for r in results:
         raw_scores = r.get("method_scores", {}) or {}
@@ -1324,7 +1323,7 @@ def compute_bvb_career_score(
     Delegates to compute_field_method_bundle and returns the full evaluation dict
     including method_scores, combined_score, and astro_multiplier.
     """
-    from Field_Determination.field_methods import compute_field_method_bundle
+    from jyotish_ug.field_methods import compute_field_method_bundle
     return compute_field_method_bundle(payload_data, domain, hard_affinity, field_id, field_entry)
 
 
@@ -4798,6 +4797,8 @@ def _score_one_field(
     # comparably to international_law on raw affinity math but never
     # surfacing in the top-35 purely because their field_id shares no
     # vocabulary with the "law"-oriented keyword lists.
+    from jyotish_ug.field_methods import compute_field_method_bundle
+
     bvb_eval = compute_field_method_bundle(payload_data, domain, hard_affinity, branch_name, _fmeta)
     # G3: combined_score drives a relative boost on the blended score
     # (was: addend of combined/100*1.5 which contributed <1.5 pts — negligible)
@@ -5751,7 +5752,7 @@ def _composite_v2_field_tier2_bonus(
     """
     bonus: Dict[str, float] = {}
     try:
-        from Field_Determination.field_methods.sudarshana import score_sudarshana
+        from jyotish_ug.field_methods.sudarshana import score_sudarshana
         _sud = score_sudarshana(field_label or field_id, field_affinity or {}, payload_data)
         converging = set(_sud.get("converging_lords", []) or [])
         for _p in converging:
@@ -5954,7 +5955,7 @@ def _finalize_published_results(results, payload_data, *, llm_used=False):
                 # neither. Routing through the richer function here instead
                 # of the dignity-only one; same [0.85, 1.15] contract, so no
                 # other caller of `_d9_gate` below needs to change.
-                from Field_Determination.field_methods.navamsha import score_navamsha_adjustment as _score_navamsha_adj
+                from jyotish_ug.field_methods.navamsha import score_navamsha_adjustment as _score_navamsha_adj
                 _d9_adj_result = _score_navamsha_adj(
                     payload_data, _row.get("domain", ""), _field_aff, _fid,
                 )

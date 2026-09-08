@@ -440,7 +440,7 @@ if __name__ == "__main__":
     # --mode prashna (a specific horary question) is exempt since a parent
     # may legitimately ask a one-off question about a young child's chart.
     if args.mode != "prashna":
-        from Stream_Determination.early_age_stream_engine import is_eligible, run_for_payload
+        from jyotish_puc.early_age_stream_engine import is_eligible, run_for_payload
 
         if is_eligible(payload):
             print(

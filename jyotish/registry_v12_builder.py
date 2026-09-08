@@ -77,7 +77,7 @@ def build_registry_v12(
     subprocess/argparse.
 
     field_to_family/family_meta default to
-    Field_Determination.competency_ontology's FIELD_TO_FAMILY/FAMILY_META --
+    jyotish_ug.competency_ontology's FIELD_TO_FAMILY/FAMILY_META --
     the same source registry_coverage_validator.py already treats as
     authoritative for ontology coverage -- so a plain `build_registry_v12(path)`
     call with no ontology kwargs produces a registry consistent with what
@@ -90,7 +90,7 @@ def build_registry_v12(
     without any change to this function's signature.
     """
     if field_to_family is None or family_meta is None:
-        from Field_Determination.competency_ontology import FIELD_TO_FAMILY, FAMILY_META
+        from jyotish_ug.competency_ontology import FIELD_TO_FAMILY, FAMILY_META
         field_to_family = field_to_family if field_to_family is not None else FIELD_TO_FAMILY
         family_meta = family_meta if family_meta is not None else FAMILY_META
 

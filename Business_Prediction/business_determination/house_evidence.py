@@ -1173,7 +1173,7 @@ def _effective_benefic_malefic_sets(payload: Any) -> Tuple[frozenset, frozenset]
 
 def _house_sign(lagna_sign: str, house_num: int) -> str:
     """D1 sign occupying a given house, whole-sign from lagna."""
-    from Stream_Determination.stream_scoring import _RASI_SIGNS
+    from jyotish_puc.stream_scoring import _RASI_SIGNS
     if lagna_sign not in _RASI_SIGNS:
         return ""
     idx = _RASI_SIGNS.index(lagna_sign)
@@ -2059,7 +2059,7 @@ def _house_from_reference_lord(reference_sign: str, house_num: int) -> str:
     """Lord of the Nth house counted from an arbitrary reference sign
     (Lagna, Chandra Lagna/Moon sign, Surya Lagna/Sun sign, or a varga
     Lagna sign). Generalizes
-    Field_Determination.field_methods.common.chandra_lagna_h10_lord (which
+    jyotish_ug.field_methods.common.chandra_lagna_h10_lord (which
     hardcodes Moon+H10) to any reference sign/house pair, since Phaladeepika
     ch.5's profession method and the D9/D10-Lagna precedence check below
     both need the same arithmetic against different reference points.

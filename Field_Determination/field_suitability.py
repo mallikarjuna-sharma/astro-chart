@@ -35,7 +35,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 # (see common.py's scored_dimension docstring for the full rationale; this
 # import is the only change those two functions' plumbing needed -- their
 # score FORMULAS are unchanged).
-from Field_Determination.field_methods.common import scored_dimension
+from jyotish_ug.field_methods.common import scored_dimension
 
 
 STATUS_PRIMARY = "Recommended as Primary"

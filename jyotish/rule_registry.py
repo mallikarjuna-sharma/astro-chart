@@ -1919,6 +1919,7 @@ def _register_all_emitted_signals() -> None:
     _candidate_dirs = [
         root / "field_methods",                                    # legacy, kept in case it's restored
         root.parent / "Field_Determination" / "field_methods",
+        root.parent / "packages" / "jyotish-ug-fields" / "src" / "jyotish_ug" / "field_methods",
     ]
     _paths = [root / "engine.py"]
     _field_methods_hits = 0

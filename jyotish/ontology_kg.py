@@ -64,7 +64,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 
-from Field_Determination.competency_ontology import (
+from jyotish_ug.competency_ontology import (
     COMPETENCY_META,
     FAMILY_META,
     FIELD_TO_FAMILY,

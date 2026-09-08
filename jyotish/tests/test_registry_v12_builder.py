@@ -10,7 +10,7 @@ aggregation contract (a branch that fails to enrich must be reported, never
 silently dropped). They do not exercise the full real-registry build (that
 was already verified manually against the live 205-branch registry and the
 real registry_coverage_validator -- see the module's own docstring / the
-audit notes) because a full run needs Field_Determination.competency_ontology,
+audit notes) because a full run needs jyotish_ug.competency_ontology,
 which this test suite does not assume is importable in every environment.
 """
 from __future__ import annotations
