@@ -1,0 +1,471 @@
+{
+  "system_config": {
+    "ayanamsa": "KP_Krishnamurti",
+    "node_type": "True",
+    "karaka_system": 7,
+    "birth_time_uncertainty_minutes": 0,
+    "current_date": "2026-06-12"
+  },
+  "student_context": {
+    "name": "Ramsunder",
+    "dob": "2008-11-16",
+    "tob": "06:01:00",
+    "pob": "Srirangam, Tiruchirappalli, Tamil Nadu, India",
+    "lat": 10.8627,
+    "lon": 78.6928,
+    "gender": "M",
+    "education_system": "India_CBSE",
+    "academic_profile": {
+      "mathematics": 95,
+      "physics": 95,
+      "chemistry": 95,
+      "biology": 95,
+      "coding": 95,
+      "writing": 95
+    },
+    "student_preference": {
+      "interested_in": [
+      ],
+      "already_excel_at": [],
+      "financial_constraints": false,
+      "risk_appetite": "MODERATE"
+    },
+    "external_llm_consent": true
+  },
+  "pyhora_calculations": {
+    "d1_lagna": "Libra",
+    "d1_lagna_degree": 26.8879,
+    "planets_d1": {
+      "Sun": {
+        "sign": "Scorpio",
+        "degree": 0.1394,
+        "is_retrograde": false,
+        "latitude": 0.0001,
+        "shadbala_virupas": 229.45
+      },
+      "Moon": {
+        "sign": "Gemini",
+        "degree": 9.0014,
+        "is_retrograde": false,
+        "latitude": 3.2237,
+        "shadbala_virupas": 234.6
+      },
+      "Mars": {
+        "sign": "Scorpio",
+        "degree": 5.8871,
+        "is_retrograde": false,
+        "latitude": -0.2696,
+        "shadbala_virupas": 408.42
+      },
+      "Mercury": {
+        "sign": "Libra",
+        "degree": 24.5229,
+        "is_retrograde": false,
+        "latitude": 0.485,
+        "shadbala_virupas": 489.67
+      },
+      "Jupiter": {
+        "sign": "Sagittarius",
+        "degree": 25.4363,
+        "is_retrograde": false,
+        "latitude": -0.3643,
+        "shadbala_virupas": 387.51
+      },
+      "Venus": {
+        "sign": "Sagittarius",
+        "degree": 10.1628,
+        "is_retrograde": false,
+        "latitude": -2.1802,
+        "shadbala_virupas": 277.61
+      },
+      "Saturn": {
+        "sign": "Leo",
+        "degree": 26.0407,
+        "is_retrograde": false,
+        "latitude": 1.8488,
+        "shadbala_virupas": 383.41
+      },
+      "Rahu": {
+        "sign": "Capricorn",
+        "degree": 18.8113,
+        "is_retrograde": true,
+        "latitude": 0
+      },
+      "Ketu": {
+        "sign": "Cancer",
+        "degree": 18.8113,
+        "is_retrograde": true,
+        "latitude": 0
+      }
+    },
+    "divisional_charts": {
+      "D9_navamsha": {
+        "Lagna": "Gemini",
+        "Sun": "Cancer",
+        "Moon": "Sagittarius",
+        "Mars": "Leo",
+        "Mercury": "Taurus",
+        "Jupiter": "Scorpio",
+        "Venus": "Cancer",
+        "Saturn": "Scorpio",
+        "Rahu": "Gemini",
+        "Ketu": "Sagittarius"
+      },
+      "D10_dashamsha": {
+        "Lagna": "Gemini",
+        "Sun": "Cancer",
+        "Moon": "Virgo",
+        "Mars": "Leo",
+        "Mercury": "Gemini",
+        "Jupiter": "Leo",
+        "Venus": "Pisces",
+        "Saturn": "Aries",
+        "Rahu": "Pisces",
+        "Ketu": "Virgo"
+      },
+      "D24_siddhamsam": {
+        "Lagna": "Taurus",
+        "Sun": "Cancer",
+        "Moon": "Pisces",
+        "Mars": "Scorpio",
+        "Mercury": "Pisces",
+        "Jupiter": "Aries",
+        "Venus": "Aries",
+        "Saturn": "Aries",
+        "Rahu": "Libra",
+        "Ketu": "Libra"
+      }
+    },
+    "kp_cusp_data": {
+      "H1": {
+        "sign": "Libra",
+        "degree": 26.8879,
+        "sign_lord": "Venus",
+        "star_lord": "Jupiter",
+        "sub_lord": "Venus",
+        "sub_sub_lord": "Venus"
+      },
+      "H2": {
+        "sign": "Scorpio",
+        "degree": 26.8879,
+        "sign_lord": "Mars",
+        "star_lord": "Mercury",
+        "sub_lord": "Jupiter",
+        "sub_sub_lord": "Ketu"
+      },
+      "H3": {
+        "sign": "Sagittarius",
+        "degree": 26.8879,
+        "sign_lord": "Jupiter",
+        "star_lord": "Sun",
+        "sub_lord": "Sun",
+        "sub_sub_lord": "Rahu"
+      },
+      "H4": {
+        "sign": "Capricorn",
+        "degree": 26.8879,
+        "sign_lord": "Saturn",
+        "star_lord": "Mars",
+        "sub_lord": "Jupiter",
+        "sub_sub_lord": "Ketu"
+      },
+      "H5": {
+        "sign": "Aquarius",
+        "degree": 26.8879,
+        "sign_lord": "Saturn",
+        "star_lord": "Jupiter",
+        "sub_lord": "Venus",
+        "sub_sub_lord": "Venus"
+      },
+      "H6": {
+        "sign": "Pisces",
+        "degree": 26.8879,
+        "sign_lord": "Jupiter",
+        "star_lord": "Mercury",
+        "sub_lord": "Jupiter",
+        "sub_sub_lord": "Ketu"
+      },
+      "H7": {
+        "sign": "Aries",
+        "degree": 26.8879,
+        "sign_lord": "Mars",
+        "star_lord": "Sun",
+        "sub_lord": "Sun",
+        "sub_sub_lord": "Rahu"
+      },
+      "H8": {
+        "sign": "Taurus",
+        "degree": 26.8879,
+        "sign_lord": "Venus",
+        "star_lord": "Mars",
+        "sub_lord": "Jupiter",
+        "sub_sub_lord": "Ketu"
+      },
+      "H9": {
+        "sign": "Gemini",
+        "degree": 26.8879,
+        "sign_lord": "Mercury",
+        "star_lord": "Jupiter",
+        "sub_lord": "Venus",
+        "sub_sub_lord": "Venus"
+      },
+      "H10": {
+        "sign": "Cancer",
+        "degree": 26.8879,
+        "sign_lord": "Moon",
+        "star_lord": "Mercury",
+        "sub_lord": "Jupiter",
+        "sub_sub_lord": "Ketu"
+      },
+      "H11": {
+        "sign": "Leo",
+        "degree": 26.8879,
+        "sign_lord": "Sun",
+        "star_lord": "Sun",
+        "sub_lord": "Sun",
+        "sub_sub_lord": "Rahu"
+      },
+      "H12": {
+        "sign": "Virgo",
+        "degree": 26.8879,
+        "sign_lord": "Mercury",
+        "star_lord": "Mars",
+        "sub_lord": "Jupiter",
+        "sub_sub_lord": "Ketu"
+      }
+    },
+    "kp_planetary_significators": {
+      "Sun": {
+        "level_1": [
+          3
+        ],
+        "level_2": [
+          1
+        ],
+        "level_3": [
+          3,
+          6
+        ],
+        "level_4": [
+          11
+        ]
+      },
+      "Moon": {
+        "level_1": [
+          4
+        ],
+        "level_2": [
+          8
+        ],
+        "level_3": [],
+        "level_4": [
+          10
+        ]
+      },
+      "Mars": {
+        "level_1": [
+          11
+        ],
+        "level_2": [
+          1
+        ],
+        "level_3": [
+          4,
+          5
+        ],
+        "level_4": [
+          2,
+          7
+        ]
+      },
+      "Mercury": {
+        "level_1": [
+          3
+        ],
+        "level_2": [
+          1
+        ],
+        "level_3": [
+          3,
+          6
+        ],
+        "level_4": [
+          9,
+          12
+        ]
+      },
+      "Jupiter": {
+        "level_1": [
+          2
+        ],
+        "level_2": [
+          3
+        ],
+        "level_3": [
+          1,
+          8
+        ],
+        "level_4": [
+          3,
+          6
+        ]
+      },
+      "Venus": {
+        "level_1": [
+          10
+        ],
+        "level_2": [
+          2
+        ],
+        "level_3": [],
+        "level_4": [
+          1,
+          8
+        ]
+      },
+      "Saturn": {
+        "level_1": [
+          2
+        ],
+        "level_2": [
+          11
+        ],
+        "level_3": [
+          1,
+          8
+        ],
+        "level_4": [
+          4,
+          5
+        ]
+      },
+      "Rahu": {
+        "level_1": [
+          8
+        ],
+        "level_2": [
+          4
+        ],
+        "level_3": [
+          10
+        ],
+        "level_4": [
+          4,
+          5
+        ]
+      },
+      "Ketu": {
+        "level_1": [
+          1
+        ],
+        "level_2": [
+          10
+        ],
+        "level_3": [
+          9,
+          12
+        ],
+        "level_4": [
+          10
+        ]
+      }
+    },
+    "kn_rao_jaimini_data": {
+      "chara_karakas": {
+        "AK": "Saturn",
+        "AmK": "Jupiter",
+        "BK": "Mercury",
+        "MK": "Venus",
+        "PK": "Moon",
+        "GK": "Mars",
+        "DK": "Sun"
+      },
+      "karakamsha_sign": "Scorpio",
+      "upapada_lagna_sign": "Scorpio",
+      "jaimini_special_lords": {
+        "brahma": "Jupiter",
+        "maheshwara": "Saturn",
+        "rudra": "Venus"
+      }
+    },
+    "ashtakavarga_sav": {
+      "H1": 31,
+      "H2": 26,
+      "H3": 28,
+      "H4": 23,
+      "H5": 26,
+      "H6": 28,
+      "H7": 26,
+      "H8": 25,
+      "H9": 28,
+      "H10": 28,
+      "H11": 39,
+      "H12": 29
+    },
+    "vimshottari_dasha_sequence": [
+      {
+        "md_planet": "Rahu",
+        "start_year": 2005.72,
+        "end_year": 2023.72,
+        "age_start": -3.2,
+        "age_end": 14.8
+      },
+      {
+        "md_planet": "Jupiter",
+        "start_year": 2023.72,
+        "end_year": 2039.72,
+        "age_start": 14.8,
+        "age_end": 30.8
+      },
+      {
+        "md_planet": "Saturn",
+        "start_year": 2039.72,
+        "end_year": 2058.72,
+        "age_start": 30.8,
+        "age_end": 49.8
+      },
+      {
+        "md_planet": "Mercury",
+        "start_year": 2058.72,
+        "end_year": 2075.73,
+        "age_start": 49.8,
+        "age_end": 66.8
+      },
+      {
+        "md_planet": "Ketu",
+        "start_year": 2075.73,
+        "end_year": 2082.72,
+        "age_start": 66.8,
+        "age_end": 73.8
+      },
+      {
+        "md_planet": "Venus",
+        "start_year": 2082.72,
+        "end_year": 2102.73,
+        "age_start": 73.8,
+        "age_end": 93.8
+      },
+      {
+        "md_planet": "Sun",
+        "start_year": 2102.73,
+        "end_year": 2108.73,
+        "age_start": 93.8,
+        "age_end": 99.8
+      },
+      {
+        "md_planet": "Moon",
+        "start_year": 2108.73,
+        "end_year": 2118.73,
+        "age_start": 99.8,
+        "age_end": 109.9
+      },
+      {
+        "md_planet": "Mars",
+        "start_year": 2118.73,
+        "end_year": null,
+        "age_start": 109.9,
+        "age_end": null
+      }
+    ]
+  }
+}
