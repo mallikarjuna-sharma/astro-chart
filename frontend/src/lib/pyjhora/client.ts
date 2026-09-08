@@ -25,6 +25,7 @@ import type {
   UserInfo,
   VimshottariResponse,
 } from "./types";
+import { parseApiErrorBody } from "@/lib/api-errors";
 import { getPyJHoraApiBase } from "./config";
 
 export const PYJHORA_LS_USER = "pyjhora_user_id";
@@ -46,11 +47,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`Not JSON (HTTP ${res.status}): ${text.slice(0, 400)}`);
   }
   if (!res.ok) {
-    const detail =
-      data && typeof data === "object" && "detail" in data
-        ? JSON.stringify((data as { detail: unknown }).detail)
-        : text.slice(0, 400);
-    const err = new Error(`HTTP ${res.status}: ${detail}`) as Error & { status?: number };
+    const message = parseApiErrorBody(data, `Request failed (${res.status})`);
+    const err = new Error(message) as Error & { status?: number };
     err.status = res.status;
     throw err;
   }

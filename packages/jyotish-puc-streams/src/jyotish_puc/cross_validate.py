@@ -50,7 +50,7 @@ from typing import Any, Dict, List
 # "interdisciplinary" has no entry in DOMAIN_STREAM_AFFINITY at all
 # (deliberately left unmapped there), so it falls through to AMBIGUOUS here.
 def _build_domain_to_stream() -> Dict[str, str]:
-    from field_stream_mapping import DOMAIN_STREAM_AFFINITY
+    from .field_stream_mapping import DOMAIN_STREAM_AFFINITY
     result: Dict[str, str] = {}
     for domain, affinity in DOMAIN_STREAM_AFFINITY.items():
         result[domain] = max(affinity, key=affinity.get)
@@ -134,14 +134,14 @@ def cross_validate_against_field_determination(
     silently defaulted, so anyone using this module standalone can see and
     control exactly which config was used.
     """
-    from stream_scoring import compute_stream_determination
+    from .stream_scoring import compute_stream_determination
     # GAP-FIX (shared-runner consolidation, per review point 4): this used to
     # call jyotish.engine.run_engine() directly with its own inline LLM
     # force-off/restore logic -- now delegates to adult_engine_bridge.py so
     # this comparison and field_derived_stream.py's score-affecting section
     # can never silently drift onto different adult-engine invocation
     # configurations (deep-copy behavior, LLM suppression, field extraction).
-    from adult_engine_bridge import FieldEngineSnapshot, get_field_engine_snapshot
+    from .adult_engine_bridge import FieldEngineSnapshot, get_field_engine_snapshot
 
     snapshot = snapshot if snapshot is not None else get_field_engine_snapshot(payload)
     # GAP-FIX (shared-snapshot error-transparency): a caller-supplied

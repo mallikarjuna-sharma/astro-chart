@@ -31,8 +31,8 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional
 
-from adult_engine_bridge import FieldEngineSnapshot, safe_get_field_engine_snapshot
-from field_stream_mapping import STREAM_IDS, exclusivity, get_affinity
+from .adult_engine_bridge import FieldEngineSnapshot, safe_get_field_engine_snapshot
+from .field_stream_mapping import STREAM_IDS, exclusivity, get_affinity
 
 FIELD_DERIVED_EVIDENCE_CAP = 6.0
 

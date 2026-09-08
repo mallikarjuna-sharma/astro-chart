@@ -297,7 +297,7 @@ def surya_lagna_h10_lord(planets_d1: Dict) -> str:
     never performed the full triple check. Mirrors chandra_lagna_h10_lord()
     immediately below exactly, just anchored on the Sun instead of the Moon.
     """
-    from Field_Determination.jyotish.constants import _SIGN_LORD, _SIGN_NUM
+    from jyotish.constants import _SIGN_LORD, _SIGN_NUM
     signs = [s for s, _ in sorted(_SIGN_NUM.items(), key=lambda x: x[1])]
     sun_sign = ((planets_d1 or {}).get("Sun") or {}).get("sign", "")
     if not sun_sign or sun_sign not in _SIGN_NUM:
@@ -312,7 +312,7 @@ def chandra_lagna_h10_lord(planets_d1: Dict) -> str:
     variations inside knrao.py, kp.py, jaimini.py and parashara.py. Centralised
     here so the four methods cannot drift.
     """
-    from Field_Determination.jyotish.constants import _SIGN_LORD, _SIGN_NUM
+    from jyotish.constants import _SIGN_LORD, _SIGN_NUM
     signs = [s for s, _ in sorted(_SIGN_NUM.items(), key=lambda x: x[1])]
     moon_sign = ((planets_d1 or {}).get("Moon") or {}).get("sign", "")
     if not moon_sign or moon_sign not in _SIGN_NUM:
@@ -825,7 +825,7 @@ def is_vargottama(planet: str, d1_sign: str, d9_chart: Dict) -> bool:
     field_methods callers can depend on field_methods.common instead of
     reaching into jyotish.astro directly, without altering the check itself.
     """
-    from Field_Determination.jyotish.astro import _is_vargottama as _astro_is_vargottama
+    from jyotish.astro import _is_vargottama as _astro_is_vargottama
     return _astro_is_vargottama(planet, d1_sign, d9_chart)
 
 

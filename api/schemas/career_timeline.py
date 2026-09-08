@@ -33,6 +33,21 @@ class CareerTimelineRequest(BaseModel):
     )
 
 
+class ProfileCareerTimelineRequest(BaseModel):
+    career_context: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Optional career-context override merged on top of the profile's stored "
+            "career_context (employment_status, designation, years_experience, etc.)."
+        ),
+    )
+    enrich_llm: bool = Field(default=True)
+    user_json: dict[str, Any] | None = Field(
+        default=None,
+        description="Legacy fallback — omit to load consolidated chart data from the profile.",
+    )
+
+
 class OutcomeBar(BaseModel):
     primary_opportunity: str = "—"
     peak_md_lord: str = "—"
@@ -75,6 +90,18 @@ class ForeignMeta(BaseModel):
 class CareerTimelineResponse(BaseModel):
     engine_version: str
     generated_at: str = Field(..., description="ISO-8601 timestamp (UTC).")
+    profile_id: str | None = Field(
+        default=None,
+        description="Birth profile this timeline belongs to (profile-scoped endpoint).",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description="Logged-in user who owns this timeline.",
+    )
+    cached: bool | None = Field(
+        default=None,
+        description="True when served from the profile record; False when freshly computed.",
+    )
     student: dict[str, Any] = Field(..., description="Student/chart summary for the report header.")
     career_context: dict[str, Any] = Field(
         ...,

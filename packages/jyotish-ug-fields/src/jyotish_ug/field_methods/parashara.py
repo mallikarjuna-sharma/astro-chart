@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from Field_Determination.jyotish.astro import _is_vargottama  # G7
-from Field_Determination.jyotish.boosts import (
+from jyotish.astro import _is_vargottama  # G7
+from jyotish.boosts import (
     _yogakaraka_bonus, _h10_lord_strength_bonus, _h10_lord_trikona_bonus,
     _exalted_planet_domain_bonus, _aspect_h10_bonus, _yoga_bonus,
     _stellium_bonus, _dusthana_lord_penalty, _dharma_karma_bonus,
@@ -417,7 +417,7 @@ def score_parashara(
     # D10 Dashamsha cross-validation: D10 lagna lord in H10 + H10 occupants affirm career.
     d10_chart  = getattr(payload_data, "divisional_charts", {}).get("D10_dashamsha", {}) or {}
     d10_lagna  = d10_chart.get("Lagna", "") or ""
-    from Field_Determination.jyotish.constants import _SIGN_LORD
+    from jyotish.constants import _SIGN_LORD
     d10_ll     = _SIGN_LORD.get(d10_lagna, "")
     d10_bonus  = 0.0
     d10_h10_planets = d10_occ.get("10", []) or d10_occ.get(10, [])  # M3: fixed missing [] default

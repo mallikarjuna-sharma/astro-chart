@@ -48,7 +48,7 @@ from typing import Any, Dict, List, Optional
 from jyotish.astro import _get_planetary_aspects
 from jyotish.constants import _SIGN_LORD
 
-from subject_registry import STREAM_SCIENCE, STREAM_COMMERCE, STREAM_HUMANITIES
+from .subject_registry import STREAM_SCIENCE, STREAM_COMMERCE, STREAM_HUMANITIES
 
 _KENDRA_HOUSES = (1, 4, 7, 10)
 _TRIKONA_HOUSES = (1, 5, 9)

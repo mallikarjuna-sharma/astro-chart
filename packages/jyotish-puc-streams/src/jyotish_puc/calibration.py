@@ -104,7 +104,7 @@ def calibration_state(config: Dict[str, Any] | None = None) -> Dict[str, Any]:
     calibrated_against = config.get("scoring_contract_version")
     if status == "VALIDATED_CALIBRATED" and calibrated_against:
         try:
-            from stream_scoring import SCORING_CONTRACT_VERSION as _CURRENT_CONTRACT_VERSION
+            from .stream_scoring import SCORING_CONTRACT_VERSION as _CURRENT_CONTRACT_VERSION
             if calibrated_against != _CURRENT_CONTRACT_VERSION:
                 status = "ENGINEERED_PROVISIONAL"
                 contract_version_mismatch = True

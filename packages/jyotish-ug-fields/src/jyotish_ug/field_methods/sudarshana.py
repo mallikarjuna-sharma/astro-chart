@@ -19,7 +19,7 @@ Public API:
 from __future__ import annotations
 from typing import Any, Dict, List
 
-from Field_Determination.jyotish.boosts import _d1_vitality_coefficient
+from jyotish.boosts import _d1_vitality_coefficient
 
 # ── Zodiac helpers ────────────────────────────────────────────────────────────
 _SIGNS = [

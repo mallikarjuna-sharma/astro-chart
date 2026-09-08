@@ -13,8 +13,8 @@ from datetime import datetime
 from typing import Any, Dict
 
 from jyotish.validation_contract import UNIVERSAL_DISCLAIMER
-from subject_registry import STREAM_META
-from field_derived_stream import FIELD_DERIVED_EVIDENCE_CAP
+from .subject_registry import STREAM_META
+from .field_derived_stream import FIELD_DERIVED_EVIDENCE_CAP
 
 # 2026-07-24: bumped v4->v5 -- CRITICAL bug #1 fix (see
 # md/STREAM_DETERMINATION_CRITICAL_FIXES_20260724.md): surfaced

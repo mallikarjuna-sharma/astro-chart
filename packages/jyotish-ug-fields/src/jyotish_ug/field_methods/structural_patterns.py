@@ -37,8 +37,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping
 
-from Field_Determination.jyotish.boosts import _house_signification_bonus, _d1_vitality_coefficient
-from Field_Determination.jyotish.constants import _KENDRA_HOUSES, _TRIKONA_HOUSES, _DUSTHANA_HOUSES
+from jyotish.boosts import _house_signification_bonus, _d1_vitality_coefficient
+from jyotish.constants import _KENDRA_HOUSES, _TRIKONA_HOUSES, _DUSTHANA_HOUSES
 
 from .common import (
     METHOD_SCORE_CAPS,

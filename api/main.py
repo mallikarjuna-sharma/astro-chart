@@ -35,21 +35,33 @@ from api.geocode import GeocodeError, geocode_location, geocode_place_id, places
 from api.jhora_bootstrap import init_jhora
 from api.education_analysis import EducationAnalysisError, run_education_analysis, run_ug_analysis
 from api.puc_analysis import PucAnalysisError, run_puc_analysis
+from api.puc_analysis_service import get_or_create_puc_analysis
 from api.education_service import (
     delete_education_analysis as delete_profile_education_analysis,
     get_or_create_education_analysis,
 )
 from api.career_timeline import CareerTimelineError, run_career_timeline
+from api.career_timeline_service import get_or_create_career_timeline
 from api.business_prediction import BusinessPredictionError, run_business_prediction
+from api.business_prediction_service import get_or_create_business_prediction
 from api.prashna import PrashnaError, list_prashna_categories, run_prashna_analysis, run_prashna_batch
 from api.schemas.education_analysis import (
     EducationAnalysisRequest,
     EducationAnalysisResponse,
     ProfileEducationAnalysisRequest,
+    ProfilePucAnalysisRequest,
     PucAnalysisResponse,
 )
-from api.schemas.career_timeline import CareerTimelineRequest, CareerTimelineResponse
-from api.schemas.business_prediction import BusinessPredictionRequest, BusinessPredictionResponse
+from api.schemas.career_timeline import (
+    CareerTimelineRequest,
+    CareerTimelineResponse,
+    ProfileCareerTimelineRequest,
+)
+from api.schemas.business_prediction import (
+    BusinessPredictionRequest,
+    BusinessPredictionResponse,
+    ProfileBusinessPredictionRequest,
+)
 from api.schemas.prashna import (
     PrashnaBatchRequest,
     PrashnaBatchResponse,
@@ -1019,6 +1031,41 @@ def puc_education_analysis_endpoint(body: EducationAnalysisRequest) -> PucAnalys
     return PucAnalysisResponse.model_validate(result)
 
 
+@app.post(
+    "/api/profiles/{profile_id}/education-analysis/puc",
+    response_model=PucAnalysisResponse,
+)
+async def profile_puc_education_analysis_endpoint(
+    profile_id: str,
+    body: ProfilePucAnalysisRequest,
+    refresh: bool = Query(
+        False,
+        description="When true, recompute and replace the stored PUC stream analysis.",
+    ),
+    authorization: str | None = Header(default=None),
+) -> PucAnalysisResponse:
+    """PUC stream analysis for a logged-in user's profile.
+
+    Consolidated chart JSON is loaded from the profile record — the client only
+    needs ``profile_id`` and auth; no chart payload required.
+    """
+    from fastapi.concurrency import run_in_threadpool
+
+    try:
+        result = await run_in_threadpool(
+            get_or_create_puc_analysis,
+            authorization,
+            profile_id,
+            refresh=refresh,
+            user_json=body.user_json,
+        )
+    except HTTPException:
+        raise
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+    return PucAnalysisResponse.model_validate(result)
+
+
 @app.post("/api/education-analysis", response_model=EducationAnalysisResponse)
 def education_analysis_endpoint(body: EducationAnalysisRequest) -> EducationAnalysisResponse:
     """Run the JyotishAI UG career engine on consolidated chart JSON (back-compat alias).
@@ -1135,6 +1182,43 @@ async def career_timeline_endpoint(body: CareerTimelineRequest) -> CareerTimelin
     return CareerTimelineResponse.model_validate(result)
 
 
+@app.post(
+    "/api/profiles/{profile_id}/career-timeline",
+    response_model=CareerTimelineResponse,
+)
+async def profile_career_timeline_endpoint(
+    profile_id: str,
+    body: ProfileCareerTimelineRequest,
+    refresh: bool = Query(
+        False,
+        description="When true, recompute and replace the stored career timeline.",
+    ),
+    authorization: str | None = Header(default=None),
+) -> CareerTimelineResponse:
+    """Build or return the career timeline for a logged-in user's profile.
+
+    Consolidated chart JSON is loaded from the profile record — the client only
+    needs to send optional career_context overrides and LLM preferences.
+    """
+    from fastapi.concurrency import run_in_threadpool
+
+    try:
+        result = await run_in_threadpool(
+            get_or_create_career_timeline,
+            authorization,
+            profile_id,
+            career_context=body.career_context,
+            enrich_llm=body.enrich_llm,
+            refresh=refresh,
+            user_json=body.user_json,
+        )
+    except HTTPException:
+        raise
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
+    return CareerTimelineResponse.model_validate(result)
+
+
 @app.post("/api/business-prediction", response_model=BusinessPredictionResponse)
 async def business_prediction_endpoint(body: BusinessPredictionRequest) -> BusinessPredictionResponse:
     """Run the JyotishAI Business Prediction engine for a chart.
@@ -1156,6 +1240,43 @@ async def business_prediction_endpoint(body: BusinessPredictionRequest) -> Busin
         raise HTTPException(
             status_code=502, detail=f"Business prediction analysis failed: {exc}"
         ) from exc
+    return BusinessPredictionResponse.model_validate(result)
+
+
+@app.post(
+    "/api/profiles/{profile_id}/business-prediction",
+    response_model=BusinessPredictionResponse,
+)
+async def profile_business_prediction_endpoint(
+    profile_id: str,
+    body: ProfileBusinessPredictionRequest,
+    refresh: bool = Query(
+        False,
+        description="When true, recompute and replace the stored business prediction.",
+    ),
+    authorization: str | None = Header(default=None),
+) -> BusinessPredictionResponse:
+    """Run or return the business prediction for a logged-in user's profile.
+
+    Consolidated chart JSON is loaded from the profile record — the client only
+    needs to send venture_type and years_ahead.
+    """
+    from fastapi.concurrency import run_in_threadpool
+
+    try:
+        result = await run_in_threadpool(
+            get_or_create_business_prediction,
+            authorization,
+            profile_id,
+            venture_type=body.venture_type,
+            years_ahead=body.years_ahead,
+            refresh=refresh,
+            user_json=body.user_json,
+        )
+    except HTTPException:
+        raise
+    except ClientError as exc:
+        raise _dynamo_http_error(exc) from exc
     return BusinessPredictionResponse.model_validate(result)
 
 

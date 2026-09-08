@@ -72,24 +72,24 @@ from Field_Determination.field_methods.common import (
     rubric_section,
 )
 
-from subject_registry import (
+from .subject_registry import (
     STREAM_META, SUBJECT_REGISTRY, SCIENCE_SUBJECT_BUNDLES, SUBJECT_SUB_ARCHETYPES,
     STREAM_SCIENCE, STREAM_COMMERCE, STREAM_HUMANITIES,
 )
-from calibration import calibration_state
+from .calibration import calibration_state
 # GAP-FIX (field-derived-evidence, optional 8th rubric section, default off):
 # only the cap constant is imported at module load time -- the actual
 # safe_derive_stream_marks() call (which runs the adult engine) is imported
 # lazily inside compute_stream_determination() so importing stream_scoring.py
 # never has an import-time dependency on the adult engine being importable.
-from field_derived_stream import FIELD_DERIVED_EVIDENCE_CAP
+from .field_derived_stream import FIELD_DERIVED_EVIDENCE_CAP
 
 # Round 4 addition (classical yoga-pattern detection, flagged absent across
 # all four audit rounds) -- detection logic itself lives in yoga_detection.py
 # (kept separate so it can be unit-exercised/read independently of this
 # already-4000+-line file); this module only wires its bounded, capped
 # contribution into score_stream (see `_yoga_pattern_bonus` below).
-from yoga_detection import detect_all_yogas, YOGA_STREAM_RELEVANCE
+from .yoga_detection import detect_all_yogas, YOGA_STREAM_RELEVANCE
 
 # GAP-FIX (2026-07-22h, audit gaps 2/3/5, CONFIRMED real problem): a report
 # claiming "stream-scoring-contract.2026-07-22g" only proves what STRING the
@@ -4051,7 +4051,7 @@ def compute_stream_determination(
     # already fetched one (see docstring above).
     field_derived_evidence = None
     if include_field_derived_evidence:
-        from field_derived_stream import safe_derive_stream_marks
+        from .field_derived_stream import safe_derive_stream_marks
         field_derived_evidence = safe_derive_stream_marks(payload, snapshot=field_engine_snapshot)
 
     # GAP-FIX (audit #45): the age gate previously lived ONLY in

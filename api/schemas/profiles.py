@@ -67,6 +67,10 @@ class ProfileResponse(BaseModel):
     # table (see api/db/education_repository.py), not on the profile.
     career_timeline: dict[str, Any] | None = None
     career_timeline_error: str | None = None
+    business_prediction: dict[str, Any] | None = None
+    business_prediction_error: str | None = None
+    puc_analysis: dict[str, Any] | None = None
+    puc_analysis_error: str | None = None
     created_at: str
     updated_at: str
     read_only: bool = True

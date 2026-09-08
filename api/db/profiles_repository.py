@@ -35,6 +35,8 @@ CHUNK_JAIMINI = "ANALYSIS#JAIMINI"
 CHUNK_EXTENDED = "ANALYSIS#EXTENDED"
 CHUNK_CONSOLIDATED = "ANALYSIS#CONSOLIDATED"
 CHUNK_CAREER = "CONTEXT#CAREER"
+CHUNK_BUSINESS = "CONTEXT#BUSINESS"
+CHUNK_PUC = "CONTEXT#PUC"
 
 _CHUNK_STRIP_KEYS = frozenset(
     {"PK", "SK", "entity_type", "chunk", "profile_id", "user_id", "updated_at"}
@@ -399,6 +401,43 @@ def save_profile_sections(
         )
 
     return saved
+
+
+def upsert_profile_section(
+    auth_user_id: str,
+    profile_id: str,
+    part: str,
+    payload: dict[str, Any],
+) -> None:
+    """Create or replace an analysis/context chunk on an existing profile."""
+    items = _query_profile_items(auth_user_id, profile_id)
+    if not any(_is_profile_header(item["SK"]) for item in items):
+        raise ProfilesRepositoryError("Profile not found.")
+
+    now = _utc_now()
+    chunk_item = {
+        "PK": _pk(auth_user_id),
+        "SK": _sk_part(profile_id, part),
+        "entity_type": "profile_chunk",
+        "chunk": part,
+        "profile_id": profile_id,
+        "user_id": auth_user_id,
+        **payload,
+        "updated_at": now,
+    }
+    _put_item(chunk_item, part=part)
+
+    header_item = next(item for item in items if _is_profile_header(item["SK"]))
+    sections_map = dict(_from_decimal(header_item.get("sections") or {}))
+    sections_map[part] = {"saved_at": now}
+    get_profiles_table().update_item(
+        Key={"PK": _pk(auth_user_id), "SK": _sk_header(profile_id)},
+        UpdateExpression="SET sections = :s, updated_at = :u",
+        ExpressionAttributeValues={
+            ":s": _to_decimal(sections_map),
+            ":u": now,
+        },
+    )
 
 
 def delete_profile(auth_user_id: str, profile_id: str) -> bool:

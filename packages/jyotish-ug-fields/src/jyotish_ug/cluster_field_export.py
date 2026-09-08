@@ -58,13 +58,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from Field_Determination.jyotish.report_utils import (
+from jyotish.report_utils import (
     top20_as_four_cluster_groups,
     cluster_strength_weighted,
     field_display_name,
 )
-from Field_Determination.jyotish.engine_io import _load_course_registry
-from Field_Determination.route_map import _row_field_id
+from jyotish.engine_io import _load_course_registry
+from jyotish_ug.route_map import _row_field_id
 
 
 # Static, field-independent boilerplate that used to be repeated verbatim

@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Loader2, RefreshCw } from "lucide-react";
 import { pyjhora } from "@/lib/pyjhora/client";
-import {
-  ensureConsolidatedForEngine,
-  consolidatedHasEngineData,
-} from "@/lib/pyjhora/ensure-consolidated";
+import { ensureConsolidatedForEngine } from "@/lib/pyjhora/ensure-consolidated";
+import { profilesApi } from "@/lib/profiles/client";
 import { patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { Button } from "@/components/ui/button";
@@ -19,8 +17,9 @@ export function BusinessSection() {
   const data = session?.businessPrediction;
   const error = session?.businessPredictionError ?? null;
   const consolidated = session?.consolidated;
+  const profileId = session?.chartId;
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (forceRefresh = false) => {
     if (!session?.birthInput) {
       patchChartSession({
         businessPredictionError:
@@ -31,16 +30,16 @@ export function BusinessSection() {
     setLoading(true);
     patchChartSession({ businessPredictionError: undefined });
     try {
-      const engineJson = await ensureConsolidatedForEngine(
-        session.birthInput,
-        session.studentContext,
-        consolidated,
-        session.careerContextInput,
-      );
-      if (!consolidatedHasEngineData(consolidated)) {
-        patchChartSession({ consolidated: engineJson });
-      }
-      const result = await pyjhora.businessPrediction(engineJson);
+      const result = profileId
+        ? await profilesApi.businessPrediction(profileId, { refresh: forceRefresh })
+        : await pyjhora.businessPrediction(
+            await ensureConsolidatedForEngine(
+              session.birthInput,
+              session.studentContext,
+              consolidated,
+              session.careerContextInput,
+            ),
+          );
       patchChartSession({
         businessPrediction: result,
         businessPredictionError: undefined,
@@ -52,7 +51,7 @@ export function BusinessSection() {
     } finally {
       setLoading(false);
     }
-  }, [consolidated, session?.birthInput, session?.careerContextInput, session?.studentContext]);
+  }, [consolidated, profileId, session?.birthInput, session?.careerContextInput, session?.studentContext]);
 
   useEffect(() => {
     if (!data && !loading && !error && session?.birthInput) {
@@ -77,7 +76,7 @@ export function BusinessSection() {
           variant="outline"
           size="sm"
           disabled={loading || !session?.birthInput}
-          onClick={() => void run()}
+          onClick={() => void run(true)}
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin mr-1" />

@@ -30,8 +30,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Mapping
 
-from Field_Determination.jyotish.constants import _SIGN_LORD, _SIGN_NUM
-from Field_Determination.jyotish.boosts import _vimsopaka_bala_coefficient
+from jyotish.constants import _SIGN_LORD, _SIGN_NUM
+from jyotish.boosts import _vimsopaka_bala_coefficient
 from .common import is_vargottama  # gap fix 2026-08-18 (I): shared Vargottama check
 
 # Confirmation multiplier bounds (Phase-2 remediation).

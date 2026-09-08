@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping
 
-from Field_Determination.jyotish.astro import _get_active_dasha_lord
+from jyotish.astro import _get_active_dasha_lord
 
 CONTRACT_VERSION = "confidence-dimensions.v1"
 

@@ -11,14 +11,14 @@ from typing import Any, Dict, List
 # restore them.
 _VERBOSE_FIELD_LOG = _os.environ.get("JYOTISH_VERBOSE_FIELD_LOG", "0") == "1"
 
-from Field_Determination.jyotish.astro import (
+from jyotish.astro import (
     _compute_arudha_pada,
     _compute_whole_sign_houses,
     _get_active_dasha_lord,
     _is_vargottama,
     compute_dignity,
 )
-from Field_Determination.jyotish.boosts import (
+from jyotish.boosts import (
     _d1_vitality_coefficient,
     _d9_h10_bonus,
     _d10_lagna_lord_bonus,
@@ -33,7 +33,7 @@ from Field_Determination.jyotish.boosts import (
     _ODD_SIGNS,
     _wm,
 )
-from Field_Determination.jyotish.constants import _SIGN_LORD, _SIGN_NUM, _KENDRA_HOUSES, _TRIKONA_HOUSES, _DUSTHANA_HOUSES
+from jyotish.constants import _SIGN_LORD, _SIGN_NUM, _KENDRA_HOUSES, _TRIKONA_HOUSES, _DUSTHANA_HOUSES
 from .common import (
     METHOD_SCORE_CAPS,
     build_gate_text,
@@ -833,7 +833,7 @@ def score_knrao(
             )
 
     # ── G19: Nakshatra lord house chain ────────────────────────────────────────
-    from Field_Determination.jyotish.constants import _NAKSHATRA_LORD
+    from jyotish.constants import _NAKSHATRA_LORD
     _planet_naks = getattr(payload_data, "planet_nakshatras", {}) or {}
     _ph = getattr(payload_data, "planet_house", {}) or {}
     for _p, _pw in field_affinity.items():

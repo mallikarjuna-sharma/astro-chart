@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { pyjhora } from "@/lib/pyjhora/client";
-import { ensureConsolidatedForEngine, consolidatedHasEngineData } from "@/lib/pyjhora/ensure-consolidated";
+import { ensureConsolidatedForEngine } from "@/lib/pyjhora/ensure-consolidated";
+import { profilesApi } from "@/lib/profiles/client";
 import { patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
+import { isPucEligible, pucAgeErrorMessage, approxAgeFromBirthInput } from "@/lib/education-report/tab-defaults";
 import { PucStreamReport } from "@/components/education/PucStreamReport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,41 +17,50 @@ export function PucAnalysisSection() {
   const data = session?.pucAnalysis;
   const error = session?.pucAnalysisError ?? null;
   const consolidated = session?.consolidated;
+  const profileId = session?.chartId;
 
-  const runAnalysis = useCallback(async () => {
-    if (!session?.birthInput) {
-      patchChartSession({
-        pucAnalysisError:
-          "Consolidated chart JSON is not available. Open a profile from the Profiles page.",
-      });
-      return;
-    }
-    setLoading(true);
-    patchChartSession({ pucAnalysisError: undefined });
-    try {
-      const engineJson = await ensureConsolidatedForEngine(
-        session.birthInput,
-        session.studentContext,
-        consolidated,
-        undefined,
-        session.userInfo?.display_name,
-      );
-      if (!consolidatedHasEngineData(consolidated)) {
-        patchChartSession({ consolidated: engineJson });
+  const runAnalysis = useCallback(
+    async (forceRefresh = false) => {
+      if (!session?.birthInput) {
+        patchChartSession({
+          pucAnalysisError:
+            "Consolidated chart JSON is not available. Open a profile from the Profiles page.",
+        });
+        return;
       }
-      const result = await pyjhora.pucEducationAnalysis(engineJson);
-      patchChartSession({
-        pucAnalysis: result,
-        pucAnalysisError: undefined,
-      });
-    } catch (err) {
-      patchChartSession({
-        pucAnalysisError: String((err as Error)?.message ?? err),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [consolidated, session?.birthInput, session?.studentContext, session?.userInfo?.display_name]);
+      const approxAge = approxAgeFromBirthInput(session.birthInput);
+      if (!isPucEligible(approxAge)) {
+        patchChartSession({ pucAnalysisError: pucAgeErrorMessage(approxAge) });
+        return;
+      }
+      setLoading(true);
+      patchChartSession({ pucAnalysisError: undefined });
+      try {
+        const result = profileId
+          ? await profilesApi.pucAnalysis(profileId, { refresh: forceRefresh })
+          : await pyjhora.pucEducationAnalysis(
+              await ensureConsolidatedForEngine(
+                session.birthInput,
+                session.studentContext,
+                consolidated,
+                undefined,
+                session.userInfo?.display_name,
+              ),
+            );
+        patchChartSession({
+          pucAnalysis: result,
+          pucAnalysisError: undefined,
+        });
+      } catch (err) {
+        patchChartSession({
+          pucAnalysisError: String((err as Error)?.message ?? err),
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [consolidated, profileId, session?.birthInput, session?.studentContext, session?.userInfo?.display_name],
+  );
 
   useEffect(() => {
     if (!data && !loading && !error && session?.birthInput) {
@@ -80,7 +91,7 @@ export function PucAnalysisSection() {
           variant="outline"
           size="sm"
           disabled={loading || !session.birthInput}
-          onClick={() => void runAnalysis()}
+          onClick={() => void runAnalysis(true)}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
           {loading ? "Analyzing…" : "Refresh"}

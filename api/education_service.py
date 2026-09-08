@@ -19,6 +19,7 @@ from api.auth_service import get_current_user
 from api.db import education_repository
 from api.db.dynamo import DynamoDBNotConfiguredError
 from api.education_analysis import EducationAnalysisError, run_education_analysis
+from api.profile_chart import resolve_consolidated_chart
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ def _persist(profile_id: str, user_id: str, result: dict[str, Any]) -> dict[str,
 def get_or_create_education_analysis(
     authorization: str | None,
     profile_id: str,
-    user_json: dict[str, Any],
+    user_json: dict[str, Any] | None,
     refresh: bool = False,
 ) -> dict[str, Any]:
     """Return the stored analysis for a profile, computing + persisting only on first use.
@@ -105,13 +106,12 @@ def get_or_create_education_analysis(
         return _ensure_ai(hit)
 
     if not user_json:
-        raise HTTPException(
-            status_code=400,
-            detail="No cached analysis found; user_json (consolidated chart) is required to compute one.",
-        )
+        chart = resolve_consolidated_chart(user_id, profile_id, None)
+    else:
+        chart = user_json
 
     try:
-        result = run_education_analysis(user_json)
+        result = run_education_analysis(chart)
     except EducationAnalysisError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001

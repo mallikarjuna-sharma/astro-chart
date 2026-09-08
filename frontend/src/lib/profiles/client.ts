@@ -3,6 +3,11 @@ import { getStoredAuthToken } from "@/lib/auth/client";
 import { parseApiErrorBody } from "@/lib/api-errors";
 import type { EducationAnalysisResponse } from "@/lib/pyjhora/types";
 import type {
+  BusinessPredictionResponse,
+  CareerTimelineResponse,
+  PucAnalysisResponse,
+} from "@/lib/pyjhora/types";
+import type {
   CreateProfilePayload,
   PersistProfileSectionsPayload,
   PersistProfileSectionsResponse,
@@ -74,7 +79,8 @@ export const profilesApi = {
    * Cache-or-compute the career field report for a profile. Returns the stored
    * analysis when present; otherwise the engine runs (30-60s), the four LLM
    * payloads are persisted in DynamoDB, and the fresh result is returned.
-   * `userJson` (consolidated chart) is only needed on a cache miss.
+   * `userJson` is optional — the API loads consolidated chart data from the
+   * profile when omitted.
    */
   educationAnalysis(
     profileId: string,
@@ -87,6 +93,67 @@ export const profilesApi = {
       {
         method: "POST",
         body: JSON.stringify({ user_json: userJson ?? null }),
+      },
+    );
+  },
+
+  /**
+   * Cache-or-compute the job timeline for a profile. Chart data is loaded
+   * server-side from the profile — only send optional career_context overrides.
+   */
+  careerTimeline(
+    profileId: string,
+    opts?: {
+      careerContext?: Record<string, unknown>;
+      enrichLlm?: boolean;
+      refresh?: boolean;
+    },
+  ) {
+    const q = opts?.refresh ? "?refresh=true" : "";
+    return request<CareerTimelineResponse>(
+      `/api/profiles/${profileId}/career-timeline${q}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          career_context: opts?.careerContext ?? null,
+          enrich_llm: opts?.enrichLlm ?? true,
+        }),
+      },
+    );
+  },
+
+  /**
+   * Cache-or-compute business prediction for a profile. Chart data is loaded
+   * server-side from the profile.
+   */
+  businessPrediction(
+    profileId: string,
+    opts?: { ventureType?: string; yearsAhead?: number; refresh?: boolean },
+  ) {
+    const q = opts?.refresh ? "?refresh=true" : "";
+    return request<BusinessPredictionResponse>(
+      `/api/profiles/${profileId}/business-prediction${q}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          venture_type: opts?.ventureType ?? "business",
+          years_ahead: opts?.yearsAhead ?? 15,
+        }),
+      },
+    );
+  },
+
+  /**
+   * Cache-or-compute PUC stream analysis for a profile. Chart data is loaded
+   * server-side from the profile — no user_json required.
+   */
+  pucAnalysis(profileId: string, opts?: { refresh?: boolean }) {
+    const q = opts?.refresh ? "?refresh=true" : "";
+    return request<PucAnalysisResponse>(
+      `/api/profiles/${profileId}/education-analysis/puc${q}`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
       },
     );
   },

@@ -4,8 +4,8 @@ from __future__ import annotations
 import logging
 import time
 from typing import Any, Dict, List, Mapping
-from Field_Determination.jyotish.evidence_integrity import build_signal_lineage
-from Field_Determination.jyotish.rule_registry import signal_class
+from jyotish.evidence_integrity import build_signal_lineage
+from jyotish.rule_registry import signal_class
 
 from .knrao import score_knrao
 from .kp import score_kp
@@ -30,8 +30,8 @@ from .structural_patterns import score_structural_patterns  # Stage 1: D1 house-
 from .navamsha import score_navamsha_adjustment  # Phase-2 remediation: D9 as bounded post-blend multiplier
 from .yogini_dasha import score_yogini_dasha_adjustment  # GAP FIX (2026-08-17): Yogini Dasha as bounded post-blend multiplier (Step 7)
 from .gochara import score_gochara  # GAP FIX (2026-08-18, audit item A): Gochara transit timing as 10th voting method
-from Field_Determination.jyotish.dasha_longevity import score_dasha_longevity  # GAP FIX (2026-08-17): Vimshottari longevity filter (Step 7)
-from Field_Determination.jyotish.step9_convergence import score_convergence  # GAP FIX (2026-08-17): Step 9 multi-method convergence
+from jyotish.dasha_longevity import score_dasha_longevity  # GAP FIX (2026-08-17): Vimshottari longevity filter (Step 7)
+from jyotish.step9_convergence import score_convergence  # GAP FIX (2026-08-17): Step 9 multi-method convergence
 from .common import (
     FIELD_PRIORITY_GROUPS,
     METHOD_SCORE_CAP,
@@ -39,8 +39,8 @@ from .common import (
     combine_weighted_scores,
     normalize_method_score,
 )
-from Field_Determination.jyotish.kp_audit import audit_kp_cusps  # 2026-07 astrologer's audit fix (3)
-from Field_Determination.jyotish.evidence_integrity import METHOD_DEPENDENCY_GROUPS
+from jyotish.kp_audit import audit_kp_cusps  # 2026-07 astrologer's audit fix (3)
+from jyotish.evidence_integrity import METHOD_DEPENDENCY_GROUPS
 
 # M1: Per-method normalization caps reflecting each method's natural raw score range.
 # Audit-2026-07 Gap-1 fix: caps now live in common.METHOD_SCORE_CAPS (single source
@@ -1045,7 +1045,7 @@ def compute_field_method_bundle(
     _ak_for_dampen = getattr(payload_data, "atmakaraka", "") or ""
     _lagna_for_dampen = getattr(payload_data, "lagna_sign", "") or ""
     try:
-        from Field_Determination.jyotish.boosts import _YOGAKARAKA_PLANET as _YK_TABLE_DAMPEN
+        from jyotish.boosts import _YOGAKARAKA_PLANET as _YK_TABLE_DAMPEN
         _yk_for_dampen = _YK_TABLE_DAMPEN.get(_lagna_for_dampen, "")
     except Exception:
         _yk_for_dampen = ""
@@ -1278,7 +1278,7 @@ def compute_field_method_bundle(
     _amk_for_longevity = getattr(payload_data, "amatyakaraka", "") or ""
     _lagna_sign_for_yk = getattr(payload_data, "lagna_sign", "") or ""
     try:
-        from Field_Determination.jyotish.boosts import _YOGAKARAKA_PLANET as _YK_TABLE
+        from jyotish.boosts import _YOGAKARAKA_PLANET as _YK_TABLE
         _yk_for_longevity = _YK_TABLE.get(_lagna_sign_for_yk, "")
     except Exception:
         _yk_for_longevity = ""

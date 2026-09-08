@@ -73,13 +73,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Set
 
-from Field_Determination.jyotish.astro import _compute_jaimini_virodhargala
-from Field_Determination.jyotish.boosts import (
+from jyotish.astro import _compute_jaimini_virodhargala
+from jyotish.boosts import (
     _d1_vitality_coefficient, _karakatwa_domain_bonus, _house_signification_bonus,
     _vimsopaka_bala_coefficient,
     _FUNCTIONAL_STATUS as _D1_FUNCTIONAL_STATUS,
 )
-from Field_Determination.jyotish.constants import _SIGN_LORD, _SIGN_NUM, _KENDRA_HOUSES, _TRIKONA_HOUSES, _KT_HOUSES, _DUSTHANA_HOUSES
+from jyotish.constants import _SIGN_LORD, _SIGN_NUM, _KENDRA_HOUSES, _TRIKONA_HOUSES, _KT_HOUSES, _DUSTHANA_HOUSES
 from .common import (
     METHOD_SCORE_CAPS,
     build_gate_text,

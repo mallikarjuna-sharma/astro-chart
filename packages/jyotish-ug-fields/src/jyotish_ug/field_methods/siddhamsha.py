@@ -88,8 +88,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping
 
-from Field_Determination.jyotish.constants import _SIGN_LORD, _SIGN_NUM, _DUSTHANA_HOUSES, _KT_HOUSES
-from Field_Determination.jyotish.boosts import _vimsopaka_bala_coefficient
+from jyotish.constants import _SIGN_LORD, _SIGN_NUM, _DUSTHANA_HOUSES, _KT_HOUSES
+from jyotish.boosts import _vimsopaka_bala_coefficient
 from .common import (
     build_gate_text,
     build_score_rubric,

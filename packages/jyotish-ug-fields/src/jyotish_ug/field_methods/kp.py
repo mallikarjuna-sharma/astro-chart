@@ -6,9 +6,9 @@ from typing import Any, Dict, List
 
 _logger = logging.getLogger("jyotish_engine_v11_0")
 
-from Field_Determination.jyotish.kp_subfield_hint import narrow_field_specialization  # GAP FIX (2026-08-17): Step 6 sub-field narrowing
+from jyotish.kp_subfield_hint import narrow_field_specialization  # GAP FIX (2026-08-17): Step 6 sub-field narrowing
 
-from Field_Determination.jyotish.boosts import (
+from jyotish.boosts import (
     _kp_h10_branch_strength,
     _kp_career_h2h11_strength,
     _kp_edu_branch_strength,
@@ -23,7 +23,7 @@ from Field_Determination.jyotish.boosts import (
     _house_signification_bonus,
     _wm,
 )
-from Field_Determination.jyotish.constants import (
+from jyotish.constants import (
     _NAKSHATRA_CAREER_KW, _NAKSHATRA_LORD, _PADA_NAVAMSHA_SIGN,
     _NAVAMSHA_SIGN_CAREER_KW, _SIGN_LORD,
 )
@@ -43,7 +43,7 @@ from .common import (
 # see score_kp()'s own gap-fix comment below for why this method's raw score
 # needs to know about verification status too, not just the downstream blend
 # weight.
-from Field_Determination.jyotish.kp_audit import audit_kp_cusps
+from jyotish.kp_audit import audit_kp_cusps
 
 # Earth/underground-domain field cluster — H8 career indicator applies for these
 _EARTH_FIELD_HINTS = (

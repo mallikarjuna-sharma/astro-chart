@@ -61,22 +61,22 @@ Backward-compatibility shim. All logic now lives in the jyotish/ package:
 
 Import from this file or from the jyotish package directly — both work.
 """
-from Field_Determination.jyotish.report_utils import (
+from jyotish.report_utils import (
     field_display_name as _field_display_name,
     print_macro_cluster as _print_macro_cluster,
     cluster_display_name as _cluster_display_name,
     top20_as_four_cluster_groups as _top20_as_four_cluster_groups,
 )
 
-from Field_Determination.jyotish.payload    import NatalPayloadV2, ENGINE_VERSION, logger
-from Field_Determination.jyotish.constants  import (
+from jyotish.payload    import NatalPayloadV2, ENGINE_VERSION, logger
+from jyotish.constants  import (
     _KENDRA_HOUSES, _TRIKONA_HOUSES, _KT_HOUSES, _DUSTHANA_HOUSES,
     _SIGN_NUM, _SIGN_LORD, _COMBUST_ORB, _NODAL_DEFAULT_VIRUPAS,
     _PLANET_MIN_SHADBALA, _NAKSHATRA_LORD, _NEECHA_BHANGA_DATA,
     DOMAIN_STRATEGIES, _VALID_PLANETS, _VALID_DOMAINS,
     _MAHESHWARA_DOMAIN_KW, _STREAM_MAP,
 )
-from Field_Determination.jyotish.astro      import (
+from jyotish.astro      import (
     compute_dignity, _planet_abs_degree, _compute_whole_sign_houses,
     get_nakshatra_from_longitude, _drishti_bala,
     _get_planetary_aspects, _get_planetary_aspects_weighted,
@@ -85,14 +85,14 @@ from Field_Determination.jyotish.astro      import (
     _is_vargottama, _detect_combust_planets, _calc_age,
     _get_active_dasha_lord,
 )
-from Field_Determination.jyotish.affinity   import BRANCH_PLANET_AFFINITY, compute_branch_affinity_score_llm
-from Field_Determination.jyotish.engine_io  import parse_json_payload, compute_aptitude_by_domain, _load_course_registry
-from Field_Determination.jyotish.llm        import (
+from jyotish.affinity   import BRANCH_PLANET_AFFINITY, compute_branch_affinity_score_llm
+from jyotish.engine_io  import parse_json_payload, compute_aptitude_by_domain, _load_course_registry
+from jyotish.llm        import (
     _build_chart_summary_for_llm, call_llm_for_fields,
 )
-from Field_Determination.jyotish.boosts     import *
-from Field_Determination.jyotish.engine     import run_engine, execute_qa_verification_v8_9, classify_age_stage
-from Field_Determination.jyotish.output     import ExplainabilityEngine
+from jyotish.boosts     import *
+from jyotish.engine     import run_engine, execute_qa_verification_v8_9, classify_age_stage
+from jyotish.output     import ExplainabilityEngine
 # SCOPE CUT (2026-08-31, user request): this file is now single-purpose --
 # chart in, Top-20 fields table + HTML/JSON reports out. Career Timeline,
 # Prashna (Horary), and EduAlign (stream/sub-branch/exam scoring) all moved
@@ -417,7 +417,7 @@ def _render_top20_cluster_markdown(results, payload):
     lines.append("Best path:")
     lines.append("")
     try:
-        from Field_Determination.jyotish.engine import _resolve_career_phase
+        from jyotish.engine import _resolve_career_phase
         career_phase = _resolve_career_phase(payload)
     except Exception:
         career_phase = "auto"
@@ -427,7 +427,7 @@ def _render_top20_cluster_markdown(results, payload):
 
 if __name__ == "__main__":
     import argparse, json, os, sys
-    from Field_Determination.jyotish.engine_io import parse_json_payload
+    from jyotish.engine_io import parse_json_payload
 
     # CLI-quiet mode (user request, 2026-08-31): the console should show
     # ONLY the "Engine: ... | Active Dasha: ..." line + the FINAL TOP 20
@@ -592,8 +592,8 @@ if __name__ == "__main__":
         print(f"Stream report (HTML): {_stream_result['paths']['html']}")
         sys.exit(0)
 
-    from Field_Determination.jyotish.engine import run_engine
-    from Field_Determination.jyotish.astro import _get_active_dasha_lord
+    from jyotish.engine import run_engine
+    from jyotish.astro import _get_active_dasha_lord
 
     # BUG FIX (2026-09, "--llm on but Summary/Reference JSON llm_narrative
     # still null" report): this used to hard-code enable_llm=False so the
@@ -695,7 +695,7 @@ if __name__ == "__main__":
     _print_final_top20_table(results, payload, file=_real_stdout)
     _print_jaimini_karaka_scheme_disclosure(payload)
     print(_render_top20_cluster_markdown(results, payload))
-    from Field_Determination.jyotish.validation_contract import UNIVERSAL_DISCLAIMER
+    from jyotish.validation_contract import UNIVERSAL_DISCLAIMER
     print(f"\nIMPORTANT: {UNIVERSAL_DISCLAIMER}")
 
     # NOTE (2026-07, user request): the plain generate_web_report()
@@ -899,7 +899,7 @@ if __name__ == "__main__":
     # leaving *_summary.json as split_debug_payload wrote it above rather
     # than breaking report generation.
     try:
-        from Field_Determination.route_map import build_route_map_summary
+        from jyotish_ug.route_map import build_route_map_summary
         route_map_summary = build_route_map_summary(results)
         with open(paths["Summary"], "w", encoding="utf-8") as _sf:
             json.dump(route_map_summary, _sf, indent=4, ensure_ascii=False)
@@ -927,7 +927,7 @@ if __name__ == "__main__":
     # Summary JSON above: on failure, leaves *_reference.json as
     # split_debug_payload wrote it rather than breaking report generation.
     try:
-        from Field_Determination.cluster_field_export import build_cluster_field_export
+        from jyotish_ug.cluster_field_export import build_cluster_field_export
         cluster_field_export = build_cluster_field_export(results, payload)
         with open(paths["Reference"], "w", encoding="utf-8") as _rf:
             json.dump(cluster_field_export, _rf, indent=4, ensure_ascii=False, default=str)
@@ -957,7 +957,7 @@ if __name__ == "__main__":
     # fallback pattern as Summary/Reference above.
     try:
         from Field_Determination.astro_trace import build_astro_trace_export
-        from Field_Determination.jyotish.engine_io import _load_course_registry
+        from jyotish.engine_io import _load_course_registry
         astro_trace_export = build_astro_trace_export(
             results, payload, _load_course_registry(),
             enable_llm=bool(getattr(args, "llm", False)),

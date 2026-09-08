@@ -26,9 +26,33 @@ class BusinessPredictionRequest(BaseModel):
     )
 
 
+class ProfileBusinessPredictionRequest(BaseModel):
+    venture_type: str = Field(
+        default="business",
+        description='One of "business", "independent", or "family_business".',
+    )
+    years_ahead: int = Field(default=15, ge=1, le=40)
+    user_json: dict[str, Any] | None = Field(
+        default=None,
+        description="Legacy fallback — omit to load consolidated chart data from the profile.",
+    )
+
+
 class BusinessPredictionResponse(BaseModel):
     engine_version: str
     generated_at: str = Field(..., description="ISO-8601 timestamp (UTC).")
+    profile_id: str | None = Field(
+        default=None,
+        description="Birth profile this prediction belongs to (profile-scoped endpoint).",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description="Logged-in user who owns this prediction.",
+    )
+    cached: bool | None = Field(
+        default=None,
+        description="True when served from the profile record; False when freshly computed.",
+    )
     student: dict[str, Any] = Field(..., description="Student/chart summary for the report header.")
     prediction: dict[str, Any] = Field(
         ...,

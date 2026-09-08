@@ -26,6 +26,13 @@ class ProfileEducationAnalysisRequest(BaseModel):
     )
 
 
+class ProfilePucAnalysisRequest(BaseModel):
+    user_json: dict[str, Any] | None = Field(
+        default=None,
+        description="Legacy fallback — omit to load consolidated chart data from the profile.",
+    )
+
+
 class AiDiagnostics(BaseModel):
     """Temporary LLM diagnostics — for operator verification only."""
 
@@ -99,6 +106,18 @@ class PucAnalysisResponse(BaseModel):
     default_tab: str | None = Field(
         default=None,
         description="Suggested UI tab based on student age: ``puc`` for ages 15–17, else ``ug``.",
+    )
+    profile_id: str | None = Field(
+        default=None,
+        description="Birth profile this analysis belongs to (profile-scoped endpoint).",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description="Logged-in user who owns this analysis.",
+    )
+    cached: bool | None = Field(
+        default=None,
+        description="True when served from the profile record; False when freshly computed.",
     )
     student: dict[str, Any] = Field(..., description="Student/chart summary.")
     report: dict[str, Any] = Field(..., description="Full stream-determination report JSON.")

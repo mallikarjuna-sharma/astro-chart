@@ -3,10 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { Info, Loader2, RefreshCw } from "lucide-react";
 import { defaultCareerContext } from "@/components/career/CareerContextForm";
 import { pyjhora } from "@/lib/pyjhora/client";
-import {
-  ensureConsolidatedForEngine,
-  consolidatedHasEngineData,
-} from "@/lib/pyjhora/ensure-consolidated";
+import { ensureConsolidatedForEngine } from "@/lib/pyjhora/ensure-consolidated";
+import { profilesApi } from "@/lib/profiles/client";
 import { ageFromConsolidated, patchChartSession } from "@/lib/pyjhora/session";
 import { useChartSession } from "@/hooks/use-chart-session";
 import { Button } from "@/components/ui/button";
@@ -22,11 +20,12 @@ export function CareerTimelineSection() {
   const data = session?.careerTimeline;
   const error = session?.careerTimelineError ?? null;
   const consolidated = session?.consolidated;
+  const profileId = session?.chartId;
   const careerContext = session?.careerContextInput;
   const currentAge = useMemo(() => ageFromConsolidated(consolidated), [consolidated]);
   const isUnderAge = typeof currentAge === "number" && currentAge < MIN_CAREER_AGE;
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (forceRefresh = false) => {
     if (!session?.birthInput) {
       patchChartSession({
         careerTimelineError:
@@ -38,19 +37,21 @@ export function CareerTimelineSection() {
     setLoading(true);
     patchChartSession({ careerTimelineError: undefined, careerContextInput: ctx });
     try {
-      const engineJson = await ensureConsolidatedForEngine(
-        session.birthInput,
-        session.studentContext,
-        consolidated,
-        ctx,
-      );
-      if (!consolidatedHasEngineData(consolidated)) {
-        patchChartSession({ consolidated: engineJson });
-      }
-      const result = await pyjhora.careerTimeline(engineJson, {
-        careerContext: ctx,
-        enrichLlm: true,
-      });
+      const result = profileId
+        ? await profilesApi.careerTimeline(profileId, {
+            careerContext: ctx,
+            enrichLlm: true,
+            refresh: forceRefresh,
+          })
+        : await pyjhora.careerTimeline(
+            await ensureConsolidatedForEngine(
+              session.birthInput,
+              session.studentContext,
+              consolidated,
+              ctx,
+            ),
+            { careerContext: ctx, enrichLlm: true },
+          );
       patchChartSession({
         careerTimeline: result,
         careerTimelineError: undefined,
@@ -62,7 +63,7 @@ export function CareerTimelineSection() {
     } finally {
       setLoading(false);
     }
-  }, [consolidated, careerContext, currentAge, session?.birthInput, session?.studentContext]);
+  }, [careerContext, consolidated, currentAge, profileId, session?.birthInput, session?.studentContext]);
 
   useEffect(() => {
     if (!data && !loading && !error && session?.birthInput && !isUnderAge) {
@@ -120,7 +121,7 @@ export function CareerTimelineSection() {
           variant="outline"
           size="sm"
           disabled={loading || !session?.birthInput}
-          onClick={() => void run()}
+          onClick={() => void run(true)}
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin mr-1" />

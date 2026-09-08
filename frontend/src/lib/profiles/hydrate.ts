@@ -69,6 +69,12 @@ export function profileToChartSession(profile: ProfileResponse): ChartSession {
     careerTimelineError: profile.career_timeline
       ? undefined
       : profile.career_timeline_error ?? undefined,
+    businessPrediction: profile.business_prediction as ChartSession["businessPrediction"],
+    businessPredictionError: profile.business_prediction
+      ? undefined
+      : profile.business_prediction_error ?? undefined,
+    pucAnalysis: profile.puc_analysis as ChartSession["pucAnalysis"],
+    pucAnalysisError: profile.puc_analysis ? undefined : profile.puc_analysis_error ?? undefined,
     careerContextInput: careerContext,
     savedAt: profile.updated_at,
   };

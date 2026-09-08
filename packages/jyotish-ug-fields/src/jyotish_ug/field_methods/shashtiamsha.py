@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping
 
-from Field_Determination.jyotish.boosts import _d60_deity_quality
+from jyotish.boosts import _d60_deity_quality
 
 
 # D60 gap-audit fix (2026-08): boundary-risk awareness, ported from the same

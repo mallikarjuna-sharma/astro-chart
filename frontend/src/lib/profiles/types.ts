@@ -38,6 +38,10 @@ export interface ProfileResponse {
   // fetched via profilesApi.educationAnalysis(profileId) — not on the profile.
   career_timeline?: Record<string, unknown> | null;
   career_timeline_error?: string | null;
+  business_prediction?: Record<string, unknown> | null;
+  business_prediction_error?: string | null;
+  puc_analysis?: Record<string, unknown> | null;
+  puc_analysis_error?: string | null;
   created_at: string;
   updated_at: string;
   read_only: boolean;
@@ -59,6 +63,8 @@ export const PROFILE_SECTION = {
   EXTENDED: "ANALYSIS#EXTENDED",
   CONSOLIDATED: "ANALYSIS#CONSOLIDATED",
   CAREER: "CONTEXT#CAREER",
+  BUSINESS: "CONTEXT#BUSINESS",
+  PUC: "CONTEXT#PUC",
 } as const;
 
 export interface PersistProfileSectionsPayload {

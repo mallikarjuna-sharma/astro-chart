@@ -114,7 +114,7 @@ def _resolve_transit_houses(payload_data: Any) -> Dict[str, int]:
     if not lagna_sign:
         return {}
     try:
-        from Field_Determination.jyotish.transit_engine import compute_current_transit_snapshot
+        from jyotish.transit_engine import compute_current_transit_snapshot
         # DETERMINISM FIX (2026-09-01): this fallback previously used
         # `_date.today()` -- the real-world wall-clock date the engine
         # happens to run on -- as the transit "as of" reference. That made

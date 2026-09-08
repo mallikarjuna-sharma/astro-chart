@@ -18,7 +18,8 @@ import sys as _sys
 # Same zero-dependency .env loader pattern as Field_Determination/education_engine.py,
 # duplicated (not imported) so this entry file has no import-time dependency on
 # Field_Determination at all -- only on jyotish's shared primitives.
-_repo_root = _pathlib.Path(__file__).resolve().parent.parent
+# packages/jyotish-puc-streams/src/jyotish_puc -> astro repo root (5 levels up)
+_repo_root = _pathlib.Path(__file__).resolve().parents[4]
 if str(_repo_root) not in _sys.path:
     _sys.path.insert(0, str(_repo_root))
 
@@ -43,13 +44,13 @@ from typing import Any, Dict
 
 _logger = _logging.getLogger(__name__)
 
-from stream_scoring import compute_stream_determination
-from stream_report import write_reports
+from .stream_scoring import compute_stream_determination
+from .stream_report import write_reports
 
 # GAP-FIX (audit, this turn): duplicated from stream_scoring.py's own
 # AGE_THRESHOLD_YEARS previously -- now imports the single source of truth
 # instead, so the two files' age thresholds cannot silently drift apart.
-from stream_scoring import AGE_THRESHOLD_YEARS
+from .stream_scoring import AGE_THRESHOLD_YEARS
 DEFAULT_OUT_DIR = "stream_records"
 # GAP-FIX ("include the comparison in the final report"): cross-validation
 # against Field_Determination's adult engine is an OPTIONAL, heavier
@@ -168,7 +169,7 @@ def run_for_payload(
 
     shared_field_engine_snapshot = None
     if include_cross_validation or include_field_derived_evidence:
-        from adult_engine_bridge import safe_get_field_engine_snapshot
+        from .adult_engine_bridge import safe_get_field_engine_snapshot
         shared_field_engine_snapshot = safe_get_field_engine_snapshot(payload)
 
     determination = compute_stream_determination(
@@ -191,7 +192,7 @@ def run_for_payload(
             precomputed_determination=determination,
         )
 
-    from stream_narrative import generate_stream_narrative, narrative_enabled_default
+    from .stream_narrative import generate_stream_narrative, narrative_enabled_default
     resolved_include_llm_narrative = (
         narrative_enabled_default() if include_llm_narrative is None else include_llm_narrative
     )
@@ -202,7 +203,7 @@ def run_for_payload(
         model=llm_model,
     )
 
-    from stream_report import build_report_payload
+    from .stream_report import build_report_payload
     report = build_report_payload(
         payload, determination,
         forced_override=forced_override, eligibility_status=eligibility_status,
@@ -305,7 +306,7 @@ if __name__ == "__main__":
                           "from Field_Determination's adult engine into the stream SCORE itself (not just "
                           "a report comparison -- see field_derived_stream.py). Accepts "
                           "--field-derived-evidence, --field-derived-evidence=true/false. Default: off.")
-    from stream_narrative import (
+    from .stream_narrative import (
         DEFAULT_OPENAI_NARRATIVE_MODEL, runtime_consent_default, narrative_enabled_default,
     )
     ap.add_argument("--llm-narrative", dest="llm_narrative", nargs="?", type=_bool_flag,

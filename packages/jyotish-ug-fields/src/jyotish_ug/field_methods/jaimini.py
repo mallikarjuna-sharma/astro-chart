@@ -21,16 +21,16 @@ _logger = logging.getLogger("jyotish_engine_v11_0")
 # surfaced directly in this method's output via method_result(metadata=...).
 KARAKA_SCHEME = "7-karaka (Parashari); Rahu not treated as Darakaraka"
 
-from Field_Determination.jyotish.astro import (
+from jyotish.astro import (
     _compute_jaimini_argala,
     _compute_jaimini_virodhargala,
     _detect_jaimini_raj_yogas,
     _compute_bvb_7_karakas,
     _compute_arudha_pada,
 )
-from Field_Determination.jyotish.astro import _get_active_chara_dasha_sign, compute_chara_dasha_calendar
-from Field_Determination.jyotish.constants import _SIGN_NUM, _SIGN_LORD
-from Field_Determination.jyotish.boosts import (
+from jyotish.astro import _get_active_chara_dasha_sign, compute_chara_dasha_calendar
+from jyotish.constants import _SIGN_NUM, _SIGN_LORD
+from jyotish.boosts import (
     _karakamsha_bonus,
     _brahma_lord_bonus,
     _maheshwara_lord_bonus,
@@ -533,7 +533,7 @@ def score_jaimini(
     # G11: Upapada lord's field affinity for any field, not just Jupiter-dominant
     # N7: Dignity-weighted (was flat 0.05 — debilitated UL shouldn't get same bonus)
     if upapada:
-        from Field_Determination.jyotish.constants import _SIGN_LORD as _SL
+        from jyotish.constants import _SIGN_LORD as _SL
         _upa_lord = _SL.get(upapada, "")
         _upa_aff  = field_affinity.get(_upa_lord, 0.0) if _upa_lord else 0.0
         if _upa_aff >= 0.10:
