@@ -1,0 +1,2505 @@
+================================================================================
+JYOTISHAI (ASTRO) — COMPLETE REPOSITORY KNOWLEDGE BASE
+================================================================================
+Document purpose
+----------------
+This file is a machine-consumable knowledge base for the JyotishAI monorepo
+(local path: astro/). Feed this file to another coding AI BEFORE asking it to
+add, fix, remove, or update anything. The goal is that a new question can be
+routed to the exact files, functions, API routes, frontend routes, stores,
+DynamoDB tables, and tests that own that behavior.
+
+How an AI must use this document
+---------------------------------
+1. Identify the PRODUCT SURFACE the user is talking about
+   (auth, profiles, charts, UG education, PUC, career timeline, business,
+   prashna, geocoding, LLM narratives, ranking, registry, deployment).
+2. Open the CHANGE ROUTING MATRIX in this file. It maps intents -> files.
+3. Follow the CALL PATH for that feature (UI -> client -> API -> engine).
+4. Edit the OWNER file first. Do not invent parallel copies.
+5. If a module exists in both a legacy folder and a packages/ package, prefer
+   the packages/ + API adapter path unless this document says the legacy file
+   is still the live owner.
+6. After a change, update the matching test directory listed for that surface.
+7. Do not rewrite scoring formulas unless the user asked. Many modules are
+   score-neutral diagnostics that must not change ranking.
+8. Never commit .env, AWS keys, GEMINI_API_KEY, JWT_SECRET, or de421.bsp.
+
+Product identity
+----------------
+Product name in the UI: JyotishAI
+API FastAPI title: "PyJHora table API"
+Engine package version: jyotish/__init__.py __version__ = "11.2.0"
+Engine stamp used in manifests: jyotish/payload.py ENGINE_VERSION = "v11.2.0-llm"
+Frontend sidebar version string: "v1.2 · 2026"
+Git remote / deploy names: pyjhora-api (Python API on Render), jyotishai-web
+(Node frontend on Render), Netlify frontend build from frontend/.
+
+What the product does
+---------------------
+JyotishAI is a Vedic-astrology career and education intelligence platform. A logged-in
+user creates up to four birth profiles. At profile creation the API computes a
+consolidated sidereal chart (PyJHora / Swiss Ephemeris) plus KP, Jaimini,
+Panchanga, Ashtakavarga, Shadbala, Vimshottari, and extra vargas (D10/D16/D24/
+D60/D81). Later pages run domain engines on that consolidated JSON:
+
+  - PUC (ages 15-17): Science / Commerce / Humanities stream determination
+  - UG (adult / undergrad): ranked vocational fields (~198 registry branches
+    plus 7 synthetic aliases = 205 affinity/ontology keys)
+  - Job Timeline: Vimshottari antardasha career windows + optional LLM HTML
+  - Business Prediction: entrepreneurship vs employment, sectors, timing
+  - Prashna (horary): question-moment chart, no birth data required
+  - Chart viewers: South-Indian D1-D81, KP, KN Rao/Jaimini, Parashari strength
+
+Core doctrine (do not silently change)
+---------------------------------------
+Declared ayanamsha for the SCORING engines: KP_KRISHNAMURTI
+  Source of truth: jyotish/llm_policy.py (AYANAMSHA = "KP_KRISHNAMURTI")
+  Swiss mode: swe.SIDM_KRISHNAMURTI
+Consolidated API export also uses KP ayanamsa + true nodes + 7-karaka Jaimini
+  (api/extended.py compute_consolidated).
+UI profile form default ayanamsa option is LAHIRI for PyJHora chart drawing
+  (frontend ProfileWizard AYANAMSA_OPTIONS). Chart DRAWING and ENGINE SCORING
+  are not the same layer. Drawing uses BirthChartBody.ayanamsa (default
+  LAHIRI in api/main.py). Scoring engines parse consolidated JSON which is
+  produced with KP-oriented consolidated export.
+House systems are method-specific, not global. See
+  jyotish/llm_policy.py HOUSE_SYSTEM_BY_METHOD.
+Default nodes for the HTTP chart API: MEAN nodes (true nodes require full
+  Swiss sepl*.se1 files). See api/jhora_bootstrap.py.
+
+================================================================================
+1. HIGH-LEVEL TECHNICAL ARCHITECTURE
+================================================================================
+
+This is a two-service monorepo plus in-process Python engines.
+
+  Browser (TanStack Start + React 19)
+        |
+        | HTTPS JSON  (VITE_PYJHORA_API_BASE)
+        v
+  FastAPI  api.main:app   (uvicorn)
+        |
+        +-- PyJHora / pyswisseph  (D1, vargas, panchanga, KP, jaimini, SAV, dasha)
+        +-- jyotish.engine_io.parse_json_payload  -> NatalPayloadV2
+        +-- jyotish_ug / Job_Career  (UG fields)
+        +-- jyotish_puc             (PUC streams)
+        +-- Job_Career.timeline      (job timeline)
+        +-- Business_Prediction     (business)
+        +-- jyotish.prashna_engine  (prashna)
+        +-- Google Gemini / OpenAI / Anthropic (narratives, never scores)
+        |
+        v
+  AWS DynamoDB  (ap-south-1)
+        JyotishUsers
+        JyotishProfiles   (chunked items)
+        JyotishEducationAnalysis
+        optional PyJHoraBirthCharts (legacy saved-chart table)
+  AWS SES  (OTP email)
+  Google Maps / Places  (geocode + autocomplete)
+  NASA JPL DE421  (de421.bsp via Skyfield, used by Prashna/ephemeris)
+
+Layering rule
+-------------
+UI never scores a chart. Frontend only:
+  - collects birth/career inputs
+  - stores a ChartSession in sessionStorage (zustand persist)
+  - calls FastAPI
+  - renders JSON reports in React (no server-rendered engine HTML for UG/PUC
+    in the web app; CLI engines can still write HTML files)
+
+Python engines never talk to DynamoDB. Persistence is only in api/db/*.
+
+LLM rule
+----------
+LLM is explanation / narrative / selection-labeling, not a scorer.
+jyotish/engine.py run_engine() is deterministic by default (enable_llm=False).
+UG report narratives are forced on for API via force_llm_report=True in
+Job_Career/career_field_report_v2.py build_career_field_report_from_chart().
+API stamps student_context.external_llm_consent=True in api/llm_policy.py
+prepare_chart_for_api_llm() so HTTP routes always attempt LLM where wired.
+If keys are missing, engines must fall back to deterministic placeholder text.
+
+================================================================================
+2. REPOSITORY FOLDER STRUCTURE (OWNERSHIP MAP)
+================================================================================
+
+Repo root = /Users/mallikarjuna.sharma/Downloads/Projects/astro
+
+ROOT FILES
+----------
+README.md                         Placeholder title "astro-chart" only. This
+                                  knowledge base is the real documentation.
+requirements.txt                 Python deps + editable installs of packages/*
+.env.example                     Documented env vars. Copy to .env locally.
+.env                              LOCAL SECRETS. Never commit. Never dump values.
+.gitignore                        venv, node_modules, .env, *.bsp, educational_records
+render.yaml                       Render blueprint: pyjhora-api + jyotishai-web
+netlify.toml                      Frontend SSR deploy (base=frontend)
+de421.bsp                         ~17MB JPL ephemeris. Gitignored. Downloaded by
+                                  scripts/download_de421.py during Render build.
+generate_career_field_report.py    Root CLI wrapper around
+                                  Job_Career.career_field_report_v2
+
+TOP-LEVEL DIRECTORIES
+---------------------
+api/                    HTTP surface. FastAPI app, schemas, DynamoDB, adapters.
+frontend/               JyotishAI web app (TanStack Start, Vite 7, React 19).
+jyotish/                Shared natal payload, chart math, UG ranking engine,
+                        LLM clients, registry, prashna, panchang, provenance.
+packages/jyotish-core          Thin shared package stub (pydantic, LLM deps).
+packages/jyotish-ug-fields     UG field-method bundle + competency ontology +
+                                UG API runner. Import name: jyotish_ug
+packages/jyotish-puc-streams    PUC stream engine. Import name: jyotish_puc
+Field_Determination/      Legacy / CLI field-determination scripts. Several files
+                        were extracted into packages/jyotish-ug-fields. Still
+                        used by CLI and some engine imports (debug_payload_split,
+                        field_suitability, exact_field_defensibility, structural
+                        vocational fit).
+Job_Career/             Career timeline engine, career-field HTML/JSON report
+                        v2, SBC, micro-timing, job-loss, varshaphala.
+Business_Prediction/    Business engine package + HTML/React report generators.
+scripts/                DynamoDB table create shells + de421 download.
+jyotish/tests/          Engine unit tests.
+api/tests/              API tests (if present).
+Business_Prediction/tests/  Large contract/regression suite.
+
+DO NOT CREATE
+-------------
+frontend/src/pages/          TanStack Start is file-based under src/routes/
+src/routes/_app/            Next.js convention — not used
+app/layout.tsx              Next.js convention — not used
+A second FastAPI app       There is one app: api.main:app
+
+================================================================================
+3. RUNTIME, DEPLOYMENT, LOCAL DEV
+================================================================================
+
+Python
+-------
+requires-python: >=3.11 (packages pyproject.toml)
+Install:
+  python -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+Editable packages from requirements.txt:
+  -e ./packages/jyotish-core
+  -e ./packages/jyotish-puc-streams
+  -e ./packages/jyotish-ug-fields
+
+Start API:
+  uvicorn api.main:app --host 0.0.0.0 --port $PORT
+Local typical: uvicorn api.main:app --reload --port 8000
+Lifespan: api.main.lifespan -> api.jhora_bootstrap.init_jhora()
+  Sets Swiss ephe path to jhora/data/ephe and mean nodes.
+
+Python third-party engines
+--------------------------
+PyJHora (jhora)     Chart construction, vargas, KP, jaimini, dasha, SAV
+pyswisseph          Swiss Ephemeris
+skyfield + de421    Independent ephemeris (jyotish/ephemeris.py, Prashna)
+ephem               Additional astronomical helpers
+google-genai        Gemini LLM
+openai              OpenAI LLM
+boto3               DynamoDB + SES
+geopy / geocoder / timezonefinder / pytz
+bcrypt + PyJWT      Auth
+fastapi + uvicorn + pydantic v2
+
+Frontend
+--------
+Node 22.21.1 (Render + Netlify)
+package.json name: tanstack_start_ts
+Scripts:
+  npm run dev      vite dev
+  npm run build    vite build
+  npm start        vite preview --host 0.0.0.0 --port ${PORT:-4173}
+Path alias: @/* -> frontend/src/*
+UI kit: shadcn/ui New York, Tailwind 4, Radix, lucide-react
+Router: TanStack Router file-based. Auto-generated tree:
+  frontend/src/routeTree.gen.ts   DO NOT EDIT BY HAND
+Vite config: frontend/vite.config.ts
+  Uses @lovable.dev/vite-tanstack-config
+  Netlify plugin @netlify/vite-plugin-tanstack-start
+  Local opt-out: VITE_DISABLE_NETLIFY=true
+    (needed when running from frontend/ cwd so netlify.toml base is not
+    mis-resolved; current terminal uses this flag on port 5173)
+
+Local frontend currently observed:
+  VITE_DISABLE_NETLIFY=true npm run dev -- --host 127.0.0.1 --port 5173
+CORS defaults if CORS_ORIGINS unset: localhost/127.0.0.1 ports 8080 and 5173.
+
+Render (render.yaml)
+-------------------
+Service pyjhora-api
+  runtime python, oregon, free
+  build: pip install -r requirements.txt && python scripts/download_de421.py
+  start: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+  CORS_ORIGINS=*
+  AWS_REGION=ap-south-1
+  SES_FROM_EMAIL=noreply@jothishai.in
+  DYNAMODB_USERS_TABLE_NAME=JyotishUsers
+  DYNAMODB_PROFILES_TABLE_NAME=JyotishProfiles
+  LLM_PROVIDER=gemini
+  secrets: JWT_SECRET, AUTH_OTP_PEPPER, AWS keys, Google keys, GEMINI_API_KEY
+
+Service jyotishai-web
+  runtime node, rootDir frontend
+  VITE_PYJHORA_API_BASE=https://pyjhora-api-8ni1.onrender.com
+  That URL is also the frontend default in
+  frontend/src/lib/pyjhora/config.ts PYJHORA_API_BASE_DEFAULT
+
+Netlify (netlify.toml)
+----------------------
+base=frontend, command=npm run build, publish=dist/client
+SSR via @netlify/vite-plugin-tanstack-start writing
+.netlify/v1/functions/server.mjs path "/*"
+NODE 22.21.1
+VITE_PYJHORA_API_BASE same Render API URL
+
+Frontend SSR entry: frontend/src/server.ts
+  wraps @tanstack/react-start/server-entry
+  converts swallowed h3 {"unhandled":true} 500s into HTML error page
+Start config: frontend/src/start.ts  error middleware
+Router factory: frontend/src/router.tsx  QueryClient + routeTree
+
+================================================================================
+4. ENVIRONMENT VARIABLES (COMPLETE)
+================================================================================
+
+API / engine (.env at repo root, loaded by api/main.py via dotenv override=True)
+
+GEMINI_API_KEY                 Required for UG field LLM selection / narratives
+LLM_PROVIDER                   gemini | openai | anthropic (auto-detect gemini)
+LLM_REPORT_CONSENT             true => treat every chart as LLM-consented
+ANTHROPIC_API_KEY              Career-timeline narrative builder (OpenAI/Anthropic)
+OPENAI_API_KEY                 Same; Gemini is NOT used by llm_narrative_builder
+GOOGLE_MAPS_API_KEY            Geocode
+GOOGLE_PLACES_API_KEY          Places autocomplete (falls back to maps key)
+AWS_REGION                     default ap-south-1
+AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+AWS_ENDPOINT_URL               Optional local DynamoDB
+DYNAMODB_TABLE_NAME            Legacy saved charts table (PyJHoraBirthCharts)
+DYNAMODB_USERS_TABLE_NAME      JyotishUsers
+DYNAMODB_PROFILES_TABLE_NAME   JyotishProfiles
+DYNAMODB_EDUCATION_TABLE_NAME JyotishEducationAnalysis
+JWT_SECRET                     Required in production. Dev fallback only if
+                               AUTH_FIXED_OTP is set.
+AUTH_OTP_PEPPER                HMAC pepper for OTP hashes
+AUTH_FIXED_OTP                 e.g. 0000 for local
+AUTH_DEV_EXPOSE_OTP            Return OTP in API when SES not configured
+SES_FROM_EMAIL / SES_REGION
+CORS_ORIGINS                   comma list or *
+JYOTISH_VERBOSE_FIELD_LOG      1 to print per-field engine debug
+JYOTISH_DEEP_VALIDATION        1 to attach LLM rule-trace validation
+LOG_LEVEL                      logging for jyotish engine
+
+Frontend (VITE_* — public, shipped to browser)
+VITE_PYJHORA_API_BASE           API origin. Default Render URL if unset.
+VITE_ENABLE_AI_ASSISTANT       true to show full AI chat UI
+VITE_SKIP_CHART_PERSIST         true skips POST /api/users/{id}/charts
+VITE_DISABLE_NETLIFY           true disables Netlify vite plugin in local dev
+
+================================================================================
+5. DATA STORES (DYNAMODB CONTRACTS)
+================================================================================
+
+Region: ap-south-1. Billing: PAY_PER_REQUEST in create scripts.
+Floats must be Decimal on write (helpers in each repository).
+
+5.1 JyotishUsers   env DYNAMODB_USERS_TABLE_NAME
+    Client: api/db/users_dynamo.py
+    Repo:   api/db/auth_repository.py
+    Create: scripts/create-jyotish-users-table.sh
+    Keys: PK (HASH), SK (RANGE)
+    GSI: by_email (email), by_username (username)
+    TTL attribute: ttl (OTP rows)
+    Entity patterns (see auth_repository):
+      USER#{user_id} / PROFILE     user record, bcrypt password
+      EMAIL#{email}  / OTP#{purpose} hashed OTP challenge
+    Public user fields: user_id, email, username, created_at
+    Passwords: bcrypt. OTP: HMAC-SHA256 with AUTH_OTP_PEPPER.
+
+5.2 JyotishProfiles  env DYNAMODB_PROFILES_TABLE_NAME
+    Client: api/db/profiles_dynamo.py
+    Repo:   api/db/profiles_repository.py
+    MAX_PROFILES_PER_USER = 4
+    PK = USER#{auth_user_id}
+    One logical profile = multiple items (400KB item limit):
+      SK PROFILE#{id}                    header: name, birth_input,
+                                          user_info, student_context,
+                                          career_context, timestamps
+      PROFILE#{id}#CHARTS                 d1_table, divisional_charts
+      PROFILE#{id}#ANALYSIS#KP
+      PROFILE#{id}#ANALYSIS#JAIMINI
+      PROFILE#{id}#ANALYSIS#EXTENDED        panchanga, ashtakavarga,
+                                          shadbala, vimshottari,
+                                          divisional_extended
+      PROFILE#{id}#ANALYSIS#CONSOLIDATED   consolidated chart JSON
+      PROFILE#{id}#CONTEXT#CAREER           career_timeline JSON
+      PROFILE#{id}#CONTEXT#BUSINESS         business_prediction JSON
+      PROFILE#{id}#CONTEXT#PUC             puc_analysis JSON
+    profile_key uniqueness: normalized name + lat/lon + dob
+      build_profile_key() in profiles_repository.py
+    Writes at create: compute_profile_sections() then save_profile()
+    Later analyses: upsert_profile_section() for CAREER/BUSINESS/PUC
+    Education analysis is NOT stored here (own table).
+
+5.3 JyotishEducationAnalysis  env DYNAMODB_EDUCATION_TABLE_NAME
+    Client: api/db/education_dynamo.py
+    Repo:   api/db/education_repository.py
+    Create: scripts/create-jyotish-education-table.sh
+    PK: profile_id
+    GSI by_user on user_id
+    Four gzip+base64 blobs because results ~660KB:
+      results_gz, macro_clusters_gz, report_gz, chart_facts_gz
+    Heavy per-row keys stripped before save (_HEAVY_ROW_KEYS):
+      method_breakdown, registry_v12, ontology_v12, tier_decision_trace,
+      step9_convergence, publication_ranking_adjustments, defensibility,
+      confidence_dimensions, jaimini_chara_dasha_timing,
+      exact_field_contract, curriculum, competency,
+      explainability_matrix, confidence_matrix, ...
+    Cache policy: compute ONCE. refresh=true is IGNORED if a row exists.
+    To recompute: DELETE /api/profiles/{id}/education-analysis first.
+    Reason: LLM non-determinism must not silently change stored advice.
+
+5.4 PyJHoraBirthCharts  env DYNAMODB_TABLE_NAME
+    Client: api/db/dynamo.py
+    Repo:   api/db/repository.py
+    Legacy chart snapshots from POST /api/users/{user_id}/charts
+    Not the same as authenticated profiles. Frontend pipeline can skip
+    persist with VITE_SKIP_CHART_PERSIST or when Dynamo is unconfigured.
+
+If a table env var is missing: DynamoDBNotConfiguredError -> HTTP 503.
+
+================================================================================
+6. AUTHENTICATION AND AUTHORIZATION
+================================================================================
+
+Flow (signup)
+  POST /api/auth/otp/send        {email} -> SES or expose OTP
+  POST /api/auth/otp/verify      {email, otp} -> verification_token (15 min)
+  POST /api/auth/signup           email, verification_token, username, password,
+                                 confirm_password -> access JWT (7 days) + user
+
+Flow (login)
+  POST /api/auth/login            {identifier, password}  identifier=email or username
+
+Flow (reset)
+  POST /api/auth/password/forgot
+  POST /api/auth/password/otp/verify
+  POST /api/auth/password/reset
+
+Me
+  GET /api/auth/me   Authorization: Bearer <access>
+
+JWT
+  HS256, types: access / verification / reset
+  ACCESS_TOKEN_DAYS=7, verification/reset 15 minutes
+  Files: api/auth_service.py, api/schemas/auth.py, api/db/auth_repository.py
+         api/auth_validation.py (422 message formatting)
+
+Frontend
+  Token localStorage key: jyotish:authToken
+  Zustand persist name: jyotish:auth
+  Files: frontend/src/lib/auth/client.ts
+         frontend/src/lib/auth/types.ts
+         frontend/src/lib/auth/routes.ts
+         frontend/src/lib/auth/validation.ts
+         frontend/src/stores/auth-store.ts
+         frontend/src/components/auth/AuthGate.tsx
+         frontend/src/components/auth/LoginRequired.tsx
+         frontend/src/components/auth/AuthLayout.tsx
+         frontend/src/routes/login.tsx
+         frontend/src/routes/signup.tsx
+         frontend/src/routes/forgot-password.tsx
+
+Protected routes (AuthGate):
+  /  /charts  /kp  /kn-rao  /parashari
+  /education-analysis  /career-timeline  /business
+Auth-only chrome (no AppShell): /login /signup /forgot-password
+Prashna, AI, reports, settings, panchanga are reachable without being in
+PROTECTED_ROUTES list (check AuthGate + routes.ts before assuming a lock).
+
+On unauthenticated visit to a protected route, AuthGate calls
+clearAllAppData() (chart session, profile store, display name) but does
+not clear the token if already missing.
+
+================================================================================
+7. COMPLETE HTTP API CATALOG
+================================================================================
+
+App: FastAPI in api/main.py
+All JSON. CORS middleware. RequestValidationError -> 422 {detail, errors}
+
+HEALTH
+  GET /health  -> {"status":"ok"}
+
+GEOCODE
+  GET /api/geocode?location=...
+  GET /api/places/autocomplete?input=...
+  GET /api/places/resolve?place_id=...
+  Impl: api/geocode.py
+  Order: known-place cache (Indian cities) -> Google -> Nominatim
+  Timezone via timezonefinder; India IST heuristic.
+
+AUTH  (see section 6)  impl api/auth_service.py
+
+PROFILES
+  GET    /api/profiles
+  POST   /api/profiles                     CreateProfileRequest
+  GET    /api/profiles/{profile_id}
+  POST   /api/profiles/{profile_id}/sections   PersistProfileSectionsRequest
+  DELETE /api/profiles/{profile_id}
+  Impl: api/profile_service.py + api/profile_compute.py
+  Create computes D1 + D1-D9 + KP + Jaimini + extended + consolidated
+  BEFORE first write. HTML fields stripped. Consolidated normalized by
+  jyotish/pyhora_schema.py normalize_consolidated().
+
+LEGACY USER CHARTS (unauthenticated user_id path)
+  POST   /api/users/{user_id}/charts
+  GET    /api/users/{user_id}/charts
+  GET    /api/users/{user_id}/charts/{chart_id}
+  DELETE /api/users/{user_id}/charts/{chart_id}
+  Impl: api/db/repository.py
+
+CHART MATH (BirthChartBody)
+  POST /api/birth-chart-table     DEPRECATED
+  POST /api/birth-chart-html
+  GET  /api/birth-chart-view       query-string HTML
+  POST /api/divisional-charts?factors=1,2,... allowed
+       {1,2,3,4,5,6,7,8,9,10,16,24,60,81}
+       default D1-D9
+  POST /api/panchanga
+  POST /api/d1-bodies
+  POST /api/ashtakavarga
+  POST /api/shadbala
+  POST /api/jaimini
+  POST /api/vimshottari
+  POST /api/kp
+  POST /api/consolidated            BirthChartBody + optional student_context
+  Impl drawing/math: api/main.py + api/extended.py
+  Schemas: api/schemas/chart.py BirthChartBody
+
+EDUCATION
+  POST /api/education-analysis              alias of UG
+  POST /api/education-analysis/ug
+  POST /api/education-analysis/puc
+  POST /api/profiles/{id}/education-analysis          cache-or-compute UG
+  DELETE /api/profiles/{id}/education-analysis
+  POST /api/profiles/{id}/education-analysis/puc?refresh=
+  Adapters: api/education_analysis.py, api/puc_analysis.py
+  Services: api/education_service.py, api/puc_analysis_service.py
+  Packages: jyotish_ug.runner, jyotish_puc.runner
+  Schemas: api/schemas/education_analysis.py
+
+CAREER TIMELINE
+  POST /api/career-timeline
+  POST /api/profiles/{id}/career-timeline?refresh=
+  Impl: api/career_timeline.py run_career_timeline
+        parse_json_payload(..., build_timeline=True)
+        Job_Career.timeline.build_career_timeline via engine_io
+        optional jyotish.llm_narrative_builder.enrich_timeline_sync
+  Service persist: CHUNK_CAREER
+  Schema: api/schemas/career_timeline.py
+
+BUSINESS
+  POST /api/business-prediction
+  POST /api/profiles/{id}/business-prediction?refresh=
+  Impl: api/business_prediction.py
+        Business_Prediction.business_engine.compute_business_prediction
+        generate_react_report._build_report_data for UI view-model
+  venture_type: business | independent | family_business
+  years_ahead: 1-40 default 15
+  ABSTAIN_INSUFFICIENT_D1_DATA -> 422 BusinessPredictionError
+
+PRASHNA
+  GET  /api/prashna/categories
+  POST /api/prashna
+  POST /api/prashna/batch
+  Impl: api/prashna.py -> jyotish/prashna_engine.py
+  Location: lat/lon or geocode city (default Delhi)
+
+INTENTIONALLY ABSENT
+  Planetary transits 1960-2080 are NOT served. Comment in api/main.py.
+  Data may exist at api/data/transits_1960_2080.json but no route.
+
+Static mount: if a web/ directory exists at repo root, it is mounted at /.
+The current product UI is frontend/, not web/.
+
+BirthChartBody fields (every chart POST)
+  year, month, day, hour, minute, second
+  place_label, latitude, longitude, timezone_offset_hours
+  ayanamsa optional (default LAHIRI for PyJHora drawing)
+  use_true_nodes default False
+  include_outer_planets default False
+
+================================================================================
+8. FRONTEND ARCHITECTURE
+================================================================================
+
+8.1 File-based routes  (frontend/src/routes/)
+  __root.tsx                 HTML shell, fonts, theme boot, AppShell, AuthGate,
+                             ProfileSessionBootstrap, 404, error boundary
+  index.tsx                  /  Profiles home -> ProfileWizard
+  birth-data.tsx             Redirects to /
+  charts.tsx                 D1-D81 South Indian charts + D1 table + export
+  kp.tsx                     KP cusp / significator view from session.kp
+  kn-rao.tsx                 Jaimini / KN Rao from session.jaimini
+  parashari.tsx              Ashtakavarga + Shadbala from session
+  panchanga.tsx              ComingSoonCard (panchanga data exists in session
+                             and API, page is not wired to render it yet)
+  education-analysis/index.tsx  Redirect puc vs ug by age
+  education-analysis/puc.tsx
+  education-analysis/ug.tsx
+  career-timeline.tsx
+  business.tsx
+  prashna.tsx                Horary form; uses pyjhora.prashna
+  ai.tsx                     AI assistant; gated by VITE_ENABLE_AI_ASSISTANT
+  reports.tsx                Coming soon
+  settings.tsx               Theme / display name; some ComingSoonModal
+  login.tsx  signup.tsx  forgot-password.tsx
+  workspace.tsx             Astrologer workspace (partial)
+  marketplace.tsx            Placeholder marketplace
+  confidence.tsx            Four-system score playground (partial)
+  astro.code-workspace        Accidental file in routes/; not a route
+
+Nav source of truth: frontend/src/components/AppShell.tsx NAV array
+  Overview: Profiles, Panchanga
+  Systems: Charts, KP, KN Rao, Parashari
+  Intelligence: Education PUC/UG, Job Timeline, Business
+  AI Assistance: AI Assistant, Prashna
+  Practice: Reports, Settings
+
+8.2 Client API modules
+  frontend/src/lib/pyjhora/client.ts     unauthenticated chart/engine calls
+  frontend/src/lib/pyjhora/config.ts      API base URL
+  frontend/src/lib/pyjhora/types.ts       TS types mirroring API JSON
+  frontend/src/lib/pyjhora/pipeline.ts   saveAndGenerateCharts, computeExtendedAnalysis
+  frontend/src/lib/pyjhora/session.ts     save/patch/clear ChartSession
+  frontend/src/lib/pyjhora/normalize.ts    D1 table normalization
+  frontend/src/lib/pyjhora/user-profile.ts form <-> UserInfo/StudentContext
+  frontend/src/lib/pyjhora/ensure-consolidated.ts
+      Ensures pyhora_calculations.divisional_charts has D1-D81 before engines
+  frontend/src/lib/profiles/client.ts     authenticated profiles + cached engines
+  frontend/src/lib/profiles/hydrate.ts
+  frontend/src/lib/profiles/restore-session.ts
+  frontend/src/lib/profiles/types.ts
+  frontend/src/lib/auth/client.ts
+  frontend/src/lib/api-errors.ts          parse FastAPI {detail}
+  frontend/src/lib/feature-flags.ts
+  frontend/src/lib/education-report/*   UG/PUC display helpers
+  frontend/src/lib/career-timeline/helpers.ts
+  frontend/src/lib/prashna-chart.ts      PrashnaResponse -> SouthIndianChart
+  frontend/src/lib/prompts/fieldDetermination.ts  unused client prompt (legacy)
+  frontend/src/lib/api/example.functions.ts     TanStack server fn sample
+  frontend/src/lib/config.server.ts      server-only env pattern notes
+  frontend/src/lib/rasi.ts               rasi helpers for charts
+
+8.3 Zustand stores  (frontend/src/stores/)
+  chart-session-store.ts   sessionStorage key jyotish:chartSessionZustand
+                           ChartSession: birthInput, userInfo, studentContext,
+                           d1Table, divisionalBasic/Extended, panchanga,
+                           ashtakavarga, shadbala, jaimini, vimshottari, kp,
+                           consolidated, educationAnalysis, careerTimeline,
+                           businessPrediction, chartId (= profile_id when
+                           opened from profiles)
+  auth-store.ts             persist jyotish:auth
+  profile-store.ts          persist jyotish:profiles  max 4, activeProfileId
+  user-store.ts             displayName localStorage jyotish:userProfile
+  profile-sync.ts          keep display name in sync with session
+
+Hook: frontend/src/hooks/use-chart-session.ts
+      frontend/src/hooks/use-display-name.ts
+      frontend/src/hooks/use-mobile.tsx
+
+8.4 Feature UI owners
+  Profile create/list: components/profile/ProfileWizard.tsx
+  Profile confirm:      components/profile/ProfileConfirmReport.tsx
+  Session hydrate:     components/profile/ProfileSessionBootstrap.tsx
+  Place search:        components/charts/PlaceAutocomplete.tsx
+  South Indian chart:  components/charts/SouthIndianChart.tsx
+  D1 table:            components/charts/BirthChartTable.tsx
+  Ashtakavarga grid:   components/charts/AshtakavargaChart.tsx
+  Export JSON:         components/charts/ConsolidatedExportPanel.tsx
+  UG report:           components/education/EducationCareerReport.tsx
+                       EducationFieldCard.tsx  UgAnalysisSection.tsx
+  PUC report:          PucStreamReport.tsx  PucAnalysisSection.tsx
+  Career:              CareerTimelineSection.tsx CareerTimelineReport.tsx
+                       CareerContextForm.tsx
+                       timeline/CareerTimelineSidebar.tsx
+                       timeline/CareerTimelineSupplement.tsx
+                       timeline/CareerRoadmapCard.tsx
+  Business:            BusinessSection.tsx BusinessReport.tsx
+                       business-report-utils.ts business-report.css
+  AI tabs:             components/ai/AiAssistanceTabs.tsx
+  UI primitives:       components/ui/*  (shadcn; do not restyle unless asked)
+  styles:              frontend/src/styles.css
+
+8.5 ChartSession is the in-browser working set
+Opening a profile:
+  profilesApi.get(id) -> restoreProfileToChartSession()
+  session.chartId = profile_id  (used by UG/PUC/career/business cache APIs)
+If no profileId, UG falls back to pyjhora.ugEducationAnalysis(consolidated)
+
+================================================================================
+9. END-TO-END CALL PATHS (FOLLOW THESE WHEN IMPLEMENTING)
+================================================================================
+
+9.1 Create profile
+  UI ProfileWizard submit
+    buildBirthInput + studentContextFromUserInfo + career context form
+    profilesApi.create(payload)
+      POST /api/profiles
+        profile_service.create_user_profile
+          compute_profile_sections
+            api.main._compute_birth_chart
+            api.main._compute_divisional_charts D1-D9 and D10+ 
+            extended.compute_consolidated / compute_kp / compute_jaimini /
+            panchanga, ashtakavarga, shadbala, vimshottari
+          profiles_repository.save_profile (chunked put)
+    restoreProfileToChartSession -> zustand session
+    navigate to confirm view ProfileConfirmReport
+
+9.2 Open existing profile
+  ProfileWizard list click
+    profilesApi.get -> hydrate ChartSession
+    Other pages read useChartSession()
+
+9.3 UG career field
+  /education-analysis/ug
+    useUgAnalysis()
+      if session.chartId: profilesApi.educationAnalysis(profileId)
+        POST /api/profiles/{id}/education-analysis
+          education_service.get_or_create_education_analysis
+            cache hit: education_repository.get_education_analysis
+            miss: resolve_consolidated_chart + run_education_analysis
+      else: pyjhora.ugEducationAnalysis(consolidated)
+  Adapter api/education_analysis.py
+    prepare_chart_for_api_llm
+    jyotish_ug.runner.run_ug_analysis
+      Job_Career.career_field_report_v2.build_career_field_report_from_chart
+        jyotish.engine_io.parse_json_payload
+        jyotish.engine.run_engine(payload, enable_llm=False usually)
+        slim_for_render (Field_Determination/debug_payload_split.py)
+        optional SarvatobhadraEngine advisory (Job_Career/sbc.py)
+        LLM 14-section report via _call_llm_for_report
+  Render: EducationCareerReport.tsx from JSON payloads (no HTML)
+
+9.4 PUC stream
+  /education-analysis/puc
+    PucAnalysisSection
+      profilesApi.pucAnalysis(profileId)
+        puc_analysis_service -> persist CHUNK_PUC
+      or pyjhora.pucEducationAnalysis
+  api/puc_analysis.py
+    jyotish_puc.runner.run_puc_analysis
+      parse_json_payload
+      is_puc_eligible (15-17 floor or age < 18)
+      compute_stream_determination (stream_scoring.py)
+      optional safe_cross_validate
+      generate_stream_narrative
+      build_report_payload
+  Render: PucStreamReport.tsx
+
+9.5 Career timeline
+  /career-timeline CareerTimelineSection
+    profilesApi.careerTimeline(profileId, {careerContext, enrichLlm})
+      career_timeline_service persist CHUNK_CAREER
+  api/career_timeline.py run_career_timeline
+    parse_json_payload(chart, build_timeline=True)
+      engine_io calls Job_Career.timeline.build_career_timeline
+    optional enrich_timeline_sync (needs OpenAI/Anthropic, not Gemini)
+    aggregates outcome, trajectory, calendar, md_arcs, foreign, micro_timing
+  Render: CareerTimelineReport + Sidebar + Supplement
+  Career context schema: Job_Career/timeline_inputs.py parse_career_context
+
+9.6 Business
+  /business BusinessSection
+    profilesApi.businessPrediction
+  api/business_prediction.py
+    compute_business_prediction
+    muhurta + ashtakavarga year supplements
+    _build_report_data UI view-model
+  Engine internals: Business_Prediction/business_determination/engine.py
+  Sector registry: Business_Prediction/business_domain_registry_v1.json
+
+9.7 Charts page
+  Reads session.divisionalBasic + divisionalExtended
+  SouthIndianChart per factor
+  Does not recompute unless user regenerates from profile create
+
+9.8 Prashna
+  /prashna  no birth profile required
+    GET /api/prashna/categories
+    POST /api/prashna
+      api.prashna.run_prashna_analysis
+        geocode if needed
+        jyotish.prashna_engine.run_prashna_query
+          jyotish/prashna.py cast + analyze
+  Chart snapshot mapped by lib/prashna-chart.ts
+
+9.9 Consolidated JSON (the engine input contract)
+  Shape produced by extended.compute_consolidated:
+    system_config (ayanamsa KP, nodes, karaka scheme)
+    student_context
+    pyhora_calculations.divisional_charts  keys:
+      D1_rashi D2_hora D3_drekkana D4_chaturthamsa D5_panchamsa
+      D6_shashthamsa D7_saptamsa D8_ashtamsa D9_navamsha
+      D10_dashamsha D16_shodasamsa D24_siddhamsam
+      D60_shashtiamsam D81_ashtottariamsa
+    kp cusps + significators
+    jaimini / kn_rao
+    SAV, vimshottari maha sequence
+  Parser: jyotish/engine_io.py parse_json_payload
+  Normalizer: jyotish/pyhora_schema.py
+  In-memory model: jyotish/payload.py NatalPayloadV2  (extra='allow')
+
+================================================================================
+10. NATAL PAYLOAD (NatalPayloadV2) — WHAT ENGINES CONSUME
+================================================================================
+
+File: jyotish/payload.py
+Constructed by parse_json_payload(). Engine attaches computed attrs at runtime.
+
+Identity: name, dob, tob, lat/lon, timezone_offset_hours, gender, current_age
+Consent: external_llm_consent, redact_debug_output, data_retention_policy
+Chart: lagna_sign, lagna_lord, h10_lord, planets_d1, planet_house, house_lords
+Karakas: atmakaraka, amatyakaraka, matrikaraka, bhatrikaraka, putrakaraka,
+         gnatikaraka, darakaraka, chara_karakas dict, karakamsha
+Strength: shadbala, eff_strengths, planet_strength, shadbala_computed
+Vargas: divisional_charts, d9/d10/d24 dignities, d10_house_occupancy,
+        d24_house_occupancy, d10_lagna_sign, d24_lagna_sign, d60, d20
+KP: kp_cusps, kp_significators, lagna_star_lord, lagna_sub_lord, moon star/sub
+Dasha: dasha_sequence {lord,start_age,end_age}, vimshottari_dasha_full
+Yogas: detected_yogas, yogas_present
+Ashtakavarga: sav_points_houses, bav_points, shodhita variants, pav_data
+Transits: transit_house_positions, planet_transit_degrees
+Career: career_context, career_timeline, micro_timing (filled when
+        build_timeline=True)
+Birth time quality: birth_time_precision, birth_time_uncertainty_minutes
+Ephemeris cross-check: planet_natal_degrees (Skyfield)
+
+Mandatory at run_engine: planets_d1, kp_significators, kp_cusps,
+dasha_sequence  (validated in _validate_payload_schema, not at pydantic init)
+
+================================================================================
+11. UG FIELD ENGINE (HOW A FIELD GETS A SCORE)
+================================================================================
+
+Entry: jyotish/engine.py run_engine(payload, enable_llm=False) -> List[dict]
+~6659 lines. Do not casually split.
+
+Pipeline (authoritative order)
+  1. build_calculation_policy, build_run_manifest, build_canonical_facts
+  2. _validate_payload_schema
+  3. _run_normalization_stage  (dignity, yogas, strengths, registry loop)
+     For each branch in course registry (~198+aliases):
+       compute_field_method_bundle  (jyotish_ug.field_methods)
+       affinity score BRANCH_PLANET_AFFINITY
+       dozens of boosts/penalties in jyotish/boosts.py (~7649 lines)
+       QA friction execute_qa_verification_v8_9
+  4. attach_shadow_scores (NON-authoritative)
+  5. Optional LLM reorder call_llm_for_fields ONLY if enable_llm AND consent
+  6. _finalize_published_results
+       ranking_policy.apply_publication_ranking_policy
+       tiered_ranking.compute_tiered_ranking
+       competency_ontology.apply_competency_ontology_layer
+       gap_corrections_2026_07
+       attach_v12_registry_metadata
+  7. _apply_display_score_compression
+  Returns ranked field dicts with final_score, field_id, domain, method scores
+
+Field methods bundle
+  packages/jyotish-ug-fields/src/jyotish_ug/field_methods/__init__.py
+  compute_field_method_bundle()
+  METHOD_WEIGHTS (priors, then clarity/outlier/correlation adjust):
+    knrao 0.1678
+    jaimini 0.1538
+    dashamsha 0.1538
+    parashara 0.1049
+    structural_patterns 0.08
+    gochara 0.05
+    siddhamsha 0.02   (education confirmation, not primary vocation vote)
+    kp 0.015          (confirmation, not independent)
+    sudarshana 0.01
+    shashtiamsha 0.01 (tie-break; real tie-break also in tiered_ranking)
+  Method files:
+    knrao.py parashara.py dashamsha.py jaimini.py kp.py
+    sudarshana.py siddhamsha.py shashtiamsha.py
+    structural_patterns.py gochara.py navamsha.py yogini_dasha.py
+    career_archetype.py chart_synthesis.py purpose_chain.py
+    confidence_dimensions.py common.py
+
+Registry
+  jyotish/india_course_registry_v12.json   (~63k lines) branches dict
+  Loader: jyotish/registry_loader_v12.py  (+ 7 generated alias fields)
+  Schema: jyotish/registry_v12_schema.py
+  Builder: jyotish/registry_v12_builder.py
+  Coverage: jyotish/registry_coverage_validator.py
+  Affinity table: jyotish/affinity.py BRANCH_PLANET_AFFINITY
+                  jyotish/Field_Affinity.json
+  Ontology families: jyotish_ug/competency_ontology.py FIELD_TO_FAMILY
+  Report helpers: jyotish/report_utils.py
+  Docs: jyotish/ONTOLOGY_REGISTRY_V12_README.md
+  Expected coverage 205/205/205 registry, affinity, ontology
+
+UG API JSON payloads (must stay in sync with EducationAnalysisResponse)
+  results, macro_clusters, report (14-section narrative), chart_facts
+  plus student, summary, fields alias, career_field_report, AI diagnostics
+
+CLI HTML path (not the web app)
+  generate_career_field_report.py
+  Job_Career/career_field_report_v2.py generate_career_field_report_v2
+  Field_Determination/education_engine.py and
+  packages/jyotish-ug-fields/.../education_engine.py are CLI shims
+  (near-duplicates; API does not exec __main__).
+
+Age gate: default_education_tab ages 15-17 -> puc else ug
+  jyotish_ug.runner and jyotish_puc.runner and frontend tab-defaults.ts
+
+================================================================================
+12. PUC STREAM ENGINE
+================================================================================
+
+Package: packages/jyotish-puc-streams/src/jyotish_puc/
+Primary scoring: stream_scoring.py compute_stream_determination (~4615 lines)
+PRIMARY RULE SOURCE for stream planets/houses:
+  subject_registry.py STREAM_META  (Science / Commerce / Humanities)
+  NOT field_stream_mapping.py (that is optional/experimental + cross-check)
+Subjects ranked inside the locked stream via planet weights in STREAM_META.
+Yogas: yoga_detection.py
+Cross-check vs adult field engine: cross_validate.py / adult_engine_bridge.py
+Narrative: stream_narrative.py (consent-gated)
+Report JSON/HTML: stream_report.py
+Age: PUC_MAX_AGE_EXCLUSIVE=18, default floors {15,16,17}
+CLI leftover comments mention Stream_Determination/ — that folder is gone;
+code lives in this package.
+
+================================================================================
+13. CAREER TIMELINE ENGINE
+================================================================================
+
+Owner: Job_Career/timeline.py  (~5865 lines) build_career_timeline()
+Inputs: Job_Career/timeline_inputs.py
+Enhancer: Job_Career/astro_enhancer.py (G1-G21 extra signals)
+Job loss: Job_Career/job_loss.py
+Micro timing: Job_Career/micro_timing.py
+  negotiation heatmap, stakeholder radar, what-if, habit/hora plan
+SBC: Job_Career/sbc.py SarvatobhadraEngine (advisory on UG ranking too)
+Varshaphala: Job_Career/varshaphala.py
+Gap patches: Job_Career/gap_corrections_career_timeline_2026_07.py
+CLI: Job_Career/job_engine.py run_career_engine
+     Job_Career/career_mode_runner.py
+     Job_Career/generate_career_report.py HTML from dump
+Narrative LLM: jyotish/llm_narrative_builder.py
+  Only OpenAI/Anthropic. Gemini key does not enrich AD HTML.
+  api/career_timeline.py _narrative_llm_configured checks those keys.
+HTML key contract: Job_Career/html_payload_contract.py
+
+Career context typical fields (timeline_inputs.parse_career_context)
+  employment_status, designation, years_experience, industry_sector,
+  desired_outcome, current_company, notes, location preferences
+  _block_reason if age/employment out of range -> API 422
+
+================================================================================
+14. BUSINESS PREDICTION ENGINE
+================================================================================
+
+Public facade: Business_Prediction/business_engine.py
+  compute_business_prediction is THE API
+  __all__ is curated; internals via lazy __getattr__
+Implementation package: Business_Prediction/business_determination/
+  engine.py           orchestration (~1964 lines)
+  house_evidence.py   D1 house graph (~3082 lines) largest evidence file
+  significators.py    business grahas
+  sectors.py          rank_business_sectors + diversity
+  scoring.py          synthesis
+  timing.py           dasha windows
+  mode_gate.py        business vs employment
+  kp.py jaimini.py yogas.py contradictions.py
+  operating_models.py d24_d60_sign.py
+  transition_timing.py muhurta.py ashtakavarga_timing.py
+  synastry.py legal_risk.py foreign_business.py
+  financial_readiness.py nakshatra_business.py
+  d10_rectification.py
+  policy.py result_schema.py rule_provenance.py runtime_models.py
+  capability_status.py orchestration_services.py release_manifest.py
+  constants.py
+Registry: Business_Prediction/business_domain_registry_v1.json
+Reports: generate_business_report.py (HTML CLI)
+         generate_react_report.py (_build_report_data used by API)
+Follow-up Q&A: followup.py
+Calibration: calibration.py (governance, not real-world accuracy)
+Maturity: engine docstring — implementation-tested, NOT empirically
+  validated against dated business outcomes. Always preserve
+  model_status / calibration_status / maturity_statement.
+
+CLI: business_engine_main.py, business_mode_runner.py
+Tests: Business_Prediction/tests/  especially test_business_engine.py (~3995)
+
+================================================================================
+15. PRASHNA ENGINE
+================================================================================
+
+Low-level: jyotish/prashna.py  (~2811) cast_prashna_chart, analyze_prashna
+Integration: jyotish/prashna_engine.py  PrashnaRequest/Response, batch, metadata
+API wrapper: api/prashna.py
+Categories and houses:
+  career_employment H1,6,10,11
+  business H1,7,10,11
+  education H1,4,5,9
+  foreign_opportunity H1,9,12
+  financial H1,2,11
+  job_change H1,3,6,10,12
+  health H1,6,8
+  relationship H1,7
+  property H1,4
+  legal H1,6,7,9
+Methods: KP sub-lord, Parashari lords/aspects, Moon application / VOC
+Does not require NatalPayloadV2. Optional natal overlay notes if natal fields given.
+jyotish/__init__.py deliberately does NOT re-export Prashna (circular import).
+
+================================================================================
+16. PYJHORA / CHART CONSTRUCTION LAYER
+================================================================================
+
+Bootstrap: api/jhora_bootstrap.py
+D1 table: api/main.py _compute_birth_chart
+  Lagna + grahas + Gulika + Maandi
+Divisional: jhora.horoscope.chart.charts.divisional_chart
+  buckets of short codes La Su Mo Ma Me Ju Ve Sa Ra Ke Gu Md
+Extended: api/extended.py
+  compute_panchanga, compute_d1_bodies, compute_ashtakavarga,
+  compute_shadbala, compute_jaimini, compute_vimshottari, compute_kp,
+  compute_consolidated, compute_transits (uncached helper, no route)
+Independent Skyfield layer: jyotish/ephemeris.py
+In-house varga constructors used by tests/engines:
+  jyotish/astro.py compute_d10_chart, compute_d9_navamsha_chart
+  jyotish/d20_vimshamsha.py
+  tests test_d4/d9/d10/d24/d60_construction.py
+
+Planet id map in API: 0 Sun .. 8 Ketu
+
+================================================================================
+17. LLM SUBSYSTEM
+================================================================================
+
+jyotish/llm.py
+  Provider calls: Gemini, OpenAI, Anthropic
+  call_llm_for_fields — optional reorder/explain of top fields
+  generate_top3_narrative / stage narratives
+  Chart summary builder for prompts
+jyotish/llm_composer.py          narrative composer
+jyotish/llm_validator.py          rule-trace validator
+jyotish/llm_deep_validation.py     opt-in JYOTISH_DEEP_VALIDATION=1
+jyotish/llm_context_enricher.py  pre-scoring context (Phase 0)
+jyotish/llm_narrative_builder.py  career AD HTML (OpenAI/Anthropic)
+jyotish/career_validation_prompt.py  career journey validator prompt
+api/llm_policy.py                 HTTP always stamps consent
+api/ai_status.py                  response.AI {success,error}
+jyotish/rule_registry.py          honest rule ids for validator
+Policy object: jyotish/llm_policy.py  (ayanamsha/house-system declaration;
+  name is historical — this is NOT the API llm_policy)
+
+Never let LLM:
+  invent birth data, pick ayanamsha, recompute longitudes, or become the
+  source of final_score. Deterministic fallbacks must remain.
+
+================================================================================
+18. FILE-BY-FILE CATALOG — JYOTISH PACKAGE
+================================================================================
+
+jyotish/__init__.py          Public re-exports, version 11.2.0
+jyotish/payload.py           NatalPayloadV2, ENGINE_VERSION, logger
+jyotish/engine.py            run_engine, QA, finalize, age_stage
+jyotish/engine_io.py        parse_json_payload, registry load, aptitude
+jyotish/astro.py             dignity, yogas, aspects, houses, dasha lord
+jyotish/boosts.py           all _*_bonus/_*_penalty + 360 profile scorers
+jyotish/affinity.py         BRANCH_PLANET_AFFINITY + scorer
+jyotish/constants.py         signs, lords, domains, streams, lookups
+jyotish/ranking_policy.py   publication ranking, leakage guards
+jyotish/tiered_ranking.py   3-tier classical-authority ranking override
+jyotish/composite_v2.py     shadow composite (does not change live rank)
+jyotish/gap_corrections_2026_07.py  Ketu/MD/Mrita/Venus/interest patches
+jyotish/canonical_facts.py
+jyotish/calculation_policy.py
+jyotish/run_manifest.py
+jyotish/provenance.py
+jyotish/validation_contract.py
+jyotish/evidence_layers.py
+jyotish/evidence_integrity.py
+jyotish/shadow_scoring.py
+jyotish/audit_ledgers.py
+jyotish/defensibility.py
+jyotish/release_candidate.py
+jyotish/decision_axes.py
+jyotish/decision_summary.py
+jyotish/meaningful_margins.py
+jyotish/score_scope.py
+jyotish/step9_convergence.py
+jyotish/output.py            ExplainabilityEngine, HTML generators
+jyotish/web_report.py        large dual-audience HTML (~4814)
+jyotish/report_renderer.py
+jyotish/report_uplift.py
+jyotish/report_utils.py      field_display_name, cluster grouping
+jyotish/view_model.py
+jyotish/narrative_composer.py
+jyotish/ashtakavarga.py      BAV/SAV/shodhana/PAV
+jyotish/shadbala.py          six-fold from first principles
+jyotish/vimshopaka.py
+jyotish/dignity.py           panchadha maitri
+jyotish/panchang.py          five limbs
+jyotish/ephemeris.py        Skyfield KP longitudes
+jyotish/transit_engine.py    gochara Jupiter/Saturn/Rahu/Ketu
+jyotish/edu_align.py         D1-D24 stream, sub-branch, exam-day, academic tier
+jyotish/employment_mode.py
+jyotish/foreign_opportunities.py
+jyotish/dasha_longevity.py
+jyotish/kp_audit.py
+jyotish/kp_subfield_hint.py
+jyotish/d10_archetypes.py
+jyotish/d10_verification.py
+jyotish/d20_vimshamsha.py
+jyotish/broad_domain_promise.py
+jyotish/ontology_kg.py
+jyotish/pyhora_schema.py
+jyotish/payload_gap_audit.py
+jyotish/registry_*           v12 registry toolchain
+jyotish/build_manifest.py
+jyotish/astrology_explainer.py
+jyotish/hierarchical_ranking.py
+jyotish/prashna.py / prashna_engine.py
+Data: india_course_registry_v12.json, india_course_registry_no_planets.json
+      Field_Affinity.json, macro_config.json
+      data/family_score_reference_2026-07.json
+
+================================================================================
+19. FILE-BY-FILE CATALOG — API
+================================================================================
+
+api/main.py                   ALL route registrations live here
+api/extended.py               PyJHora extended computations + consolidated
+api/jhora_bootstrap.py
+api/geocode.py
+api/llm_policy.py
+api/ai_status.py
+api/auth_service.py / auth_validation.py
+api/profile_service.py / profile_compute.py / profile_chart.py
+api/education_analysis.py / education_service.py
+api/puc_analysis.py / puc_analysis_service.py
+api/career_timeline.py / career_timeline_service.py
+api/business_prediction.py / business_prediction_service.py
+api/prashna.py
+api/schemas/*.py              request/response models
+api/db/dynamo.py              generic + error helper
+api/db/users_dynamo.py / auth_repository.py
+api/db/profiles_dynamo.py / profiles_repository.py
+api/db/education_dynamo.py / education_repository.py
+api/db/repository.py         legacy charts
+api/db/chart_payload.py / chart_attach.py
+
+================================================================================
+20. FILE-BY-FILE CATALOG — FIELD_DETERMINATION (LEGACY + STILL IMPORTED)
+================================================================================
+
+education_engine.py                    CLI shim (duplicate of jyotish_ug)
+field_deterministic_engine_v1_llm.py   older CLI / cluster markdown
+debug_payload_split.py                 LIVE: slim_for_render used by UG report
+field_suitability.py                LIVE: annotate_field_suitability
+exact_field_defensibility.py         LIVE: attach_exact_field_contract
+structural_vocational_fit.py        LIVE: compute_structural_fit
+__init__.py empty
+
+When adding a field-method, add it under packages/jyotish-ug-fields
+field_methods/, wire METHOD_WEIGHTS, and call from compute_field_method_bundle.
+Do not add a new peer under Field_Determination unless it is CLI-only.
+
+================================================================================
+21. FILE-BY-FILE CATALOG — JOB_CAREER
+================================================================================
+
+timeline.py                 build_career_timeline
+timeline_inputs.py          parse/validate career_context
+astro_enhancer.py           extra G-signals
+job_engine.py               CLI career engine
+career_mode_runner.py
+career_field_report_v2.py   UG report JSON/HTML + LLM 14 sections
+generate_career_field_report.py
+generate_career_report.py    timeline HTML from dump
+sbc.py                      Sarvatobhadra
+micro_timing.py
+job_loss.py
+varshaphala.py
+html_payload_contract.py
+gap_corrections_career_timeline_2026_07.py
+
+================================================================================
+22. FILE-BY-FILE CATALOG — BUSINESS_PREDICTION
+================================================================================
+
+See section 14. Also:
+docs/scope_birth_time_perturbation_and_kp_verification.md
+docs/scope_d24_full_rebuild.md
+business_determination/CHANGELOG.md
+_gen_v3/v4/v5_synthetic.py   synthetic generators
+pdf_export.py
+
+================================================================================
+23. FILE-BY-FILE CATALOG — PACKAGES
+================================================================================
+
+jyotish-core: placeholder package; real primitives still in jyotish/
+jyotish-ug-fields: jyotish_ug.*  (UG methods, ontology, runner, route_map,
+  cluster_field_export, education_engine CLI)
+jyotish-puc-streams: jyotish_puc.* as section 12
+Install via requirements.txt editable. Import names are jyotish_ug and
+jyotish_puc, NOT the folder names.
+
+================================================================================
+24. FRONTEND ROUTE -> FILE -> API MAP
+================================================================================
+
+URL                         Route file                         Data source
+/                           routes/index.tsx                   profilesApi + ProfileWizard
+/charts                     routes/charts.tsx                 session divisional*
+/kp                         routes/kp.tsx                     session.kp
+/kn-rao                     routes/kn-rao.tsx                session.jaimini
+/parashari                  routes/parashari.tsx            session ashtakavarga/shadbala
+/panchanga                  routes/panchanga.tsx            Coming soon (data unused)
+/education-analysis          index redirect by age
+/education-analysis/puc     puc.tsx + PucAnalysisSection        PUC APIs
+/education-analysis/ug      ug.tsx + UgAnalysisSection          UG APIs
+/career-timeline             career-timeline.tsx               career APIs
+/business                   business.tsx + BusinessSection      business APIs
+/prashna                    prashna.tsx                       prashna APIs
+/ai                         ai.tsx                             feature flag
+/reports                    reports.tsx                      Coming soon
+/settings                   settings.tsx                    local stores
+/login /signup /forgot-password  auth routes
+/birth-data                 Navigate to /
+/workspace /marketplace /confidence  partial/placeholder
+
+To add a new page:
+  1. Create frontend/src/routes/<name>.tsx with createFileRoute
+  2. Add NAV entry in AppShell.tsx
+  3. If it needs login, add path to PROTECTED_ROUTES
+  4. routeTree.gen.ts regenerates on vite dev — do not hand-edit
+  5. If it needs API, add pyjhora or profilesApi method AND api/main.py route
+
+
+
+================================================================================
+25. CHANGE ROUTING MATRIX
+    (THE PRIMARY LOOKUP FOR "WHERE DO I EDIT?")
+================================================================================
+
+Read this section first for any new ticket. Owner = file that must change.
+Also-touch = files that almost always need a matching edit. Tests = where
+to add/adjust coverage. Do not create a parallel implementation in another
+folder.
+
+------------------------------------------------------------------------------
+A. AUTH / LOGIN / SIGNUP / OTP / PASSWORD
+------------------------------------------------------------------------------
+Intent: change signup/login/reset UX
+  Owner: frontend/src/routes/login.tsx, signup.tsx, forgot-password.tsx
+  Also:  frontend/src/lib/auth/client.ts, types.ts, validation.ts
+         frontend/src/components/auth/AuthLayout.tsx
+         frontend/src/stores/auth-store.ts
+
+Intent: change OTP / JWT / SES / password hashing
+  Owner: api/auth_service.py
+  Also:  api/db/auth_repository.py
+         api/schemas/auth.py
+         api/auth_validation.py
+  Tests: add under api/tests/ if present; currently auth is mostly untested
+  Table: JyotishUsers
+
+Intent: protect or unprotect a page
+  Owner: frontend/src/lib/auth/routes.ts PROTECTED_ROUTES
+  Also:  frontend/src/components/auth/AuthGate.tsx
+         AppShell.tsx NAV if the link should appear
+
+Intent: token storage
+  Owner: frontend/src/lib/auth/client.ts AUTH_TOKEN_KEY = jyotish:authToken
+
+------------------------------------------------------------------------------
+B. PROFILES (CREATE / LIST / DELETE / HYDRATE SESSION)
+------------------------------------------------------------------------------
+Intent: change profile wizard fields (name, DOB, place, gender, risk, etc.)
+  Owner: frontend/src/components/profile/ProfileWizard.tsx
+  Also:  frontend/src/lib/pyjhora/user-profile.ts
+         frontend/src/lib/pyjhora/types.ts
+         api/schemas/profiles.py CreateProfileRequest
+         api/schemas/chart.py BirthChartBody / StudentContext
+
+Intent: change what is computed at profile create
+  Owner: api/profile_compute.py compute_profile_sections
+  Also:  api/profile_service.py create_user_profile
+         api/extended.py (individual computations)
+         api/main.py _compute_birth_chart / _compute_divisional_charts
+
+Intent: change how profiles are stored/chunked
+  Owner: api/db/profiles_repository.py
+  Constants: CHUNK_* , MAX_PROFILES_PER_USER = 4
+  Also:  frontend/src/lib/profiles/types.ts PROFILE_SECTION
+
+Intent: restore a saved profile into the working ChartSession
+  Owner: frontend/src/lib/profiles/restore-session.ts
+         frontend/src/lib/profiles/hydrate.ts
+         frontend/src/components/profile/ProfileSessionBootstrap.tsx
+
+Intent: profile list cache
+  Owner: frontend/src/stores/profile-store.ts
+
+------------------------------------------------------------------------------
+C. GEOCODING / PLACE AUTOCOMPLETE / TIMEZONE
+------------------------------------------------------------------------------
+Owner: api/geocode.py
+Also:  frontend/src/components/charts/PlaceAutocomplete.tsx
+       frontend/src/lib/pyjhora/client.ts geocode/placesAutocomplete/resolvePlace
+       api/main.py /api/geocode /api/places/*
+Known-place offline cache: _KNOWN_PLACES in geocode.py
+Env: GOOGLE_MAPS_API_KEY, GOOGLE_PLACES_API_KEY
+
+------------------------------------------------------------------------------
+D. CHART DRAWING (SOUTH INDIAN GRID, D1 TABLE, VARGAS)
+------------------------------------------------------------------------------
+Intent: D1 table columns/rows
+  Owner: api/main.py _compute_birth_chart
+  Also:  frontend/src/components/charts/BirthChartTable.tsx
+         frontend/src/lib/pyjhora/normalize.ts
+         api/schemas/chart.py TableResponse
+
+Intent: South-Indian 4x4 chart
+  Owner: frontend/src/components/charts/SouthIndianChart.tsx
+  Also:  frontend/src/lib/rasi.ts
+         frontend/src/routes/charts.tsx mergeCharts()
+  API:   POST /api/divisional-charts  api/main.py _compute_divisional_charts
+
+Intent: add a new varga factor to the UI
+  1. Add factor to _ALLOWED_DIVISIONAL_FACTORS and _DIVISION_NAMES in api/main.py
+  2. Add DIVISIONAL_CHART_META entry in jyotish/pyhora_schema.py
+  3. Include in compute_consolidated if engines need it
+  4. Include in ProfileWizard/pipeline factors string
+  5. frontend/src/lib/pyjhora/ensure-consolidated.ts EXPECTED_DIVISIONAL_KEYS
+  6. charts.tsx tab/select if user-facing
+
+Intent: ayanamsa / true nodes / outer planets for DRAWING
+  Owner: BirthChartBody in api/schemas/chart.py
+  UI:    ProfileWizard AYANAMSA_OPTIONS
+  Bootstrap default nodes: api/jhora_bootstrap.py (mean)
+
+Intent: Panchanga / Ashtakavarga / Shadbala / Jaimini / Vimshottari / KP
+  API compute: api/extended.py corresponding compute_*
+  UI: routes/kp.tsx, kn-rao.tsx, parashari.tsx
+  Panchanga PAGE is ComingSoonCard — wiring the already-computed
+  session.panchanga into routes/panchanga.tsx is the UI gap.
+
+Intent: consolidated export JSON
+  Owner: api/extended.py compute_consolidated
+  Also:  jyotish/pyhora_schema.py normalize_consolidated
+         frontend/src/components/charts/ConsolidatedExportPanel.tsx
+         frontend/src/lib/pyjhora/ensure-consolidated.ts
+
+------------------------------------------------------------------------------
+E. UG EDUCATION / CAREER FIELD RANKING
+------------------------------------------------------------------------------
+Intent: change which fields exist (add/remove a vocational branch)
+  Owner: jyotish/india_course_registry_v12.json
+  MUST ALSO:
+    jyotish/affinity.py BRANCH_PLANET_AFFINITY
+    packages/.../competency_ontology.py FIELD_TO_FAMILY
+    jyotish/registry_loader_v12.py if it is a generated alias
+    run jyotish/registry_coverage_validator.py
+    jyotish/tests/test_keyword_coverage.py
+    jyotish/ONTOLOGY_REGISTRY_V12_README.md counts
+  Builder: python -m jyotish.registry_v12_builder ...
+
+Intent: change planet weights for a field
+  Owner: jyotish/affinity.py (and Field_Affinity.json if that is the source
+         you are editing; affinity.py is the live import)
+
+Intent: change scoring blend / method votes
+  Owner: packages/jyotish-ug-fields/src/jyotish_ug/field_methods/__init__.py
+         METHOD_WEIGHTS, compute_field_method_bundle
+  Individual method: same folder knrao.py / dashamsha.py / ...
+  Boosts: jyotish/boosts.py
+  QA friction: jyotish/engine.py execute_qa_verification_v8_9
+  Final ranking: jyotish/ranking_policy.py + jyotish/tiered_ranking.py
+  Competency grouping: jyotish_ug/competency_ontology.py
+  Gap patches: jyotish/gap_corrections_2026_07.py
+  DO NOT change shadow_scoring / composite_v2 / audit_ledgers if you
+  only want live ranking — those are observational.
+
+Intent: UG API response shape
+  Owner: packages/jyotish-ug-fields/src/jyotish_ug/runner.py
+  Also:  api/education_analysis.py
+         api/schemas/education_analysis.py
+         frontend/src/lib/pyjhora/types.ts EducationAnalysisResponse
+         frontend/src/components/education/EducationCareerReport.tsx
+
+Intent: UG LLM 14-section narrative
+  Owner: Job_Career/career_field_report_v2.py
+         _call_llm_for_report, _validate_report_json, _fallback_report_json
+  LLM transport: jyotish/llm.py
+  Consent stamp: api/llm_policy.py
+  Cache: api/education_service.py + api/db/education_repository.py
+  Recompute: DELETE endpoint, not refresh=true
+
+Intent: UG page behavior / cache / refresh button
+  Owner: frontend/src/components/education/UgAnalysisSection.tsx
+  Route: frontend/src/routes/education-analysis/ug.tsx
+  Client: frontend/src/lib/profiles/client.ts educationAnalysis()
+
+Intent: slim Dynamo payload (strip heavy keys)
+  Owner: api/db/education_repository.py _HEAVY_ROW_KEYS
+  Also:  Field_Determination/debug_payload_split.py slim_for_render
+
+------------------------------------------------------------------------------
+F. PUC STREAM (SCIENCE / COMMERCE / HUMANITIES)
+------------------------------------------------------------------------------
+Intent: change stream planet/house weights (THIS IS THE LIVE RULE)
+  Owner: packages/jyotish-puc-streams/src/jyotish_puc/subject_registry.py
+         STREAM_META
+
+Intent: change scoring formula / D24 arbitration / precedence chain
+  Owner: packages/jyotish-puc-streams/src/jyotish_puc/stream_scoring.py
+         compute_stream_determination, score_stream, score_subjects
+
+Intent: age window
+  Owner: jyotish_puc/runner.py is_puc_eligible, PUC_DEFAULT_AGE_FLOORS
+  Mirror UI: frontend/src/lib/education-report/tab-defaults.ts
+
+Intent: PUC narrative
+  Owner: jyotish_puc/stream_narrative.py
+  API flags: api/llm_policy.py API_LLM_NARRATIVE_ENABLED
+             api/puc_analysis.py passes llm_enabled/runtime_consent
+
+Intent: PUC report JSON/HTML
+  Owner: jyotish_puc/stream_report.py
+  UI:    frontend/src/components/education/PucStreamReport.tsx
+         PucAnalysisSection.tsx
+  Route: frontend/src/routes/education-analysis/puc.tsx
+
+Intent: persist PUC on profile
+  Owner: api/puc_analysis_service.py CHUNK_PUC
+
+Intent: cross-check vs adult field engine
+  Owner: jyotish_puc/cross_validate.py, adult_engine_bridge.py
+  Mapping tables (NOT primary score): field_stream_mapping.py
+
+------------------------------------------------------------------------------
+G. JOB / CAREER TIMELINE
+------------------------------------------------------------------------------
+Intent: antardasha scoring / event classification
+  Owner: Job_Career/timeline.py  _score_period, _classify_event,
+         build_career_timeline
+
+Intent: career_context parsing / blocking
+  Owner: Job_Career/timeline_inputs.py
+  Form UI: frontend/src/components/career/CareerContextForm.tsx
+
+Intent: API aggregation (outcome bar, calendar, md arcs, foreign)
+  Owner: api/career_timeline.py
+
+Intent: LLM AD narratives
+  Owner: jyotish/llm_narrative_builder.py
+  Gate:  api/career_timeline.py _maybe_enrich_llm
+  Keys:  ANTHROPIC_API_KEY or OPENAI_API_KEY (NOT Gemini)
+
+Intent: micro-timing dashboard
+  Owner: Job_Career/micro_timing.py
+  UI:    CareerTimelineSupplement.tsx
+
+Intent: job-loss / risk
+  Owner: Job_Career/job_loss.py
+
+Intent: extra G-signals
+  Owner: Job_Career/astro_enhancer.py
+
+Intent: timeline UI
+  Owner: frontend/src/components/career/CareerTimelineReport.tsx
+         CareerTimelineSection.tsx
+         frontend/src/lib/career-timeline/helpers.ts
+  Persist: api/career_timeline_service.py
+
+------------------------------------------------------------------------------
+H. BUSINESS PREDICTION
+------------------------------------------------------------------------------
+Intent: overall pipeline / recommendation / abstention
+  Owner: Business_Prediction/business_determination/engine.py
+  Facade: Business_Prediction/business_engine.py compute_business_prediction
+
+Intent: business vs job mode
+  Owner: business_determination/mode_gate.py
+
+Intent: house evidence
+  Owner: business_determination/house_evidence.py
+
+Intent: sector list / weights / capital intensity
+  Owner: Business_Prediction/business_domain_registry_v1.json
+  Ranker: business_determination/sectors.py
+  Validate: validate_business_rule_pack()
+
+Intent: timing windows
+  Owner: business_determination/timing.py
+  Years ranking: ashtakavarga_timing.py
+  Transition: transition_timing.py
+  Muhurta: muhurta.py
+
+Intent: API + UI view-model
+  Owner: api/business_prediction.py
+         Business_Prediction/generate_react_report.py _build_report_data
+  UI:    frontend/src/components/business/BusinessReport.tsx
+         business-report-utils.ts
+  Persist: api/business_prediction_service.py CHUNK_BUSINESS
+
+Intent: contracts / maturity disclosures
+  Owner: business_determination/result_schema.py, policy.py
+  Tests: tests/test_v51_architecture_contracts.py
+         tests/test_v52_release_gates.py
+         tests/test_business_engine.py
+
+------------------------------------------------------------------------------
+I. PRASHNA (HORARY)
+------------------------------------------------------------------------------
+Intent: category rules / verdict
+  Owner: jyotish/prashna.py analyzers
+  Request/response models: jyotish/prashna_engine.py
+  API: api/prashna.py  schemas: api/schemas/prashna.py
+  UI: frontend/src/routes/prashna.tsx
+      frontend/src/lib/prashna-chart.ts
+  Do not re-export via jyotish/__init__.py
+
+------------------------------------------------------------------------------
+J. LLM / NARRATIVES / AI ASSISTANT PAGE
+------------------------------------------------------------------------------
+Intent: provider routing, retries, Gemini/OpenAI/Anthropic
+  Owner: jyotish/llm.py
+
+Intent: force LLM on HTTP
+  Owner: api/llm_policy.py prepare_chart_for_api_llm
+
+Intent: AI diagnostics field on responses
+  Owner: api/ai_status.py  attached in education/puc adapters
+
+Intent: declared ayanamsha/house policy for validators
+  Owner: jyotish/llm_policy.py  (yes, same name as API module, different package)
+
+Intent: AI Assistant page
+  Owner: frontend/src/routes/ai.tsx
+         frontend/src/components/ai/AiAssistanceTabs.tsx
+  Flag:  frontend/src/lib/feature-flags.ts VITE_ENABLE_AI_ASSISTANT
+  This page is NOT the UG/PUC/career LLM. It is a separate UI, currently
+  ComingSoon unless the flag is true.
+
+------------------------------------------------------------------------------
+K. REGISTRY / ONTOLOGY / DISPLAY NAMES
+------------------------------------------------------------------------------
+Registry JSON: jyotish/india_course_registry_v12.json
+Loader: jyotish/registry_loader_v12.py
+Enrich rows: jyotish/registry_result_enricher.py
+Display names: jyotish/report_utils.py
+Macro clusters: same + career_field_report_v2.py _macro_cluster_ranking
+Ontology: jyotish_ug/competency_ontology.py
+KG (score-neutral): jyotish/ontology_kg.py
+Route map for education paths: jyotish_ug/route_map.py
+
+------------------------------------------------------------------------------
+L. DEPLOYMENT / ENV / CORS / BUILD
+------------------------------------------------------------------------------
+API deploy: render.yaml service pyjhora-api
+Web deploy: render.yaml jyotishai-web AND/OR netlify.toml
+Python deps: requirements.txt
+Frontend deps: frontend/package.json
+API CORS: api/main.py CORS_ORIGINS
+Frontend API URL: frontend/src/lib/pyjhora/config.ts + VITE_PYJHORA_API_BASE
+Ephemeris on Render: scripts/download_de421.py
+Dynamo tables: scripts/create-jyotish-users-table.sh
+               scripts/create-jyotish-education-table.sh
+Local frontend Netlify plugin: VITE_DISABLE_NETLIFY=true
+Vite extra: frontend/vite.config.ts
+
+------------------------------------------------------------------------------
+M. STYLING / DESIGN SYSTEM
+------------------------------------------------------------------------------
+Global CSS: frontend/src/styles.css
+shadcn config: frontend/components.json
+Primitives: frontend/src/components/ui/*
+Layout chrome: AppShell.tsx
+cn helper: frontend/src/lib/utils.ts
+Theme: localStorage "theme" dark class on <html> (AppShell + __root THEME_INIT)
+Do not add a second CSS framework.
+
+------------------------------------------------------------------------------
+N. TESTS
+------------------------------------------------------------------------------
+Jyotish engine: jyotish/tests/test_*.py
+  varga construction, registry builder, llm policy, ontology, composite,
+  academic tier, keyword coverage, report smoke, competency G22-G31
+Business: Business_Prediction/tests/  (largest, architecture contracts)
+PUC: packages/jyotish-puc-streams/tests/fixtures/ramsunder_chart_details.json
+Frontend: no dedicated unit test runner in package.json (lint/prettier only)
+When changing scoring, add a test next to the nearest existing test module.
+When changing API contracts, update api/schemas AND frontend types.ts together.
+
+================================================================================
+26. IMPLEMENTATION PATTERNS AND GOTCHAS
+================================================================================
+
+Circular imports
+  jyotish.engine imports jyotish_ug.field_methods
+  jyotish_ug.runner lazy-imports Job_Career.career_field_report_v2
+  which imports run_engine. Do not add eager imports that close the loop.
+  jyotish/__init__.py does not import Prashna for the same reason.
+
+Duplicate modules (know which is LIVE)
+  Field_Determination/education_engine.py  vs  jyotish_ug/education_engine.py
+    CLI leftovers. API uses jyotish_ug.runner + career_field_report_v2.
+  Field_Determination/field_methods historically moved to
+    packages/jyotish-ug-fields/src/jyotish_ug/field_methods/
+  competency_ontology lives in jyotish_ug, imported by jyotish.engine
+  packages/jyotish-core is nearly empty; do not put new code only there
+    unless you also re-export from jyotish/.
+
+refresh=true
+  UG education: IGNORED when cached. Delete first.
+  PUC / career / business profile endpoints: refresh=true DOES recompute
+  (see each *_service.py). Do not assume they share UG's freeze policy.
+
+LLM providers are not interchangeable
+  UG field report: Gemini/OpenAI/Anthropic via jyotish/llm.py
+  Career AD HTML: OpenAI/Anthropic only (llm_narrative_builder)
+  PUC narrative: stream_narrative.py via same llm stack + consent flags
+  API always stamps consent; missing keys still produce fallbacks.
+
+Dynamo 400KB
+  Never store full method_breakdown / HTML in JyotishEducationAnalysis.
+  Profiles already chunk. If a new analysis is large, either gzip like
+  education_repository or a new table. Do not stuff it into the header item.
+
+ChartSession.chartId
+  For profiles this IS profile_id. UG cache APIs depend on that.
+  Legacy local charts use local-{timestamp} or saved chart_id from the
+  old /api/users/{user_id}/charts table.
+
+Ayanamsa split brain
+  Drawing default LAHIRI (PyJHora API).
+  Scoring engines KP_KRISHNAMURTI via consolidated export + llm_policy.py.
+  If you "fix" one without the other you will desync charts vs reports.
+  Profile form offers LAHIRI / KP / RAMAN for the drawing layer.
+
+Score-neutral modules (must not change final_score)
+  shadow_scoring.py, composite_v2.py, audit_ledgers.py, provenance.py,
+  ontology_kg.py attach_graph_diagnostics, defensibility.py,
+  run_manifest.py, many decision_axes attachments unless comments say
+  they now apply a bounded penalty (decision_axes D1/D10 penalty IS
+  live after apply_release_4_7 — read the comment in run_engine).
+
+Thread pool
+  UG/career/business profile endpoints use FastAPI run_in_threadpool
+  because engines are sync and slow (30-60s with LLM).
+
+PyJHora init is process-global
+  init_jhora() is once-per-process. Node mode is flipped per request in
+  _compute_birth_chart if use_true_nodes. Be careful with concurrent
+  true-node vs mean-node requests on one worker.
+
+HTML vs JSON reports
+  Web app renders React from JSON.
+  CLI still writes HTML under educational_records/ (gitignored).
+  Do not add server-side HTML for UG as the web contract.
+
+Education tab default
+  Ages 15, 16, 17 -> PUC else UG. Keep Python runner and
+  frontend/src/lib/education-report/tab-defaults.ts in sync.
+
+Coming-soon pages
+  panchanga, reports, (AI unless flag): UI stubs. Backend data may already
+  exist. Prefer wiring existing session payloads over new engines.
+
+Unused / decoupled
+  Planetary transits route intentionally omitted (api/main.py comment).
+  frontend/src/lib/prompts/fieldDetermination.ts is a leftover prompt string;
+  live prompts are in jyotish/llm.py and career_field_report_v2.py.
+  frontend/src/lib/api/example.functions.ts is a TanStack Start sample.
+  frontend/src/routes/astro.code-workspace should not live in routes/.
+  Field_Determination/de421.bsp duplicate of root ephemeris — do not
+  commit; use scripts/download_de421.py.
+
+Version stamps
+  Bump jyotish/__init__.py __version__ AND payload.ENGINE_VERSION together.
+  Business has its own RULE_PACK_VERSION / MODEL_STATUS in
+  business_determination.
+
+Naming in the UI vs code
+  "Job Timeline" UI = career-timeline engine
+  "UG" = career field determination (not only undergrad students)
+  "KN Rao" page = Jaimini payload from /api/jaimini
+  "Parashari Strength" = ashtakavarga + shadbala
+  "Profiles" = authenticated birth profiles (not the legacy user charts table)
+
+================================================================================
+27. HOW TO ADD A NEW ENGINE FEATURE (CHECKLIST)
+================================================================================
+
+1. Decide the surface: drawing-only (api/extended.py) vs scoring engine
+   (jyotish / Job_Career / Business / jyotish_puc).
+2. If it needs natal facts, add fields to NatalPayloadV2 (payload.py) and
+   populate them in engine_io.parse_json_payload. Add tests.
+3. If it is a new HTTP capability:
+     - Pydantic models in api/schemas/<domain>.py
+     - Adapter api/<domain>.py  (no Dynamo here)
+     - Optional cache service api/<domain>_service.py
+     - Register routes in api/main.py
+     - Frontend types in lib/pyjhora/types.ts
+     - Client method in lib/pyjhora/client.ts and/or lib/profiles/client.ts
+     - Route + section component
+     - NAV + PROTECTED_ROUTES
+     - Persist: either profiles_repository chunk or a dedicated table
+4. If LLM text is involved: gate on consent, never score, always fallback.
+5. If registry-related: update JSON + affinity + ontology + validator.
+6. Add tests beside the owning package.
+7. Update this knowledge base's routing row.
+
+================================================================================
+28. HOW TO FIX A BUG (CHECKLIST)
+================================================================================
+
+1. Reproduce at the UI route. Note whether a profile is loaded (chartId).
+2. If 401/403: auth. If 503: Dynamo env. If 422: schema/career_context.
+   If 502: engine exception (check uvicorn traceback).
+3. For wrong numbers: identify drawing vs scoring. Drawing bugs live in
+   api/main.py / extended.py / PyJHora. Scoring bugs live in engine.py /
+   field_methods / boosts / ranking_policy / domain package.
+4. For wrong text: LLM files or React report components. Cached UG text
+   will not change until DELETE analysis.
+5. For missing UI data that API already returns: hydrate path
+   (restore-session / ChartSession field names) is the usual gap.
+6. Search function names from this document rather than inventing a new
+   module. Many "missing" features already exist under a different name.
+
+================================================================================
+29. MAJOR FUNCTION INDEX (ENTRY POINTS ONLY)
+================================================================================
+
+API / adapters
+  api.main:app
+  api.jhora_bootstrap.init_jhora
+  api.main._compute_birth_chart
+  api.main._compute_divisional_charts
+  api.extended.compute_consolidated
+  api.extended.compute_panchanga / compute_kp / compute_jaimini /
+    compute_ashtakavarga / compute_shadbala / compute_vimshottari /
+    compute_d1_bodies
+  api.geocode.geocode_location / places_autocomplete / geocode_place_id
+  api.auth_service.send_signup_otp / verify_signup_otp / complete_signup /
+    login / get_current_user / send_password_reset_otp / reset_password
+  api.profile_service.create_user_profile / list_user_profiles /
+    get_user_profile / persist_user_profile_sections / delete_user_profile
+  api.profile_compute.compute_profile_sections
+  api.profile_chart.resolve_consolidated_chart / resolve_career_context
+  api.education_analysis.run_ug_analysis / run_education_analysis
+  api.education_service.get_or_create_education_analysis /
+    delete_education_analysis
+  api.puc_analysis.run_puc_analysis
+  api.puc_analysis_service.get_or_create_puc_analysis
+  api.career_timeline.run_career_timeline
+  api.career_timeline_service.get_or_create_career_timeline
+  api.business_prediction.run_business_prediction
+  api.business_prediction_service.get_or_create_business_prediction
+  api.prashna.run_prashna_analysis / run_prashna_batch / list_prashna_categories
+
+Jyotish core
+  jyotish.engine_io.parse_json_payload
+  jyotish.engine_io._load_course_registry
+  jyotish.engine.run_engine
+  jyotish.engine.execute_qa_verification_v8_9
+  jyotish.engine.classify_age_stage
+  jyotish.payload.NatalPayloadV2
+  jyotish.llm.call_llm_for_fields
+  jyotish.registry_loader_v12.load_course_registry_v12
+  jyotish.pyhora_schema.normalize_consolidated
+  jyotish.prashna_engine.run_prashna_query / batch_prashna
+  jyotish.edu_align.compute_academic_tier_recommendation
+  jyotish.ephemeris (Skyfield longitudes)
+  jyotish.transit_engine (gochara)
+  jyotish.ashtakavarga.compute_bav_points*
+  jyotish.shadbala.compute_shadbala_all
+
+UG package
+  jyotish_ug.runner.run_ug_analysis
+  jyotish_ug.field_methods.compute_field_method_bundle
+  jyotish_ug.competency_ontology.apply_competency_ontology_layer
+  jyotish_ug.route_map.build_route_map_summary
+  Job_Career.career_field_report_v2.build_career_field_report_from_chart
+  Job_Career.career_field_report_v2.generate_career_field_report_v2
+
+PUC package
+  jyotish_puc.runner.run_puc_analysis
+  jyotish_puc.stream_scoring.compute_stream_determination
+  jyotish_puc.stream_report.build_report_payload
+  jyotish_puc.stream_narrative.generate_stream_narrative
+
+Career
+  Job_Career.timeline.build_career_timeline
+  Job_Career.timeline_inputs.parse_career_context
+  Job_Career.micro_timing.compute_all_micro_timing
+  jyotish.llm_narrative_builder.enrich_timeline_sync
+
+Business
+  Business_Prediction.business_engine.compute_business_prediction
+  Business_Prediction.generate_react_report._build_report_data
+  Business_Prediction.followup.answer_followup_question
+
+Frontend
+  pyjhora.*  (client.ts)
+  profilesApi.*  (profiles/client.ts)
+  authApi.*
+  saveAndGenerateCharts / computeExtendedAnalysis  (pipeline.ts)
+  saveChartSession / patchChartSession  (session.ts)
+  useChartSession()
+  useUgAnalysis()
+
+================================================================================
+30. CONSOLIDATED JSON — KEYS ENGINES EXPECT
+================================================================================
+
+Top-level (typical)
+  name, system_config, student_context, career_context (optional)
+  pyhora_calculations:
+    divisional_charts[D1_rashi].planets.{Sun..Ketu}.{sign,degree,...}
+    divisional_charts[D9_navamsha], D10_dashamsha, D24_siddhamsam,
+    D60_shashtiamsam, ...
+    kp_cusps, kp_significators
+    kn_rao_jaimini_data / jaimini
+    vimshottari / dasha
+    sav
+  student_context:
+    pob, gender, education_system
+    student_preference.{interested_in, already_excel_at,
+      financial_constraints, risk_appetite}
+    external_llm_consent  (API overwrites True)
+    current_date sometimes used for transits
+
+If consolidated lacks D1 planets, ensure-consolidated.ts refetches
+POST /api/consolidated. engine_io will fail or degrade if planets_d1 empty.
+
+================================================================================
+31. FRONTEND COMPONENT TREE (FEATURE, NOT UI-KIT)
+================================================================================
+
+App shell
+  __root.tsx
+    QueryClientProvider
+    AuthGate
+    ProfileSessionBootstrap
+    AppShell (sidebar + header + theme + logout)
+      <Outlet /> page
+
+Profiles
+  ProfileWizard
+    PlaceAutocomplete
+    CareerContextForm
+    ProfileConfirmReport
+
+Charts
+  charts.tsx
+    SouthIndianChart
+    BirthChartTable
+    D1BodyTable
+    ConsolidatedExportPanel
+
+Education
+  UgAnalysisSection -> EducationCareerReport -> EducationFieldCard
+  PucAnalysisSection -> PucStreamReport
+
+Career
+  CareerTimelineSection
+    CareerContextForm
+    CareerTimelineReport
+    CareerTimelineSidebar
+    CareerTimelineSupplement
+    CareerRoadmapCard
+
+Business
+  BusinessSection -> BusinessReport
+
+Prashna
+  prashna.tsx + PlaceAutocomplete + SouthIndianChart via prashnaToSouthIndianChart
+
+Auth
+  AuthLayout wrapping login/signup/forgot-password
+
+components/ui/* are shadcn primitives (button, card, tabs, dialog, ...).
+Change feature look in feature components, not by forking primitives unless
+the primitive itself is wrong.
+
+================================================================================
+32. STORE AND STORAGE KEYS
+================================================================================
+
+localStorage
+  jyotish:authToken
+  jyotish:auth            (zustand persist: accessToken, user)
+  jyotish:userProfile      display name
+  jyotish:profiles         profile list cache
+  pyjhora_user_id         legacy anonymous user id for /api/users/{id}/charts
+  theme                   "dark" | "light"
+
+sessionStorage
+  jyotish:chartSessionZustand   ChartSession
+  jyotish:chartSession         legacy key, migrated on rehydrate
+
+Clearing
+  auth-store.clearSession() wipes token + clearAllAppData
+  clearAllAppData: user-store reset, profile-store reset, clearChartSession,
+  remove pyjhora_user_id
+
+================================================================================
+33. DEPENDENCY GRAPH (SIMPLIFIED)
+================================================================================
+
+frontend  ->  api.main
+api.main  ->  api.extended (PyJHora)
+          ->  api.*_service -> api.db.* (Dynamo)
+          ->  api.education_analysis -> jyotish_ug.runner
+          ->  api.puc_analysis -> jyotish_puc.runner
+          ->  api.career_timeline -> jyotish.engine_io + Job_Career.timeline
+          ->  api.business_prediction -> Business_Prediction.business_engine
+          ->  api.prashna -> jyotish.prashna_engine
+          ->  api.auth_service -> api.db.auth_repository
+          ->  api.geocode
+
+jyotish_ug.runner -> Job_Career.career_field_report_v2
+                  -> jyotish.engine.run_engine
+                  -> jyotish_ug.field_methods
+                  -> jyotish_ug.competency_ontology
+
+jyotish.engine -> jyotish.engine_io (registry)
+                -> jyotish.boosts
+                -> jyotish.astro
+                -> jyotish_ug.field_methods
+                -> jyotish.ranking_policy / tiered_ranking
+                -> jyotish.llm (optional)
+
+jyotish.engine_io -> jyotish.payload.NatalPayloadV2
+                  -> Job_Career.timeline (if build_timeline=True)
+                  -> jyotish.ashtakavarga / shadbala / ephemeris / astro
+
+Business_Prediction.business_determination.engine
+  -> house_evidence, significators, sectors, timing, mode_gate, kp, jaimini
+  -> NatalPayloadV2 only (no Field_Determination import by contract tests)
+
+================================================================================
+34. LOCAL DEVELOPMENT RECIPE
+================================================================================
+
+Terminal 1 — API
+  cd repo
+  source .venv/bin/activate
+  pip install -r requirements.txt
+  cp .env.example .env   # fill GEMINI_API_KEY, JWT_SECRET, AUTH_FIXED_OTP=0000
+  uvicorn api.main:app --reload --port 8000
+
+Terminal 2 — frontend
+  cd frontend
+  npm install
+  VITE_DISABLE_NETLIFY=true VITE_PYJHORA_API_BASE=http://127.0.0.1:8000 \
+    npm run dev -- --host 127.0.0.1 --port 5173
+
+Without Dynamo:
+  Profile create returns 503 unless tables+creds exist.
+  Chart pipeline can compute without persist (isDynamoUnavailableError fallback).
+  AUTH_FIXED_OTP=0000 + JWT_SECRET (or the dev fallback) for local login.
+
+Without Gemini:
+  UG still returns deterministic ranking; narrative uses fallback JSON.
+  AI field on response explains the skip/failure.
+
+================================================================================
+35. SECURITY NOTES FOR IMPLEMENTERS
+------------------------------------------------------------------------------
+- JWT in localStorage (XSS risk). Do not log tokens.
+- OTP hashed with pepper; plaintext OTP may be returned when SES unset.
+- CORS * in production Render blueprint.
+- LLM receives chart summaries — redact_debug_output / privacy_contract exist
+  in validation_contract.py; respect them when adding prompts.
+- Do not put secrets in VITE_* variables.
+- .env is gitignored; .env.example is the public template.
+
+================================================================================
+36. GLOSSARY
+================================================================================
+
+AD / MD / PD     Vimshottari Antardasha / Mahadasha / Pratyantardasha
+AK / AmK         Atmakaraka / Amatyakaraka (Jaimini)
+BAV / SAV        Bhinnashtakavarga / Sarvashtakavarga
+D1, D9, D10, D24, D60  Rasi, Navamsha, Dashamsha, Siddhamsha, Shashtiamsha
+KP               Krishnamurti Paddhati (cusp star/sub lords)
+PUC              Pre-University / classes 11-12 stream choice
+UG               Career-field ranking engine (adult vocational fields)
+NatalPayloadV2   Pydantic chart object all scorers share
+Consolidated JSON Chart dump from /api/consolidated used as engine input
+ChartSession      Browser working set after opening/creating a profile
+CHUNK_*          Dynamo SK suffix for profile parts
+hard_lockout     Engine flag that can exclude a field from publication
+SBC              Sarvatobhadra Chakra (advisory manifestation layer)
+Gochara          Transits
+Prashna          Horary (question-time) chart
+
+================================================================================
+37. OWNERSHIP CHEAT SHEET (ONE LINE EACH)
+================================================================================
+
+FastAPI routes                 api/main.py
+Birth/varga drawing            api/main.py + api/extended.py
+Consolidated chart JSON        api/extended.py compute_consolidated
+Parse chart into engine        jyotish/engine_io.py parse_json_payload
+Field ranking                  jyotish/engine.py run_engine
+Method votes                   jyotish_ug/field_methods/__init__.py
+Boosts                         jyotish/boosts.py
+Course list                    jyotish/india_course_registry_v12.json
+Planet-field affinity           jyotish/affinity.py
+UG HTTP                        api/education_analysis.py + jyotish_ug/runner.py
+UG report LLM                  Job_Career/career_field_report_v2.py
+UG UI                          EducationCareerReport.tsx
+UG cache                       api/education_service.py + education_repository.py
+PUC scoring                    jyotish_puc/stream_scoring.py
+PUC rules                      jyotish_puc/subject_registry.py STREAM_META
+PUC HTTP                       api/puc_analysis.py
+Career timeline                Job_Career/timeline.py
+Career HTTP                    api/career_timeline.py
+Business scoring               business_determination/engine.py
+Business HTTP                  api/business_prediction.py
+Prashna                        jyotish/prashna.py + prashna_engine.py
+Auth                           api/auth_service.py
+Profiles DB                    api/db/profiles_repository.py
+Profiles UI                    ProfileWizard.tsx
+Geocode                        api/geocode.py
+Frontend API base              frontend/src/lib/pyjhora/config.ts
+Frontend client                frontend/src/lib/pyjhora/client.ts
+Logged-in client               frontend/src/lib/profiles/client.ts
+Chart session                  frontend/src/stores/chart-session-store.ts
+Nav                            frontend/src/components/AppShell.tsx
+Deploy API                     render.yaml
+Deploy web                     render.yaml + netlify.toml
+
+================================================================================
+38. QUESTIONS -> FILE HITS (NATURAL LANGUAGE)
+================================================================================
+
+"Why is the UG report different after refresh?"
+  Because refresh is ignored. education_service.py. Delete to recompute.
+
+"Where is the South Indian chart drawn?"
+  SouthIndianChart.tsx + /api/divisional-charts
+
+"Where do I add a new business sector?"
+  business_domain_registry_v1.json + sectors.py validator
+
+"Where is Science vs Commerce decided?"
+  subject_registry.py STREAM_META + stream_scoring.py
+
+"Where is Gemini called?"
+  jyotish/llm.py _call_gemini, used from call_llm_for_fields and
+  career_field_report_v2 _call_llm_for_report
+
+"Where is the 14-section report schema?"
+  Job_Career/career_field_report_v2.py _validate_report_json
+  UI: EducationCareerReport.tsx
+
+"Where is employment vs business decided?"
+  business_determination/mode_gate.py
+
+"Where is KP sublord for education fields?"
+  jyotish_ug/field_methods/kp.py and jyotish/boosts.py KP helpers
+  Drawing KP page: api/extended.py compute_kp + routes/kp.tsx
+
+"Where is D24 used?"
+  UG: siddhamsha.py (confirmation weight)
+  EduAlign: jyotish/edu_align.py
+  PUC: stream_scoring.py D24 confirmation
+  Business: d24_d60_sign.py
+  Profile create: divisional factor 24 in profile_compute.py
+
+"Where is age used to pick PUC vs UG?"
+  jyotish_ug.runner.default_education_tab
+  jyotish_puc.runner.default_education_tab
+  frontend/src/lib/education-report/tab-defaults.ts
+  frontend/src/routes/education-analysis/index.tsx
+
+"Max how many profiles?"
+  4. profiles_repository.MAX_PROFILES_PER_USER and profile-store maxProfiles
+
+"Where is the JWT made?"
+  api/auth_service.py _issue_token ACCESS_TOKEN_DAYS=7
+
+"Frontend does not hit my local API"
+  Set VITE_PYJHORA_API_BASE. Default is the Render URL in config.ts.
+
+"CORS error from 5173"
+  api/main.py default allowlist includes 5173. If CORS_ORIGINS is set on
+  the server to something else, add the origin.
+
+"I changed engine.py but UG API result unchanged"
+  Cached in JyotishEducationAnalysis. DELETE analysis or use a new profile.
+
+"Career HTML empty without OpenAI"
+  Deterministic fallback HTML should still exist (career_timeline.py comment).
+  llm_enriched=false. Check llm_narrative_builder fallbacks.
+
+"Add a sidebar link"
+  AppShell.tsx NAV. Then create the route file.
+
+"Add an API used only when logged in, cached per profile"
+  Copy puc_analysis_service.py or business_prediction_service.py pattern:
+  resolve_consolidated_chart -> run_* -> upsert_profile_section(CHUNK_*)
+  For huge LLM JSON copy education_service + education_repository gzip table.
+
+================================================================================
+39. TEST COMMANDS
+================================================================================
+
+Jyotish:
+  cd repo && python -m pytest jyotish/tests -q
+
+Business:
+  python -m pytest Business_Prediction/tests -q
+
+Registry coverage:
+  python -m jyotish.registry_coverage_validator --registry jyotish/india_course_registry_v12.json
+
+Frontend:
+  cd frontend && npm run lint
+
+API smoke:
+  GET http://127.0.0.1:8000/health
+
+CLI UG HTML (optional):
+  python generate_career_field_report.py path/to/chart.json --name NAME --out educational_records
+
+================================================================================
+40. DOCUMENT MAINTENANCE
+================================================================================
+
+This file was generated from the repository state dated 2026-09-09.
+When you add a route, table, engine, or package, append a row to section 25
+and a one-liner to section 37. Do not let a second undocumented entry point
+appear (the historical problem this repo already has with CLI shims).
+
+Preferred live owners going forward:
+  HTTP:            api/
+  UG methods:      packages/jyotish-ug-fields
+  PUC:             packages/jyotish-puc-streams
+  Shared chart:    jyotish/
+  Timeline:        Job_Career/
+  Business:        Business_Prediction/business_determination/
+  Web UI:          frontend/src/
+
+Legacy CLI shims may remain for offline HTML generation but new product
+features should enter through api/main.py and a frontend route.
+
+================================================================================
+41. FRONTEND SRC FILE CATALOG (EVERY NON-UI-KIT FILE)
+================================================================================
+
+Entry / platform
+  frontend/src/start.ts              TanStack Start instance + error middleware
+  frontend/src/server.ts             SSR fetch wrapper; h3 unhandled -> HTML
+  frontend/src/router.tsx            createRouter(routeTree) + QueryClient
+  frontend/src/routeTree.gen.ts      AUTO-GENERATED. Do not edit.
+  frontend/src/styles.css            Tailwind 4 + gold theme tokens
+  frontend/vite.config.ts           Lovable tanstack config + optional Netlify plugin
+  frontend/tsconfig.json             @/* alias, ES2022, strict
+  frontend/eslint.config.js
+  frontend/components.json           shadcn new-york, aliases
+
+Routes — see sections 8.1 and 24
+
+Shell / chrome
+  components/AppShell.tsx            sidebar NAV, theme, auth header, PageHeader
+  components/PageSection.tsx       page section wrapper
+  components/ConfidenceBadge.tsx  confidence chip
+  components/ComingSoonCard.tsx    dashed coming-soon card
+  components/ComingSoonModal.tsx
+
+Auth
+  components/auth/AuthGate.tsx      protected-route gate + clear guest data
+  components/auth/LoginRequired.tsx
+  components/auth/AuthLayout.tsx
+
+Profile
+  components/profile/ProfileWizard.tsx        list/create/confirm (max 4)
+  components/profile/ProfileConfirmReport.tsx  post-create summary
+  components/profile/ProfileSessionBootstrap.tsx  hydrate display name
+
+Charts
+  components/charts/SouthIndianChart.tsx     4x4 rasi boxes
+  components/charts/BirthChartTable.tsx     D1 table
+  components/charts/D1BodyTable.tsx         d1-bodies detail
+  components/charts/AshtakavargaChart.tsx
+  components/charts/PlaceAutocomplete.tsx    Google Places via API
+  components/charts/ConsolidatedExportPanel.tsx  download/copy JSON
+
+Education
+  components/education/UgAnalysisSection.tsx     hook useUgAnalysis + layout
+  components/education/EducationCareerReport.tsx  14-section React report
+  components/education/EducationFieldCard.tsx
+  components/education/PucAnalysisSection.tsx
+  components/education/PucStreamReport.tsx
+
+Career
+  components/career/CareerContextForm.tsx
+  components/career/CareerTimelineSection.tsx   fetch/cache/run
+  components/career/CareerTimelineReport.tsx    AD blocks
+  components/career/timeline/CareerTimelineSidebar.tsx   chart_insights
+  components/career/timeline/CareerTimelineSupplement.tsx micro-timing
+  components/career/timeline/CareerRoadmapCard.tsx
+
+Business
+  components/business/BusinessSection.tsx     fetch/cache/run
+  components/business/BusinessReport.tsx    tabbed report
+  components/business/business-report-utils.ts  KPIs, tabs, fmtPct
+  components/business/business-report.css
+
+AI
+  components/ai/AiAssistanceTabs.tsx   Prashna vs Assistant tabs
+
+Report primitives
+  components/report/primitives.tsx
+
+Lib — pyjhora
+  lib/pyjhora/index.ts               re-exports
+  lib/pyjhora/client.ts              fetch wrapper + pyjhora object
+  lib/pyjhora/config.ts              PYJHORA_API_BASE_DEFAULT
+  lib/pyjhora/types.ts              BirthInput, ChartSession, all response types
+  lib/pyjhora/pipeline.ts           saveAndGenerateCharts (legacy full generate)
+  lib/pyjhora/session.ts             save/patch/clear + parseBirthDateTime
+  lib/pyjhora/normalize.ts          D1 table row cleanup
+  lib/pyjhora/user-profile.ts        form <-> UserInfo/StudentContext
+  lib/pyjhora/ensure-consolidated.ts  D1-D81 presence check + refetch
+
+Lib — profiles / auth / education
+  lib/profiles/client.ts            authenticated CRUD + cached engines
+  lib/profiles/types.ts
+  lib/profiles/hydrate.ts
+  lib/profiles/restore-session.ts
+  lib/auth/client.ts
+  lib/auth/types.ts
+  lib/auth/routes.ts
+  lib/auth/validation.ts
+  lib/education-report/utils.ts
+  lib/education-report/card-helpers.ts
+  lib/education-report/routes.ts
+  lib/education-report/tab-defaults.ts
+  lib/career-timeline/helpers.ts
+  lib/prashna-chart.ts
+  lib/api-errors.ts
+  lib/feature-flags.ts
+  lib/utils.ts                     cn()
+  lib/rasi.ts
+  lib/error-page.ts / error-capture.ts / lovable-error-reporting.ts
+  lib/prompts/fieldDetermination.ts   leftover prompt; not live path
+  lib/api/example.functions.ts       sample createServerFn
+  lib/config.server.ts              pattern notes for server env
+  lib/api.ts                       if present, misc API helpers
+
+Stores / hooks — section 8.3
+
+components/ui/*  shadcn. Touch only for primitive bugs.
+  accordion alert alert-dialog aspect-ratio avatar badge breadcrumb button
+  calendar card carousel chart checkbox collapsible command context-menu
+  dialog drawer dropdown-menu form hover-card input input-otp label
+  menubar navigation-menu pagination popover progress radio-group resizable
+  scroll-area select separator sheet sidebar skeleton slider sonner switch
+  table tabs textarea toggle toggle-group tooltip
+
+================================================================================
+42. API SCHEMA FILES — WHAT TO EDIT FOR CONTRACT CHANGES
+================================================================================
+
+api/schemas/chart.py
+  BirthChartBody, BirthRequest, TableResponse, HtmlDocumentJson
+  DivisionalChart, DivisionalChartsResponse
+  StudentPreference, StudentContext, ConsolidatedRequest
+
+api/schemas/auth.py
+  SendOtpRequest/Response, VerifyOtp*, SignupRequest, LoginRequest
+  Forgot/Reset password models, AuthUser, AuthResponse, MeResponse
+  Password rules live here (length, confirm match)
+
+api/schemas/profiles.py
+  CreateProfileRequest, ProfileSummary, ProfileListResponse
+  ProfileResponse (merged chunks), PersistProfileSections*
+  DeleteProfileResponse
+
+api/schemas/education_analysis.py
+  EducationAnalysisRequest {user_json}
+  ProfileEducationAnalysisRequest, ProfilePucAnalysisRequest
+  EducationAnalysisResponse (four payloads + AI)
+  PucAnalysisResponse
+  AiDiagnostics
+
+api/schemas/career_timeline.py
+  CareerTimelineRequest {user_json, career_context, enrich_llm}
+  ProfileCareerTimelineRequest
+  OutcomeBar, TrajectoryPoint, CalendarEntry, MDArc, ForeignMeta
+  CareerTimelineResponse
+
+api/schemas/business_prediction.py
+  BusinessPredictionRequest {user_json, venture_type, years_ahead}
+  ProfileBusinessPredictionRequest
+  BusinessPredictionResponse {prediction, report, model_status, ...}
+
+api/schemas/prashna.py
+  PrashnaCategoryMeta, PrashnaCategoriesResponse
+  PrashnaBatchRequest/Response
+  (PrashnaRequest/Response classes also defined in jyotish/prashna_engine.py
+   and imported by api/prashna.py)
+
+api/schemas/storage.py
+  UserInfo, SaveChartRequest, SavedChart*  (legacy chart table)
+
+Frontend mirrors: frontend/src/lib/pyjhora/types.ts and lib/profiles/types.ts
+and lib/auth/types.ts. Always update TS when you change Pydantic.
+
+================================================================================
+43. UG METHOD FILES — WHAT EACH VOTES ON
+================================================================================
+
+packages/jyotish-ug-fields/src/jyotish_ug/field_methods/
+
+common.py               caps, normalize_method_score, combine_weighted_scores,
+                        FIELD_PRIORITY_GROUPS, method_result helper
+__init__.py             METHOD_WEIGHTS, compute_field_method_bundle,
+                        clarity/outlier/correlation dampening
+knrao.py                K.N. Rao whole-sign + karaka roles + D24 varga
+parashara.py            yogas / strength / D1 synthesis
+dashamsha.py            D10 career varga occupancy and lords
+jaimini.py              karakamsha, chara karakas, rasi drishti;
+                        compute_jaimini_field_timing (Chara dasha)
+kp.py                   H10/education cuspal chain (confirmation-level weight)
+sudarshana.py           triple lagna (Lagna/Surya/Chandra) H10 confirmation
+siddhamsha.py           D24 vidya / study-capacity (confirmation)
+shashtiamsha.py         D60 fine tie-break vote
+structural_patterns.py  D1 kendra/trikona/stellium clustering
+gochara.py              transit timing of supporting yogas
+navamsha.py             D9 post-blend multiplier (not full vote)
+yogini_dasha.py         Yogini dasha post-blend multiplier
+career_archetype.py     chart-level archetype discovery (additive)
+chart_synthesis.py      structural graph, planet pattern, D24 learning profile
+purpose_chain.py        purpose -> motivation -> mechanism -> expression
+confidence_dimensions.py multi-axis confidence breakdown
+
+Live import path used by jyotish/engine.py:
+  from jyotish_ug.field_methods.common import ...
+  from jyotish_ug.competency_ontology import apply_competency_ontology_layer
+
+================================================================================
+44. BUSINESS DETERMINATION MODULES — WHAT EACH DOES
+================================================================================
+
+business_determination/engine.py
+  Orchestrates evidence -> mode_gate -> significators -> sectors -> timing
+  -> contradictions -> scoring -> result_schema validation -> abstention
+house_evidence.py     D1 (and native D9/D10 graphs) house/lord evidence
+significators.py      Mercury/Jupiter/etc business significators + yuddha
+sectors.py            rank_business_sectors, diversify_sector_ranking
+scoring.py            headline scores, capital_strategy_lean, ceilings
+timing.py             dasha-bounded timed windows
+mode_gate.py          business vs employment comparative gate
+kp.py                 H7/H10 cusp job-vs-business
+jaimini.py            rasi drishti, argala, karakamsha, arudha
+yogas.py              business yogas including VRY
+contradictions.py      D9/D10 vs D1, D3 corroboration
+operating_models.py   operating-model lean
+d24_d60_sign.py       education/past-life sign corroboration
+d10_rectification.py birth-time sensitivity on D10
+transition_timing.py  act-now vs wait-for-window
+muhurta.py            electional start windows
+ashtakavarga_timing.py yearly bindu ranking
+synastry.py           partnership overlay
+legal_risk.py         dispute risk
+foreign_business.py  cross-border viability
+financial_readiness.py D11 / capital
+nakshatra_business.py  janma nakshatra chain
+policy.py             DecisionPolicy thresholds
+result_schema.py      runtime-validated public result
+rule_provenance.py     rule_id -> citation
+runtime_models.py     method status shapes
+capability_status.py  which optional layers are implemented
+orchestration_services.py  request validate, evidence sufficiency, finalize
+release_manifest.py    hashes of policy artifacts
+constants.py          shared enums/weights
+CHANGELOG.md          version history of the business pack
+
+Public names re-exported in Business_Prediction/business_engine.py __all__
+must stay the supported surface. Tests assert private Job_Career helpers
+are not imported.
+
+================================================================================
+45. ENGINE.PY INTERNAL STAGES (FOR SCORING BUGS)
+================================================================================
+
+run_engine(payload, enable_llm=False, llm_max_retries=1)
+
+A. Policy / identity (score-neutral setup)
+   calculation_policy, run_manifest, canonical_facts, shadbala_data_quality
+
+B. _validate_payload_schema
+   Requires non-empty planets_d1, kp_significators, kp_cusps, dasha_sequence
+
+C. _run_normalization_stage
+   Dignity, yogas, combustion, war, eff_strengths, dasha lords
+   Loop registry branches:
+     affinity + field_method_bundle + boosts + QA friction
+   Produces top-35-ish working set (then publication policy trims)
+
+D. attach_shadow_scores  (non-authoritative comparison axes)
+
+E. LLM optional
+   Only if enable_llm AND payload.external_llm_consent
+   API UG path typically runs run_engine with enable_llm=False for scores
+   and a SEPARATE LLM for the 14-section report in career_field_report_v2
+
+F. _finalize_published_results
+   ranking_policy, tiered_ranking, competency ontology, gap corrections,
+   registry v12 metadata, lockouts, display compression
+
+Verbose per-field prints: JYOTISH_VERBOSE_FIELD_LOG=1
+
+If a field rank is "wrong":
+  1. Check lockout / leakage guards (ranking_policy.py)
+  2. Check tiered_ranking.py override
+  3. Check method bundle weights
+  4. Check boosts.py for that domain
+  5. Check affinity table
+  6. Check registry metadata (education_realism can affect report, not always score)
+
+================================================================================
+46. PARSE_JSON_PAYLOAD RESPONSIBILITIES
+================================================================================
+
+File: jyotish/engine_io.py  (~1853 lines)
+
+- Read consolidated or legacy chart JSON
+- Fill NatalPayloadV2
+- Compute age from DOB
+- Whole-sign houses from lagna
+- Dignities (true vs parivartana-upgraded)
+- Ashtakavarga BAV/SAV/shodhita/PAV
+- Optional Skyfield natal/transit degrees
+- D10/D9/D24 occupancy maps
+- KP significator fallback if missing
+- audit_and_fill_payload (payload_gap_audit.py)
+- If build_timeline=True: parse career_context and call
+  Job_Career.timeline.build_career_timeline, attach payload.career_timeline
+  and payload.micro_timing
+
+Any new natal fact needed by a scorer should be populated HERE, not
+re-derived ad-hoc in three engines.
+
+================================================================================
+47. PROFILE CREATE PAYLOAD (FRONTEND -> API)
+================================================================================
+
+CreateProfilePayload (profiles/types.ts)
+  profile_name
+  birth_input: BirthChartBody fields
+  user_info: display_name, gender, education_system, notes, student_preference
+  student_context: pob, gender, education_system, student_preference
+  career_context: employment_status, designation, years_experience, ...
+  enrich_llm_career?: unused by current profile_compute (career engine is
+    lazy, not run at create)
+
+What is computed immediately at create (profile_compute.py)
+  D1 table, D1-D9 charts, D10/D16/D24/D60/D81
+  KP, Jaimini, panchanga, ashtakavarga, shadbala, vimshottari
+  consolidated JSON (normalized, HTML stripped)
+  career_context copied onto consolidated if provided
+
+What is NOT computed at create
+  UG LLM report (first visit to /education-analysis/ug)
+  PUC (first visit to /education-analysis/puc)
+  Career timeline (first visit to /career-timeline)
+  Business (first visit to /business)
+
+================================================================================
+48. DYNAMO ITEM SHAPES (PRACTICAL)
+================================================================================
+
+Users
+  PK=USER#{uuid} SK=PROFILE
+    user_id, email, username, password_hash, created_at
+  PK=EMAIL#{email} SK=OTP#signup|password_reset
+    otp_hash, ttl, purpose
+
+Profiles (all PK=USER#{auth_user_id})
+  SK=PROFILE#{uuid}
+    profile_id, profile_name, profile_key, birth_input, user_info,
+    student_context, career_context, created_at, updated_at
+  SK=PROFILE#{uuid}#CHARTS
+    d1_table, divisional_charts
+  SK=PROFILE#{uuid}#ANALYSIS#KP          {kp}
+  SK=PROFILE#{uuid}#ANALYSIS#JAIMINI      {jaimini}
+  SK=PROFILE#{uuid}#ANALYSIS#EXTENDED     panchanga, ashtakavarga, ...
+  SK=PROFILE#{uuid}#ANALYSIS#CONSOLIDATED {consolidated}
+  SK=PROFILE#{uuid}#CONTEXT#CAREER      {career_timeline}
+  SK=PROFILE#{uuid}#CONTEXT#BUSINESS     {business_prediction}
+  SK=PROFILE#{uuid}#CONTEXT#PUC         {puc_analysis}
+
+Education
+  profile_id (HASH)
+    user_id, engine_version, generated_at, student, summary
+    results_gz, macro_clusters_gz, report_gz, chart_facts_gz
+    compression=gzip+base64
+
+================================================================================
+49. CLI ENTRY POINTS (OFFLINE / DEBUG)
+================================================================================
+
+python generate_career_field_report.py CHART.json --name NAME --out DIR
+  -> Job_Career.career_field_report_v2.generate_career_field_report_v2
+
+Field_Determination/education_engine.py  __main__ age-gates to PUC vs UG
+packages/jyotish-ug-fields/.../education_engine.py  similar CLI shim
+packages/jyotish-puc-streams/.../early_age_stream_engine.py
+  comments still say Stream_Determination/; run via package path
+Job_Career/job_engine.py run_career_engine
+Job_Career/career_mode_runner.py --mode career
+Business_Prediction/business_engine_main.py
+Business_Prediction/generate_business_report.py
+Business_Prediction/generate_react_report.py
+
+These write educational_records/*.html (gitignored). The web app does not
+invoke these CLIs.
+
+================================================================================
+50. COMMON FAILURE MODES AND FILES
+================================================================================
+
+Symptom                         First files to inspect
+Profile create 503              .env Dynamo tables; profiles_dynamo.py
+Login 400 invalid token         JWT_SECRET mismatch after restart
+OTP not emailed                 SES_FROM_EMAIL; AUTH_DEV_EXPOSE_OTP
+Place autocomplete empty          GOOGLE_PLACES_API_KEY; geocode.py
+Charts blank                    ChartSession missing; go to Profiles
+UG 503                          GEMINI_API_KEY; EducationAnalysisError
+UG stuck old result             education_service cache; DELETE analysis
+UG 30-60s hang                  LLM call in career_field_report_v2; expected
+PUC 400 age message             runner.is_puc_eligible
+Career 422 blocked              timeline_inputs._block_reason
+Career no LLM prose             ANTHROPIC/OPENAI keys; Gemini will not help
+Business 422 insufficient D1   engine abstention; missing planets_d1
+Prashna location fail           geocode.py; pass lat/lon
+Frontend calls Render not local VITE_PYJHORA_API_BASE
+Netlify plugin path bugs        VITE_DISABLE_NETLIFY=true locally
+True-node 502                   missing Swiss sepl files; keep mean nodes
+Unicode CLI crash (Windows)     education_engine.py stdout reconfigure UTF-8
+
+================================================================================
+END OF KNOWLEDGE BASE
+================================================================================
