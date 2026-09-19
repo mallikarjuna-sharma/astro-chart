@@ -254,7 +254,6 @@ FIELD_TO_FAMILY: Dict[str, str] = {
     "microelectronics_vlsi":                 "semiconductor_vlsi",
     "semiconductor_nanoelectronics":         "semiconductor_vlsi",
     "nanotechnology_engineering":            "semiconductor_vlsi",
-    "semiconductors_nanoscience":             "semiconductor_vlsi",
 
     "telecommunication_engineering":         "telecom_signal",
     "satellite_communication_engineering":   "telecom_signal",
