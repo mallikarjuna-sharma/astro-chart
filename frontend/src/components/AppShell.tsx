@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { useDisplayName } from "@/hooks/use-display-name";
 import { initialsFromName } from "@/stores/user-store";
 import { useAuthStore, useIsAuthenticated } from "@/stores/auth-store";
+import { useChartSession } from "@/hooks/use-chart-session";
 
 interface NavChild {
   to: string;
@@ -23,28 +24,31 @@ interface NavItem {
   group: string;
   to?: string;
   children?: NavChild[];
+  /** If true, this link requires an active chart session to be clickable. */
+  needsSession?: boolean;
 }
 
 const NAV: NavItem[] = [
   { to: "/", label: "Profiles", icon: User2, group: "Overview" },
   { to: "/panchanga", label: "Panchanga", icon: Sun, group: "Overview" },
 
-  { to: "/charts", label: "Charts (D1–D81)", icon: Star, group: "Systems" },
-  { to: "/kp", label: "KP Analysis", icon: Compass, group: "Systems" },
-  { to: "/kn-rao", label: "KN Rao / Jaimini", icon: BookOpen, group: "Systems" },
-  { to: "/parashari", label: "Parashari Strength", icon: ClipboardList, group: "Systems" },
+  { to: "/charts", label: "Charts (D1–D81)", icon: Star, group: "Systems", needsSession: true },
+  { to: "/kp", label: "KP Analysis", icon: Compass, group: "Systems", needsSession: true },
+  { to: "/kn-rao", label: "KN Rao / Jaimini", icon: BookOpen, group: "Systems", needsSession: true },
+  { to: "/parashari", label: "Parashari Strength", icon: ClipboardList, group: "Systems", needsSession: true },
 
   {
     label: "Education Analysis",
     icon: GraduationCap,
     group: "Intelligence",
+    needsSession: true,
     children: [
       { to: "/education-analysis/puc", label: "PUC" },
       { to: "/education-analysis/ug", label: "UG" },
     ],
   },
-  { to: "/career-timeline", label: "Job Timeline", icon: LineChart, group: "Intelligence" },
-  { to: "/business", label: "Business", icon: Briefcase, group: "Intelligence" },
+  { to: "/career-timeline", label: "Job Timeline", icon: LineChart, group: "Intelligence", needsSession: true },
+  { to: "/business", label: "Business", icon: Briefcase, group: "Intelligence", needsSession: true },
 
   { to: "/ai", label: "AI Assistant", icon: Bot, group: "AI Assistance" },
   { to: "/prashna", label: "Prashna (Horary)", icon: MessageCircleQuestion, group: "AI Assistance" },
@@ -85,17 +89,41 @@ function Brand({ onClick }: { onClick?: () => void }) {
   );
 }
 
-function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+/** Groups whose links need an active chart session. */
+const SESSION_REQUIRED_GROUPS = new Set(["Systems", "Intelligence"]);
+
+function SidebarNav({ pathname, onNavigate, hasSession }: { pathname: string; onNavigate?: () => void; hasSession: boolean }) {
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
 
   const renderNavLink = (
     to: string,
     label: string,
     Icon: NavItem["icon"],
-    opts?: { nested?: boolean },
+    opts?: { nested?: boolean; disabled?: boolean },
   ) => {
     const active = pathname === to || (to !== "/" && pathname.startsWith(`${to}/`));
-  return (
+    const disabled = opts?.disabled ?? false;
+
+    if (disabled) {
+      return (
+        <span
+          title="Open a profile first"
+          className={cn(
+            "group relative flex items-center gap-3 rounded-lg text-sm transition-all cursor-not-allowed opacity-40",
+            opts?.nested ? "px-3 py-1.5 pl-9" : "px-3 py-2",
+          )}
+        >
+          {!opts?.nested ? (
+            <Icon className="w-[18px] h-[18px] shrink-0 text-sidebar-foreground/35" />
+          ) : (
+            <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-sidebar-foreground/20" />
+          )}
+          <span className="truncate">{label}</span>
+        </span>
+      );
+    }
+
+    return (
       <Link
         to={to}
         onClick={onNavigate}
@@ -139,6 +167,7 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
           </div>
           <ul className="space-y-0.5">
             {NAV.filter((n) => n.group === g).map((item) => {
+              const itemDisabled = !hasSession && (item.needsSession || SESSION_REQUIRED_GROUPS.has(item.group));
               const Icon = item.icon;
               const sectionActive =
                 item.children?.some((child) => pathname === child.to || pathname.startsWith(`${child.to}/`)) ??
@@ -150,8 +179,10 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
                     <div
                       className={cn(
                         "flex items-center gap-3 px-3 py-2 text-sm font-medium",
+                        itemDisabled ? "opacity-40 cursor-not-allowed" : "",
                         sectionActive ? "text-foreground" : "text-sidebar-foreground/80",
                       )}
+                      title={itemDisabled ? "Open a profile first" : undefined}
                     >
                       <Icon
                         className={cn(
@@ -161,11 +192,13 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
                       />
                       <span className="truncate">{item.label}</span>
                     </div>
+                    {!itemDisabled && (
                     <ul className="mt-0.5 mb-1 space-y-0.5">
                       {item.children.map((child) => (
                         <li key={child.to}>{renderNavLink(child.to, child.label, Icon, { nested: true })}</li>
                       ))}
                     </ul>
+                    )}
                   </li>
                 );
               }
@@ -174,7 +207,7 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 
               return (
                 <li key={item.to}>
-                  {renderNavLink(item.to, item.label, Icon)}
+                  {renderNavLink(item.to, item.label, Icon, { disabled: itemDisabled })}
                 </li>
               );
             })}
@@ -188,6 +221,7 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const session = useChartSession();
   const displayName = useDisplayName();
   const initials = initialsFromName(displayName);
   const isAuthenticated = useIsAuthenticated();
@@ -208,7 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="px-5 py-5 border-b border-sidebar-border">
           <Brand />
         </div>
-        <SidebarNav pathname={pathname} />
+        <SidebarNav pathname={pathname} hasSession={!!session?.birthInput} />
         <div className="px-5 py-3 border-t border-sidebar-border text-[11px] text-sidebar-foreground/45 flex items-center justify-between">
           <span>v1.2 · 2026</span>
           <span className="inline-flex items-center gap-1 text-gold/70"><Sparkles className="w-3 h-3" /> Vedic Intelligence</span>
@@ -230,7 +264,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="px-5 py-5 border-b border-sidebar-border">
                   <Brand onClick={() => setMobileOpen(false)} />
                 </div>
-                <SidebarNav pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+                <SidebarNav pathname={pathname} onNavigate={() => setMobileOpen(false)} hasSession={!!session?.birthInput} />
               </SheetContent>
             </Sheet>
             <Brand />
@@ -312,8 +346,8 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex items-end justify-between gap-4 flex-wrap animate-rise",
-        compact ? "mb-3" : "mb-7",
+        "flex items-end justify-between gap-4 flex-wrap animate-rise border-b border-border pb-5",
+        compact ? "mb-4" : "mb-7",
       )}
     >
       <div>
@@ -334,7 +368,7 @@ export function PageHeader({
         {subtitle && (
           <p
             className={cn(
-              "text-muted-foreground max-w-2xl leading-relaxed",
+              "text-muted-foreground max-w-4xl leading-relaxed",
               compact ? "text-xs mt-1" : "text-sm md:text-[0.95rem] mt-2",
             )}
           >

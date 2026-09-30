@@ -1,4 +1,4 @@
-import { useRouterState } from "@tanstack/react-router";
+import { useRouterState, Navigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { LoginRequired } from "@/components/auth/LoginRequired";
@@ -33,7 +33,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (needsAuth && !isAuthenticated) {
-    return <LoginRequired />;
+    const search = pathname && pathname !== "/" ? { redirect: pathname } : undefined;
+    return <Navigate to="/login" search={search} />;
   }
 
   return <>{children}</>;

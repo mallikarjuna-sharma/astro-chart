@@ -1,5 +1,11 @@
 import { useMemo, type ReactNode } from "react";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   CartesianGrid,
   Dot,
   Line,
@@ -49,7 +55,7 @@ function toneFromColour(c?: string): Tone {
   }
 }
 
-export function CareerTimelineSupplement({ data }: { data: CareerTimelineResponse }) {
+export function CareerTimelineSupplementActionable({ data }: { data: CareerTimelineResponse }) {
   const foreignCount = data.foreign_opportunities?.length ?? 0;
   const mt = data.micro_timing ?? {};
   const hasTiming = !!(
@@ -59,14 +65,22 @@ export function CareerTimelineSupplement({ data }: { data: CareerTimelineRespons
     mt.hora_timing
   );
 
+  if (!foreignCount && !hasTiming) return null;
+
+  return (
+    <div className="w-full space-y-5 text-left">
+      <ForeignOpportunities items={data.foreign_opportunities} meta={data.foreign_meta} />
+      {hasTiming ? <MicroTiming mt={mt} /> : null}
+    </div>
+  );
+}
+
+export function CareerTimelineSupplementTechnical({ data }: { data: CareerTimelineResponse }) {
   return (
     <div className="w-full space-y-5 text-left">
       <TrajectoryChart points={data.trajectory} />
       <AnnualCalendar entries={data.calendar} />
       <MDArcs arcs={data.md_arcs} />
-      <ForeignOpportunities items={data.foreign_opportunities} meta={data.foreign_meta} />
-      {hasTiming ? <MicroTiming mt={mt} /> : null}
-      {!foreignCount && !hasTiming ? null : null}
     </div>
   );
 }
@@ -245,9 +259,16 @@ function ForeignCard({ fo }: { fo: CareerForeignOpportunity }) {
       </div>
       {fo.narrative ? <p className="text-sm text-muted-foreground leading-relaxed">{fo.narrative}</p> : null}
       {fo.drivers && fo.drivers.length ? (
-        <div className="text-xs text-muted-foreground">
-          <span className="uppercase tracking-wide font-semibold">Drivers:</span> {fo.drivers.join(", ")}
-        </div>
+        <Accordion type="single" collapsible>
+          <AccordionItem value="astro" className="border-none">
+            <AccordionTrigger className="text-[10px] uppercase text-royal hover:no-underline py-1 mt-1">
+              <span className="flex items-center gap-1.5"><span className="text-sm">🔭</span> Astro Logic</span>
+            </AccordionTrigger>
+            <AccordionContent className="text-xs text-muted-foreground pb-2">
+              <span className="uppercase tracking-wide font-semibold">Drivers:</span> {fo.drivers.join(", ")}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       ) : null}
     </div>
   );
@@ -350,14 +371,31 @@ function WhatIfGrid({ scenarios }: { scenarios: Record<string, WhatIf> }) {
               {w.recommendation ? (
                 <p className="text-[13px] text-foreground/85 leading-relaxed">{w.recommendation}</p>
               ) : null}
-              <div className="flex flex-wrap gap-1.5">
-                {w.opportunity_factors?.slice(0, 4).map((f, j) => (
-                  <Tag key={`o-${j}`} tone="success">{f}</Tag>
-                ))}
-                {w.risk_factors?.slice(0, 4).map((f, j) => (
-                  <Tag key={`r-${j}`} tone="danger">{f}</Tag>
-                ))}
-              </div>
+              {w.opportunity_factors?.length || w.risk_factors?.length ? (
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="astro" className="border-none mt-2">
+                    <AccordionTrigger className="text-[10px] uppercase text-royal hover:no-underline py-1">
+                      <span className="flex items-center gap-1.5"><span className="text-sm">🔭</span> Astro Logic</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2">
+                      <div className="flex flex-col gap-2">
+                        {w.opportunity_factors?.slice(0, 4).map((f, j) => (
+                          <div key={`o-${j}`} className="text-[11.5px] flex items-start gap-2 bg-success/10 text-success border border-success/20 rounded-lg px-3 py-2 leading-relaxed">
+                            <span className="font-bold shrink-0 mt-[1px]">+</span>
+                            <span>{f}</span>
+                          </div>
+                        ))}
+                        {w.risk_factors?.slice(0, 4).map((f, j) => (
+                          <div key={`r-${j}`} className="text-[11.5px] flex items-start gap-2 bg-danger/10 text-danger border border-danger/20 rounded-lg px-3 py-2 leading-relaxed">
+                            <span className="font-bold shrink-0 mt-[1px]">−</span>
+                            <span>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              ) : null}
               {w.earliest_opportunity_date ? (
                 <div className="text-[11px] text-muted-foreground">
                   Next strong window: <span className="font-medium text-foreground">{fmtDate(w.earliest_opportunity_date)}</span>
@@ -385,7 +423,18 @@ function NegotiationHeatmap({ heatmap }: { heatmap: NegHeatmap }) {
           <span className="font-medium text-foreground">
             {fmtDate(heatmap.best_window.date_start)} → {fmtDate(heatmap.best_window.date_end)}
           </span>
-          {heatmap.best_window.advice ? ` — ${heatmap.best_window.advice}` : ""}
+          {heatmap.best_window.advice ? (
+            <Accordion type="single" collapsible>
+              <AccordionItem value="astro" className="border-none">
+                <AccordionTrigger className="text-[10px] uppercase text-success hover:no-underline py-1 mt-1">
+                  <span className="flex items-center gap-1.5"><span className="text-sm">🔭</span> Astro Logic</span>
+                </AccordionTrigger>
+                <AccordionContent className="text-[12.5px] pb-1">
+                  {heatmap.best_window.advice}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          ) : null}
         </Callout>
       ) : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -399,7 +448,18 @@ function NegotiationHeatmap({ heatmap }: { heatmap: NegHeatmap }) {
                 </span>
                 {w.label ? <Tag tone={tone}>{w.label}</Tag> : null}
               </div>
-              {w.advice ? <p className="text-[12.5px] text-muted-foreground leading-snug">{w.advice}</p> : null}
+              {w.advice ? (
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="astro" className="border-none">
+                    <AccordionTrigger className="text-[10px] uppercase text-royal hover:no-underline py-1">
+                      <span className="flex items-center gap-1.5"><span className="text-sm">🔭</span> Astro Logic</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="text-[12.5px] text-muted-foreground pb-1 leading-snug">
+                      {w.advice}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              ) : null}
             </div>
           );
         })}
@@ -411,7 +471,18 @@ function NegotiationHeatmap({ heatmap }: { heatmap: NegHeatmap }) {
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               <span>
                 <span className="tabular-nums">{fmtDate(c.date_start)} → {fmtDate(c.date_end)}</span>
-                {c.reason ? ` — ${c.reason}` : ""}
+                {c.reason ? (
+                  <Accordion type="single" collapsible>
+                    <AccordionItem value="astro" className="border-none">
+                      <AccordionTrigger className="text-[10px] uppercase text-warn hover:no-underline py-1">
+                        <span className="flex items-center gap-1.5"><span className="text-sm">🔭</span> Astro Logic</span>
+                      </AccordionTrigger>
+                      <AccordionContent className="text-[12.5px] pb-1">
+                        {c.reason}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                ) : null}
               </span>
             </div>
           ))}
@@ -473,7 +544,18 @@ function HabitPlan({ weeks }: { weeks: HabitWeek[] }) {
             {w.title ? <div className="font-semibold text-foreground text-sm mb-1">{w.title}</div> : null}
             {w.detail ? <p className="text-[12px] text-muted-foreground leading-snug">{w.detail}</p> : null}
             {w.frequency ? <p className="text-[11px] text-gold mt-1.5">{w.frequency}</p> : null}
-            {w.pd_note ? <p className="text-[10.5px] text-muted-foreground italic mt-1">{w.pd_note}</p> : null}
+            {w.pd_note ? (
+              <Accordion type="single" collapsible>
+                <AccordionItem value="astro" className="border-none mt-2">
+                  <AccordionTrigger className="text-[10px] uppercase text-royal hover:no-underline py-1">
+                    <span className="flex items-center gap-1.5"><span className="text-sm">🔭</span> Astro Logic</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="text-[10.5px] text-muted-foreground italic pb-1">
+                    {w.pd_note}
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            ) : null}
           </div>
         ))}
       </div>

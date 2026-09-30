@@ -48,7 +48,7 @@ export const TONE_VAR: Record<Tone, string> = {
 /** Outer report container. */
 export function ReportShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("max-w-[1180px] mx-auto space-y-5 animate-rise", className)}>{children}</div>
+    <div className={cn("max-w-[1180px] mx-auto space-y-5 animate-rise overflow-hidden", className)}>{children}</div>
   );
 }
 
