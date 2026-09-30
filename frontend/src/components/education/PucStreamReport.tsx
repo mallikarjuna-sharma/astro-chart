@@ -57,8 +57,8 @@ export function PucStreamReport({ data }: Props) {
   const report = data.report ?? {};
   const streams = (report.streams ?? []) as StreamRow[];
   const topId = report.top_ranked_stream ?? report.dominant_stream;
-  const narrative = data.stream_narrative ?? report.stream_narrative;
-  const studentName = data.student?.name ?? report.name ?? "Student";
+  const narrative = (data.stream_narrative ?? report.stream_narrative) as Record<string, unknown> | null | undefined;
+  const studentName = String(data.student?.name ?? report.name ?? "Student");
   const age = data.student?.current_age ?? report.current_age;
   const crossValidation = report.cross_validation as Record<string, unknown> | null | undefined;
 
@@ -98,7 +98,7 @@ export function PucStreamReport({ data }: Props) {
                 : "—"
             }
           />
-          <StatTile label="Dominant stream" value={streamLabel(topId)} />
+          <StatTile label="Dominant stream" value={streamLabel(topId as string | undefined)} />
           <StatTile
             label="Top-two score gap"
             value={fmtScore(report.score_gap_top_two as number | undefined)}

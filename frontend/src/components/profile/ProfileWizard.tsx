@@ -271,10 +271,10 @@ export function ProfileWizard() {
 
       const profile = await profilesApi.create({
         profile_name: form.profileName.trim(),
-        birth_input: birthInput,
-        user_info: userInfo,
-        student_context: studentContext,
-        career_context: careerContext,
+        birth_input: birthInput as unknown as Record<string, unknown>,
+        user_info: userInfo as unknown as Record<string, unknown>,
+        student_context: studentContext as unknown as Record<string, unknown>,
+        career_context: careerContext as unknown as Record<string, unknown>,
       });
 
       setProgress("Loading saved profile…");

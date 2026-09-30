@@ -69,7 +69,7 @@ function CareerTimelinePage() {
         data={data}
         hasSession={Boolean(session)}
         isUnderAge={isUnderAge}
-        currentAge={currentAge}
+        currentAge={currentAge ?? undefined}
         minCareerAge={MIN_CAREER_AGE}
       />
     </div>

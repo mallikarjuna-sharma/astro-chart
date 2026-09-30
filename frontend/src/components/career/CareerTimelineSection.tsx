@@ -40,7 +40,7 @@ export function useCareerTimeline() {
     try {
       const result = profileId
         ? await profilesApi.careerTimeline(profileId, {
-            careerContext: ctx,
+            careerContext: ctx as unknown as Record<string, unknown>,
             enrichLlm: true,
             refresh: forceRefresh,
           })
@@ -51,7 +51,7 @@ export function useCareerTimeline() {
               consolidated,
               ctx,
             ),
-            { careerContext: ctx, enrichLlm: true },
+            { careerContext: ctx as unknown as Record<string, unknown>, enrichLlm: true },
           );
       patchChartSession({
         careerTimeline: result,
