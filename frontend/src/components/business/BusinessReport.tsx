@@ -149,14 +149,17 @@ export function BusinessReport({ data }: Props) {
 
 
         <Tabs 
+          id="biz-tabs-container"
           defaultValue="roadmap" 
           className="w-full mt-4"
           onValueChange={() => {
-            const tabsEl = document.getElementById("biz-tabs");
-            if (tabsEl) {
-              const y = tabsEl.getBoundingClientRect().top + window.scrollY - 80;
-              window.scrollTo({ top: y, behavior: "smooth" });
-            }
+            setTimeout(() => {
+              const tabsEl = document.getElementById("biz-tabs-container");
+              if (tabsEl) {
+                const y = tabsEl.getBoundingClientRect().top + window.scrollY - 80;
+                window.scrollTo({ top: y, behavior: "smooth" });
+              }
+            }, 10);
           }}
         >
           <TabsList id="biz-tabs" className="sticky top-[80px] z-40 w-full max-w-md mx-auto grid grid-cols-2 p-1 bg-muted/95 backdrop-blur-2xl rounded-xl shadow-lg border border-border/50 transition-all duration-300 mb-8">
