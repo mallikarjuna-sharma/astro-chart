@@ -2500,6 +2500,685 @@ Netlify plugin path bugs        VITE_DISABLE_NETLIFY=true locally
 True-node 502                   missing Swiss sepl files; keep mean nodes
 Unicode CLI crash (Windows)     education_engine.py stdout reconfigure UTF-8
 
+
+
+================================================================================
+36. VERIFIED LOCAL DEVELOPMENT SETUP — MACOS
+================================================================================
+
+This section records a verified local-development setup and troubleshooting
+history. Use this section when guiding a developer through first-time local
+setup on macOS.
+
+IMPORTANT:
+The repository documentation may contain an example/historical repo path.
+The actual local path is machine-specific and MUST NOT be assumed.
+
+Verified local repository path used during development:
+  /Users/mallikarjunasharmar/Downloads/arjun/astro-chart
+
+Do not assume this path exists on another developer's machine.
+When giving commands, prefer:
+  cd <repo-root>
+
+and substitute the developer's actual repo root.
+
+Verified local machine:
+  OS: macOS 11.7.11
+  Architecture: x86_64
+  Mac model: MacBookAir6,1
+  Node: v22.14.0
+  Python virtual environment: .venv
+  Python observed inside venv: Python 3.13
+
+The Render configuration uses Node 22.21.1, while the verified local machine
+currently uses Node 22.14.0. Do not assume the exact patch version is identical
+between local and deployment environments.
+
+
+================================================================================
+37. LOCAL BACKEND SETUP — VERIFIED
+================================================================================
+
+Backend architecture:
+  FastAPI application:
+    api.main:app
+
+Virtual environment:
+  <repo-root>/.venv
+
+Create environment:
+  python -m venv .venv
+
+Activate:
+  source .venv/bin/activate
+
+Install dependencies:
+  pip install -r requirements.txt
+
+Recommended local startup:
+  cd <repo-root> && source .venv/bin/activate && \
+    python -m uvicorn api.main:app --reload --port 8000
+
+Using "python -m uvicorn" is preferred during troubleshooting because it
+ensures that Uvicorn is resolved from the currently activated Python
+environment.
+
+Important shell/path behavior:
+  If the current directory is:
+    <repo-root>/api
+
+  then:
+    source .venv/bin/activate
+
+  will FAIL because .venv is at the repository root.
+
+Use the absolute path or return to the repository root:
+  cd <repo-root> && source .venv/bin/activate
+
+Common symptom:
+  zsh: command not found: uvicorn
+
+Meaning:
+  The Python virtual environment is probably not active, or Uvicorn is not
+  installed in the active environment.
+
+First try:
+  cd <repo-root> && source .venv/bin/activate && \
+    python -m uvicorn api.main:app --reload --port 8000
+
+If that returns:
+  No module named uvicorn
+
+then install:
+  cd <repo-root> && source .venv/bin/activate && \
+    pip install -r requirements.txt
+
+
+================================================================================
+38. LOCAL FRONTEND SETUP — VERIFIED
+================================================================================
+
+Frontend:
+  frontend/
+  TanStack Start + React 19 + Vite 7
+
+Run from:
+  <repo-root>/frontend
+
+Verified local command:
+  VITE_DISABLE_NETLIFY=true \
+  VITE_PYJHORA_API_BASE=http://localhost:8000 \
+  npm run dev -- --host 127.0.0.1 --port 5173
+
+Equivalent one-line command:
+  cd <repo-root>/frontend && \
+  VITE_DISABLE_NETLIFY=true \
+  VITE_PYJHORA_API_BASE=http://localhost:8000 \
+  npm run dev -- --host 127.0.0.1 --port 5173
+
+Frontend:
+  http://127.0.0.1:5173
+
+Backend:
+  http://127.0.0.1:8000
+
+Do not omit VITE_DISABLE_NETLIFY when running the frontend locally from
+frontend/. The repository contains Netlify/TanStack configuration that can
+otherwise be incorrectly resolved during local Vite development.
+
+
+================================================================================
+39. MACOS 11 / ESBUILD / VITE TROUBLESHOOTING
+================================================================================
+
+Verified machine limitation:
+  macOS 11.7.11
+  MacBookAir6,1
+  x86_64
+
+Observed error during npm install / Vite startup:
+
+  dyld: Symbol not found: _SecTrustCopyCertificateChain
+
+and:
+
+  esbuild ... was built for Mac OS X 12.0
+
+The repository has Vite 7.x and transitive esbuild dependencies.
+
+Cause:
+  Recent esbuild releases require macOS 12 or newer, while this development
+  machine is running macOS 11.7.11.
+
+Important:
+  Do NOT assume that a Vite/npm problem is the root cause when this exact
+  dyld/Security.framework error appears. Check the esbuild binary and the
+  macOS version first.
+
+Verified workaround used during local setup:
+  Pin the transitive esbuild dependency to a macOS-11-compatible release:
+
+  npm pkg set overrides.esbuild="0.26.0"
+
+Then reinstall dependencies:
+
+  rm -rf node_modules package-lock.json && \
+  npm cache clean --force && \
+  npm install
+
+Verify:
+
+  node_modules/.bin/esbuild --version
+
+Expected:
+  0.26.0
+
+Then start:
+
+  VITE_DISABLE_NETLIFY=true \
+  VITE_PYJHORA_API_BASE=http://localhost:8000 \
+  npm run dev -- --host 127.0.0.1 --port 5173
+
+IMPORTANT:
+  The esbuild override changes package.json and should be considered part of
+  the local compatibility workaround. Before upgrading Vite or dependencies,
+  re-check Vite/esbuild compatibility.
+
+Do NOT use:
+  npm install --ignore-scripts
+
+as the normal final installation command. It was used temporarily during
+troubleshooting to get packages installed, but dependency install scripts
+may be required by packages such as esbuild.
+
+
+================================================================================
+40. AWS CLI LOCAL CONFIGURATION
+================================================================================
+
+The backend uses boto3 for DynamoDB and SES.
+
+For local development, AWS credentials can be provided through the standard
+AWS CLI credential chain. This is preferable to putting long-lived AWS
+secrets directly into the repository .env when possible.
+
+AWS CLI verification:
+  aws --version
+
+If:
+  zsh: command not found: aws
+
+the AWS CLI may be installed but not present in PATH.
+
+During verified setup, the AWS CLI installer reported:
+
+  AWS CLI 2.37.9 is already installed at:
+  /Users/mallikarjunasharmar/.local/share/aws-cli
+
+However, the executable was not at:
+  ~/.local/share/aws-cli/v2/current/bin/aws
+
+The actual executable was found at:
+
+  ~/.local/share/aws-cli/aws
+
+Find command used:
+
+  find "$HOME/.local/share/aws-cli" \
+    -type f -name aws -perm -111 2>/dev/null
+
+If the executable is found at:
+  ~/.local/share/aws-cli/aws
+
+add the directory to zsh PATH:
+
+  echo 'export PATH="$HOME/.local/share/aws-cli:$PATH"' >> ~/.zshrc && \
+  source ~/.zshrc
+
+Then verify:
+
+  aws --version
+
+
+================================================================================
+41. AWS CREDENTIAL CONFIGURATION FOR LOCAL DEVELOPMENT
+================================================================================
+
+After AWS CLI is available:
+
+  aws configure
+
+Enter:
+  AWS Access Key ID
+  AWS Secret Access Key
+  Default region
+  Default output format
+
+Default application region:
+  ap-south-1
+
+Recommended output:
+  json
+
+Verify authentication:
+
+  aws sts get-caller-identity
+
+This MUST succeed before troubleshooting DynamoDB authentication failures.
+
+Then verify the primary users table:
+
+  aws dynamodb describe-table \
+    --table-name JyotishUsers \
+    --query 'Table.[TableName,TableStatus,TableArn]' \
+    --output table
+
+Expected:
+  TableName = JyotishUsers
+  TableStatus = ACTIVE
+
+If the table is not found, first verify the AWS region.
+
+IMPORTANT:
+  Never ask a developer to paste AWS_ACCESS_KEY_ID,
+  AWS_SECRET_ACCESS_KEY, or other secrets into an AI chat.
+
+Prefer:
+  ~/.aws/credentials
+
+over storing long-lived AWS credentials in the project .env.
+
+Boto3 should automatically discover AWS CLI credentials through the standard
+AWS credential provider chain.
+
+
+================================================================================
+42. DYNAMODB LOCAL CONFIGURATION
+================================================================================
+
+Primary production/shared AWS region:
+  ap-south-1
+
+Primary authentication table:
+  DYNAMODB_USERS_TABLE_NAME=JyotishUsers
+
+Profiles:
+  DYNAMODB_PROFILES_TABLE_NAME=JyotishProfiles
+
+Education:
+  DYNAMODB_EDUCATION_TABLE_NAME=JyotishEducationAnalysis
+
+Legacy:
+  DYNAMODB_TABLE_NAME=PyJHoraBirthCharts
+
+Minimum local environment for authenticated DynamoDB-backed login:
+
+  AWS_REGION=ap-south-1
+  DYNAMODB_USERS_TABLE_NAME=JyotishUsers
+
+The table MUST actually exist in the AWS account and region being used.
+
+If:
+  DYNAMODB_USERS_TABLE_NAME=JyotishUsers
+
+is configured but AWS credentials are unavailable, login will fail before
+DynamoDB can be queried.
+
+
+================================================================================
+43. AUTHENTICATION LOCAL DEVELOPMENT
+================================================================================
+
+Authentication login:
+
+  POST /api/auth/login
+  Body:
+    { "identifier": "...", "password": "..." }
+
+Authentication depends on:
+  JWT_SECRET
+  DynamoDB JyotishUsers table
+  AWS credentials
+  bcrypt password verification
+
+Local .env should contain a JWT secret.
+
+Generate a secure local secret:
+
+  python -c "import secrets; print(secrets.token_urlsafe(64))"
+
+Then add:
+
+  JWT_SECRET=<generated-value>
+
+Never use a publicly documented/example JWT secret.
+
+For local OTP development, the repository supports:
+
+  AUTH_FIXED_OTP=0000
+
+and/or:
+
+  AUTH_DEV_EXPOSE_OTP=...
+
+depending on the local authentication flow.
+
+Follow the existing authentication implementation before changing these
+values.
+
+
+================================================================================
+44. RENDER VS LOCAL ENVIRONMENT VARIABLES
+================================================================================
+
+Do not blindly copy Render-specific instructions into local development.
+
+Render API service requires:
+
+  AWS_REGION=ap-south-1
+  DYNAMODB_USERS_TABLE_NAME=JyotishUsers
+  DYNAMODB_PROFILES_TABLE_NAME=JyotishProfiles
+  JWT_SECRET
+  AUTH_OTP_PEPPER
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+  Google API keys
+  GEMINI_API_KEY
+  LLM_PROVIDER=gemini
+
+For local development:
+
+  AWS credentials can be supplied through AWS CLI credentials instead of
+  putting them in .env.
+
+  JWT_SECRET should still be explicitly configured.
+
+  DYNAMODB_USERS_TABLE_NAME=JyotishUsers
+
+  AWS_REGION=ap-south-1
+
+The message:
+
+  "JWT_SECRET is not configured on the server. Add JWT_SECRET in your
+   Render service environment (Site → Environment)."
+
+is written for the deployed Render environment.
+
+When the same error occurs while running locally, add JWT_SECRET to the
+repo-root .env instead of changing Render configuration.
+
+
+================================================================================
+45. VERIFIED AUTH LOGIN TROUBLESHOOTING
+================================================================================
+
+When frontend login fails with:
+
+  Access to fetch at
+  'http://localhost:8000/api/auth/login'
+  ... blocked by CORS policy
+
+and:
+
+  POST http://localhost:8000/api/auth/login
+  net::ERR_FAILED 500
+
+DO NOT immediately modify CORS.
+
+First inspect the FastAPI/Uvicorn terminal.
+
+A backend HTTP 500 can cause the browser to display a CORS-looking error
+because the error response may not contain the expected CORS headers.
+
+Verified troubleshooting sequence:
+
+  Browser
+      |
+      | POST /api/auth/login
+      v
+  FastAPI
+      |
+      +-- auth_service.login()
+      |
+      +-- auth_repository.get_user_by_username()
+      |
+      +-- DynamoDB query
+      |
+      +-- AWS authentication
+      |
+      X-- exception
+
+One verified failure was:
+
+  botocore.exceptions.NoCredentialsError:
+  Unable to locate credentials
+
+This means:
+  The table name can be correct,
+  FastAPI can be reachable,
+  CORS middleware can be installed,
+  but boto3 cannot authenticate to AWS.
+
+Correct resolution:
+  Configure AWS credentials first.
+
+Do NOT solve this by changing CORS.
+
+
+================================================================================
+46. VERIFIED LOGIN FAILURE CHAIN AND DIAGNOSTIC ORDER
+================================================================================
+
+When login fails locally, check in this order:
+
+1. Backend running?
+   GET:
+     http://127.0.0.1:8000/health
+
+2. Virtual environment active?
+   Prompt should normally contain:
+     (.venv)
+
+3. JWT_SECRET configured?
+   Check without exposing secret:
+     grep '^JWT_SECRET=' .env | sed 's/=.*/=<configured>/'
+
+4. AWS CLI configured?
+   aws sts get-caller-identity
+
+5. DynamoDB table accessible?
+   aws dynamodb describe-table \
+     --table-name JyotishUsers \
+     --query 'Table.[TableName,TableStatus]' \
+     --output table
+
+6. Correct region?
+   AWS_REGION=ap-south-1
+
+7. DYNAMODB_USERS_TABLE_NAME correct?
+   DYNAMODB_USERS_TABLE_NAME=JyotishUsers
+
+8. Retry login.
+
+9. If still HTTP 500:
+   inspect the Uvicorn traceback before changing frontend code or CORS.
+
+This diagnostic order prevents treating secondary browser errors as the
+root cause.
+
+
+================================================================================
+47. VERIFIED LOCAL ENVIRONMENT CHECK
+================================================================================
+
+Safe environment check that does not print secret values:
+
+  cd <repo-root> && \
+  echo "Repo: $(pwd)" && \
+  python --version && \
+  node --version && \
+  python -m uvicorn --version && \
+  aws --version && \
+  grep -E '^(AWS_REGION|DYNAMODB_USERS_TABLE_NAME|DYNAMODB_PROFILES_TABLE_NAME)=' .env
+
+For secrets, only check presence:
+
+  grep '^JWT_SECRET=' .env | sed 's/=.*/=<configured>/'
+
+Never print:
+
+  AWS_SECRET_ACCESS_KEY
+  GEMINI_API_KEY
+  OPENAI_API_KEY
+  ANTHROPIC_API_KEY
+  JWT_SECRET
+  AUTH_OTP_PEPPER
+
+Never commit .env.
+
+
+================================================================================
+48. RECOMMENDED TWO-TERMINAL LOCAL STARTUP
+================================================================================
+
+Terminal 1 — backend:
+
+  cd <repo-root> && \
+  source .venv/bin/activate && \
+  python -m uvicorn api.main:app --reload --port 8000
+
+Keep this terminal running.
+
+Terminal 2 — frontend:
+
+  cd <repo-root>/frontend && \
+  VITE_DISABLE_NETLIFY=true \
+  VITE_PYJHORA_API_BASE=http://localhost:8000 \
+  npm run dev -- --host 127.0.0.1 --port 5173
+
+URLs:
+
+  Frontend:
+    http://127.0.0.1:5173
+
+  Backend:
+    http://127.0.0.1:8000
+
+  Health:
+    http://127.0.0.1:8000/health
+
+
+================================================================================
+49. LOCAL SETUP CHECKLIST FOR ANOTHER CODING AI
+================================================================================
+
+When a developer asks:
+  "Help me run JyotishAI locally"
+
+Guide them in this order:
+
+  [ ] Identify actual repository root.
+  [ ] Check Python version.
+  [ ] Create/activate .venv.
+  [ ] Install requirements.txt.
+  [ ] Check root .env exists.
+  [ ] Configure required local JWT_SECRET.
+  [ ] Configure AWS CLI if DynamoDB is required.
+  [ ] Verify aws sts get-caller-identity.
+  [ ] Verify JyotishUsers exists in ap-south-1.
+  [ ] Confirm DYNAMODB_USERS_TABLE_NAME=JyotishUsers.
+  [ ] Start FastAPI on port 8000.
+  [ ] Verify /health.
+  [ ] Check frontend Node/npm.
+  [ ] Install frontend dependencies.
+  [ ] On macOS 11, check for esbuild compatibility errors.
+  [ ] If the known macOS 11/esbuild dyld error occurs, apply the documented
+      esbuild compatibility workaround.
+  [ ] Start frontend on port 5173 with VITE_DISABLE_NETLIFY=true.
+  [ ] Test login.
+  [ ] If login returns HTTP 500, inspect backend traceback before changing
+      CORS.
+  [ ] If NoCredentialsError appears, fix AWS credentials.
+  [ ] If JWT_SECRET error appears, configure JWT_SECRET in local .env.
+  [ ] Only investigate CORS after backend returns a valid response.
+
+Never ask the developer to paste secret credentials into the conversation.
+
+
+================================================================================
+50. KNOWN LOCAL SETUP LESSONS
+================================================================================
+
+1. "zsh: command not found: uvicorn"
+   Usually means the .venv is not active or the command is being executed
+   from a directory where .venv is not reachable.
+
+2. "source .venv/bin/activate: no such file or directory"
+   Usually means the shell is currently inside <repo-root>/api instead of
+   <repo-root>. Use the absolute repository path before activating.
+
+3. "NoCredentialsError: Unable to locate credentials"
+   Means boto3 cannot find AWS credentials. It is NOT a DynamoDB table-name
+   problem and should NOT initially be treated as a CORS problem.
+
+4. Browser reports CORS + HTTP 500 during login:
+   Inspect FastAPI traceback first. A backend exception can produce a browser
+   CORS-looking error.
+
+5. "JWT_SECRET is not configured"
+   For local development, add JWT_SECRET to the repo-root .env.
+   Render environment configuration is only relevant to deployed services.
+
+6. "dyld: Symbol not found: _SecTrustCopyCertificateChain"
+   On the verified MacBookAir6,1 running macOS 11.7.11, this was caused by
+   an esbuild binary requiring macOS 12+. Check esbuild before changing
+   unrelated Vite/frontend code.
+
+7. AWS CLI installer says "already installed" but "aws" is not found:
+   Locate the executable with:
+     find "$HOME/.local/share/aws-cli" \
+       -type f -name aws -perm -111 2>/dev/null
+
+   Do not assume the standard v2/current/bin/aws path exists.
+
+8. Do not expose or commit:
+   .env
+   AWS keys
+   GEMINI_API_KEY
+   OPENAI_API_KEY
+   ANTHROPIC_API_KEY
+   JWT_SECRET
+   AUTH_OTP_PEPPER
+   de421.bsp
+
+
+================================================================================
+51. AI GUIDANCE RULE — SETUP VS CODE CHANGES
+================================================================================
+
+When the user is only trying to get the application running locally:
+
+  Prefer environment/setup changes before modifying application source code.
+
+Examples:
+  Missing AWS credentials -> configure AWS.
+  Missing JWT_SECRET -> configure .env.
+  Missing uvicorn -> activate .venv/install requirements.
+  macOS/esbuild dyld failure -> resolve dependency compatibility.
+  Backend HTTP 500 -> inspect backend traceback.
+
+Do NOT modify:
+  CORS middleware
+  authentication implementation
+  DynamoDB repository
+  frontend API client
+
+until the environment/setup cause has been ruled out.
+
+The goal is to avoid "fixing" source code for problems caused by missing
+local configuration.
+
 ================================================================================
 END OF KNOWLEDGE BASE
 ================================================================================
