@@ -89,7 +89,7 @@ export function ProfileConfirmReport({
       </Section>
 
       <Section title="3. Job analysis (career context)">
-        <Row label="Employment" value={careerContext.employment_status} />
+        <Row label="Employment" value={careerContext.employment_status ?? ""} />
         <Row label="Designation" value={careerContext.designation ?? ""} />
         <Row label="Years experience" value={String(careerContext.years_experience ?? "")} />
         <Row label="Company type" value={careerContext.company_type ?? ""} />

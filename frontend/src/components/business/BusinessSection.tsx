@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { pyjhora } from "@/lib/pyjhora/client";
 import { ensureConsolidatedForEngine } from "@/lib/pyjhora/ensure-consolidated";
 import { profilesApi } from "@/lib/profiles/client";
@@ -9,8 +9,9 @@ import { useChartSession } from "@/hooks/use-chart-session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BusinessReport } from "@/components/business/BusinessReport";
+import type { BusinessPredictionResponse } from "@/lib/pyjhora/types";
 
-export function BusinessSection() {
+export function useBusinessPrediction() {
   const session = useChartSession();
   const [loading, setLoading] = useState(false);
 
@@ -59,7 +60,18 @@ export function BusinessSection() {
     }
   }, [data, loading, error, session?.birthInput, run]);
 
-  if (!session) {
+  return { session, loading, error, data, run };
+}
+
+type BusinessSectionProps = {
+  loading: boolean;
+  error: string | null;
+  data?: BusinessPredictionResponse;
+  hasSession: boolean;
+};
+
+export function BusinessSection({ loading, error, data, hasSession }: BusinessSectionProps) {
+  if (!hasSession) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -70,23 +82,7 @@ export function BusinessSection() {
   }
 
   return (
-    <div className="space-y-4 px-4 sm:px-6 md:px-8">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={loading || !session?.birthInput}
-          onClick={() => void run(true)}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-1" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-1" />
-          )}
-          {loading ? "Analyzing…" : "Refresh"}
-        </Button>
-      </div>
-
+    <div className="space-y-4">
       {loading && !data ? (
         <Card>
           <CardContent className="flex items-center gap-2 text-muted-foreground py-10 justify-center">

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Info, Loader2, RefreshCw } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { defaultCareerContext } from "@/components/career/CareerContextForm";
 import { pyjhora } from "@/lib/pyjhora/client";
 import { ensureConsolidatedForEngine } from "@/lib/pyjhora/ensure-consolidated";
@@ -10,10 +10,11 @@ import { useChartSession } from "@/hooks/use-chart-session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CareerTimelineReport } from "@/components/career/CareerTimelineReport";
+import type { CareerTimelineResponse } from "@/lib/pyjhora/types";
 
 const MIN_CAREER_AGE = 20;
 
-export function CareerTimelineSection() {
+export function useCareerTimeline() {
   const session = useChartSession();
   const [loading, setLoading] = useState(false);
 
@@ -39,7 +40,7 @@ export function CareerTimelineSection() {
     try {
       const result = profileId
         ? await profilesApi.careerTimeline(profileId, {
-            careerContext: ctx,
+            careerContext: ctx as unknown as Record<string, unknown>,
             enrichLlm: true,
             refresh: forceRefresh,
           })
@@ -50,7 +51,7 @@ export function CareerTimelineSection() {
               consolidated,
               ctx,
             ),
-            { careerContext: ctx, enrichLlm: true },
+            { careerContext: ctx as unknown as Record<string, unknown>, enrichLlm: true },
           );
       patchChartSession({
         careerTimeline: result,
@@ -71,7 +72,21 @@ export function CareerTimelineSection() {
     }
   }, [data, loading, error, session?.birthInput, isUnderAge, run]);
 
-  if (!session) {
+  return { session, loading, error, data, run, isUnderAge, currentAge, MIN_CAREER_AGE };
+}
+
+type CareerTimelineSectionProps = {
+  loading: boolean;
+  error: string | null;
+  data?: CareerTimelineResponse;
+  hasSession: boolean;
+  isUnderAge: boolean;
+  currentAge?: number;
+  minCareerAge: number;
+};
+
+export function CareerTimelineSection({ loading, error, data, hasSession, isUnderAge, currentAge, minCareerAge }: CareerTimelineSectionProps) {
+  if (!hasSession) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -90,9 +105,9 @@ export function CareerTimelineSection() {
             Job Timeline is for adult charts
           </CardTitle>
           <CardDescription>
-            This chart is currently age {currentAge!.toFixed(1)}. The Job Timeline engine activates
-            from age {MIN_CAREER_AGE}+ when there is a real working career to plot. For students
-            (under {MIN_CAREER_AGE}), use Education Analysis → UG instead.
+            This chart is currently age {currentAge?.toFixed(1)}. The Job Timeline engine activates
+            from age {minCareerAge}+ when there is a real working career to plot. For students
+            (under {minCareerAge}), use Education Analysis → UG instead.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
@@ -109,29 +124,6 @@ export function CareerTimelineSection() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-row items-start justify-between gap-4 rounded-xl border border-border bg-card/60 px-4 py-3">
-        <div>
-          <div className="font-serif text-base font-semibold text-foreground">Job Timeline</div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Built from your profile&apos;s birth data and career context
-            {typeof currentAge === "number" ? ` · age ${currentAge.toFixed(1)}` : ""}.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={loading || !session?.birthInput}
-          onClick={() => void run(true)}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-1" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-1" />
-          )}
-          {loading ? "Building…" : "Refresh"}
-        </Button>
-      </div>
-
       {loading && !data ? (
         <Card>
           <CardContent className="flex items-center gap-2 text-muted-foreground py-10 justify-center">

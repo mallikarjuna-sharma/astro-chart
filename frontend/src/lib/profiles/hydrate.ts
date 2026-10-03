@@ -16,18 +16,18 @@ export function profileIsFullyPersisted(profile: ProfileResponse): boolean {
 
 /** Build chart session from DB only — no API recomputation. */
 export function profileToChartSession(profile: ProfileResponse): ChartSession {
-  const birthInput = profile.birth_input as ChartSession["birthInput"];
-  const userInfo = profile.user_info as UserInfo;
+  const birthInput = profile.birth_input as unknown as ChartSession["birthInput"];
+  const userInfo = profile.user_info as unknown as UserInfo;
   const studentContext =
-    (profile.student_context as StudentContext | null) ?? defaultStudentContext();
+    (profile.student_context as unknown as StudentContext | null) ?? defaultStudentContext();
   const careerContext =
-    (profile.career_context as ChartSession["careerContextInput"]) ??
+    (profile.career_context as unknown as ChartSession["careerContextInput"]) ??
     defaultCareerContext(null);
 
   const d1Table = profile.d1_table
     ? normalizeTableResponse(
-        profile.d1_table as ChartSession["d1Table"],
-        profile.meta,
+        profile.d1_table as any,
+        profile.meta as any,
       )
     : undefined;
 
@@ -53,8 +53,8 @@ export function profileToChartSession(profile: ProfileResponse): ChartSession {
     birthInput,
     studentContext,
     d1Table,
-    divisionalBasic: profile.divisional_charts as ChartSession["divisionalBasic"],
-    divisionalExtended: profile.divisional_extended as ChartSession["divisionalExtended"],
+    divisionalBasic: profile.divisional_charts as unknown as ChartSession["divisionalBasic"],
+    divisionalExtended: profile.divisional_extended as unknown as ChartSession["divisionalExtended"],
     panchanga: profile.panchanga as ChartSession["panchanga"],
     ashtakavarga: profile.ashtakavarga as ChartSession["ashtakavarga"],
     shadbala: profile.shadbala as ChartSession["shadbala"],

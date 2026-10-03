@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Loader2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BusinessSection } from "@/components/business/BusinessSection";
+import { BusinessSection, useBusinessPrediction } from "@/components/business/BusinessSection";
 import { useChartSession } from "@/hooks/use-chart-session";
 
 export const Route = createFileRoute("/business")({
@@ -25,6 +26,21 @@ function EmptyState() {
 
 function BusinessPage() {
   const session = useChartSession();
+  const { loading, error, data, run } = useBusinessPrediction();
+
+  const refreshAction = session?.birthInput ? (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 shrink-0 text-muted-foreground"
+      disabled={loading}
+      onClick={() => void run(true)}
+      aria-label="Refresh analysis"
+      title="Refresh analysis"
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+    </Button>
+  ) : undefined;
 
   if (!session?.birthInput) {
     return (
@@ -40,14 +56,19 @@ function BusinessPage() {
   }
 
   return (
-    <div className="-mx-4 sm:-mx-6 md:-mx-8 max-w-none">
+    <div>
       <PageHeader
         eyebrow="Entrepreneurship"
         title="Business"
         subtitle="Business viability, best-fit sectors, and favorable timing from classical Vedic indicators."
-        compact
+        titleAction={refreshAction}
       />
-      <BusinessSection />
+      <BusinessSection 
+        loading={loading}
+        error={error}
+        data={data}
+        hasSession={Boolean(session)}
+      />
     </div>
   );
 }

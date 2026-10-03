@@ -33,40 +33,42 @@ export function CareerTimelineSidebar({ insights }: { insights?: CareerChartInsi
   const snap = insights.snapshot ?? {};
 
   return (
-    <div className="space-y-5 w-full text-left">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">Snapshot</div>
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
-        {[
-          ["Lagna", snap.lagna_sign],
-          ["Current Dasha", snap.current_dasha],
-          ["Atmakaraka", snap.atmakaraka],
-          ["Confidence", snap.confidence],
-        ].map(([label, value]) => (
-          <div key={label} className="pb-4 border-b border-border/60 last:border-0 last:pb-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{label}</div>
-            <div className="text-[0.98rem] font-semibold text-foreground mt-1 leading-snug">{value || "—"}</div>
-          </div>
-        ))}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-start text-left">
+      <div className="space-y-2">
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">Snapshot</div>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
+          {[
+            ["Lagna", snap.lagna_sign],
+            ["Current Dasha", snap.current_dasha],
+            ["Atmakaraka", snap.atmakaraka],
+            ["Confidence", snap.confidence],
+          ].map(([label, value]) => (
+            <div key={label} className="pb-4 border-b border-border/60 last:border-0 last:pb-0">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{label}</div>
+              <div className="text-[0.98rem] font-semibold text-foreground mt-1 leading-snug">{value || "—"}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {insights.planetary_strength?.length ? (
-        <>
+        <div className="space-y-2">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">
             Planetary Strength
           </div>
           <Panel title="Planetary Strength (Shadbala)">
             <div className="space-y-2">
               {insights.planetary_strength.map((p) => (
-                <div key={p.name} className="grid grid-cols-[72px_1fr_36px] items-center gap-2 text-xs">
-                  <div className="font-medium">
-                    {p.name}
+                <div key={p.name} className="grid grid-cols-[auto_1fr_36px] items-center gap-3 text-xs">
+                  <div className="font-medium flex items-center flex-wrap gap-1">
+                    <span>{p.name}</span>
                     {p.tags?.map((t) => (
-                      <span key={t} className="ml-1 text-[9px] px-1 py-0.5 rounded border border-gold/30 text-gold">
+                      <span key={t} className="text-[9px] px-1 py-0.5 rounded border border-gold/30 text-gold whitespace-nowrap">
                         {t}
                       </span>
                     ))}
                     {p.dignity ? (
-                      <span className="ml-1 text-[9px] px-1 py-0.5 rounded border border-border text-muted-foreground">
+                      <span className="text-[9px] px-1 py-0.5 rounded border border-border text-muted-foreground whitespace-nowrap">
                         {p.dignity}
                       </span>
                     ) : null}
@@ -82,11 +84,11 @@ export function CareerTimelineSidebar({ insights }: { insights?: CareerChartInsi
               ))}
             </div>
           </Panel>
-        </>
+        </div>
       ) : null}
 
       {insights.d10 ? (
-        <>
+        <div className="space-y-2">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">D10 Insights</div>
           <Panel title="D10 (Dashamsha) Insights">
             <InsightGrid
@@ -106,11 +108,11 @@ export function CareerTimelineSidebar({ insights }: { insights?: CareerChartInsi
               ]}
             />
           </Panel>
-        </>
+        </div>
       ) : null}
 
       {insights.kp ? (
-        <>
+        <div className="space-y-2">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">KP Insights</div>
           <Panel title="KP Insights — H10 Cuspal Chain">
             <InsightGrid
@@ -128,11 +130,11 @@ export function CareerTimelineSidebar({ insights }: { insights?: CareerChartInsi
               </p>
             ) : null}
           </Panel>
-        </>
+        </div>
       ) : null}
 
       {insights.kn_rao ? (
-        <>
+        <div className="space-y-2">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">KN Rao Insights</div>
           <Panel title="KN Rao Insights — Mahadasha">
             <InsightGrid
@@ -143,11 +145,11 @@ export function CareerTimelineSidebar({ insights }: { insights?: CareerChartInsi
               ]}
             />
           </Panel>
-        </>
+        </div>
       ) : null}
 
       {insights.parashara ? (
-        <>
+        <div className="space-y-2">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">Parashara Insights</div>
           <Panel title="Parashara Insights">
             <InsightGrid
@@ -158,11 +160,11 @@ export function CareerTimelineSidebar({ insights }: { insights?: CareerChartInsi
               ]}
             />
           </Panel>
-        </>
+        </div>
       ) : null}
 
       {insights.jaimini ? (
-        <>
+        <div className="space-y-2">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground px-0.5">Jaimini Insights</div>
           <Panel title="Jaimini Insights">
             <InsightGrid
@@ -176,7 +178,7 @@ export function CareerTimelineSidebar({ insights }: { insights?: CareerChartInsi
               ]}
             />
           </Panel>
-        </>
+        </div>
       ) : null}
     </div>
   );

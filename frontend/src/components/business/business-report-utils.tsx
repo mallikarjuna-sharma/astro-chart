@@ -87,6 +87,34 @@ export function fmtPct(v?: number | null): string {
   return v == null || Number.isNaN(v) ? "—" : `${Number(v).toFixed(1)}%`;
 }
 
+export function KpiScoreCard({ kpi }: { kpi: BusinessKpi }) {
+  const isGood = kpi.tier === "strong";
+  const isWarn = kpi.tier === "weak";
+  
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden flex flex-col justify-center">
+      <div className={`absolute left-0 top-0 bottom-0 w-[3.5px] ${isGood ? "bg-success" : isWarn ? "bg-danger" : "bg-gold"}`} />
+      <div className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground mb-1 pl-2">
+        {kpi.label}
+      </div>
+      <div className="text-[17px] font-bold text-foreground mb-2 pl-2">
+        {fmtPct(kpi.value)}
+      </div>
+      {kpi.value != null && (
+        <div className="w-full h-1 bg-muted rounded-full overflow-hidden mb-2 ml-2 w-[calc(100%-8px)]">
+          <div
+            className={`h-full rounded-full ${isGood ? "bg-success" : isWarn ? "bg-danger" : "bg-gold"}`}
+            style={{ width: `${Math.max(0, Math.min(100, kpi.value))}%` }}
+          />
+        </div>
+      )}
+      <div className="text-[11px] text-muted-foreground leading-tight pl-2">
+        {kpi.hint}
+      </div>
+    </div>
+  );
+}
+
 export function verdictLabel(cat?: string): string {
   const map: Record<string, string> = {
     HYBRID_LEANING_JOB: "Hybrid, Leaning Employment",

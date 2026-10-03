@@ -118,6 +118,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      {
+        rel: "icon",
+        href: "/favicon.png",
+        type: "image/png",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -155,11 +160,11 @@ function RootComponent() {
       {isAuthPage ? (
         <Outlet />
       ) : (
-        <AppShell>
-          <AuthGate>
+        <AuthGate>
+          <AppShell>
             <Outlet />
-          </AuthGate>
-        </AppShell>
+          </AppShell>
+        </AuthGate>
       )}
     </QueryClientProvider>
   );

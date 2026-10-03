@@ -244,7 +244,7 @@ function EducationRouteMap({ routes, avoidLabel }: { routes: EducationRoute[]; a
       ) : null}
       {routes.length ? (
         <div className="mt-5 pt-5 border-t border-border">
-          <div className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5 max-w-xl">
+          <div className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5 w-full">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Avoid As Primary</div>
             <div className="text-[0.98rem] font-semibold text-foreground leading-snug mb-1.5">{avoidLabel}</div>
             <p className="text-[11px] text-muted-foreground leading-snug">
@@ -253,7 +253,7 @@ function EducationRouteMap({ routes, avoidLabel }: { routes: EducationRoute[]; a
           </div>
         </div>
       ) : avoidLabel !== "—" ? (
-        <div className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5 max-w-xl">
+        <div className="rounded-xl border border-border bg-surface-soft/50 px-4 py-3.5 w-full">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Avoid As Primary</div>
           <div className="text-[0.98rem] font-semibold text-foreground leading-snug mb-1.5">{avoidLabel}</div>
           <p className="text-[11px] text-muted-foreground leading-snug">
@@ -372,24 +372,6 @@ export function EducationCareerReport({ data }: Props) {
 
   const educationRoutes = useMemo(() => resolveEducationRoutes(report), [report]);
 
-  const jsonPayload = useMemo(
-    () => ({
-      final_identity: identity,
-      snapshot,
-      macro_clusters: macroClusters,
-      top_20_fields: report.top_20_fields ?? [],
-      education_routes: educationRoutes,
-      route_cautions: report.route_cautions ?? [],
-      engine_output_comparison: report.engine_output_comparison ?? [],
-      engine_gap_audit: report.engine_gap_audit ?? [],
-      parent_summary: report.parent_summary ?? "",
-      student_summary: report.student_summary ?? "",
-      final_recommendation: report.final_recommendation ?? "",
-      chart_facts: chartFacts,
-    }),
-    [identity, snapshot, macroClusters, report, chartFacts, educationRoutes],
-  );
-
   return (
     <ReportShell>
       {/* Hero header */}
@@ -409,8 +391,14 @@ export function EducationCareerReport({ data }: Props) {
       <ClusterBanner chartType={chartType} />
 
       {/* Grouped detail — keeps the wall of sections digestible */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs 
+        defaultValue="overview" 
+        className="w-full"
+        onValueChange={() => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      >
+        <TabsList className="sticky top-[72px] z-20 grid w-full grid-cols-3 shadow-sm border border-border/50 backdrop-blur-xl bg-muted/90 transition-all">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="fields">Top fields</TabsTrigger>
           <TabsTrigger value="evidence">Evidence</TabsTrigger>
@@ -578,17 +566,7 @@ export function EducationCareerReport({ data }: Props) {
             </Panel>
           ) : null}
 
-          <Panel>
-            <SectionTitle title="Machine-readable JSON" chip="v12 preserved" />
-            <details className="group">
-              <summary className="cursor-pointer text-sm font-semibold text-gold select-none">
-                View compact JSON output
-              </summary>
-              <pre className="mt-3 max-h-[420px] overflow-auto rounded-xl bg-background border border-border text-foreground/80 text-[11px] leading-relaxed p-4">
-                {JSON.stringify(jsonPayload, null, 2)}
-              </pre>
-            </details>
-          </Panel>
+
         </TabsContent>
       </Tabs>
 

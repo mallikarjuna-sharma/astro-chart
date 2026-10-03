@@ -19,7 +19,7 @@ import {
   scoreMatrix,
   yearLabel,
 } from "@/lib/career-timeline/helpers";
-import { Globe2 } from "lucide-react";
+import { Globe2, Sparkles } from "lucide-react";
 
 export function CareerRoadmapCard({ block, index }: { block: CareerTimelineBlock; index: number }) {
   const score = block.career_score ?? 0;
@@ -42,20 +42,23 @@ export function CareerRoadmapCard({ block, index }: { block: CareerTimelineBlock
   return (
     <article
       id={`period-${index + 1}`}
-      className="w-full rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm scroll-mt-24 text-left"
+      className={`w-full rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm scroll-mt-24 text-left transition-all duration-300 hover:shadow-lg group ${
+        badge === "Current" ? "border-l-[4px] border-l-gold" : "border-l-[4px] border-l-transparent hover:border-l-gold/40 hover:border-gold/40"
+      }`}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-2">
         <span
           className={
-            "text-[10px] font-bold uppercase tracking-[0.08em] px-2 py-0.5 rounded-full " +
+            "text-[10.5px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full flex items-center gap-1.5 w-fit transition-colors " +
             (badge === "Current"
-              ? "bg-gold/15 text-gold border border-gold/30"
-              : "bg-muted text-muted-foreground border border-border")
+              ? "bg-gold/15 text-gold-light border border-gold/30 shadow-[0_0_10px_rgba(212,175,55,0.15)]"
+              : "bg-muted/80 text-muted-foreground border border-border")
           }
         >
+          {badge === "Current" && <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />}
           {badge}
         </span>
-        <h3 className="font-serif text-xl font-bold text-foreground">{yearLabel(block.start_date, block.end_date)}</h3>
+        <h3 className="font-serif text-2xl font-bold text-foreground tracking-tight">{yearLabel(block.start_date, block.end_date)}</h3>
         <span className="w-full sm:w-auto sm:ml-auto text-sm text-muted-foreground text-left">
           {weather.emoji} {weather.label}
         </span>
@@ -78,107 +81,24 @@ export function CareerRoadmapCard({ block, index }: { block: CareerTimelineBlock
         {block.domain_tag ? <Tag tone="muted">{block.domain_tag}</Tag> : null}
       </div>
 
-      <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-royal mb-1">In Plain Language</div>
+      <div className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-gold mb-1.5 flex items-center gap-2">
+        <Sparkles className="w-3.5 h-3.5" />
+        In Plain Language
+      </div>
       {block.llm_plain_language_html ? (
-        <ProseBlock className="text-sm leading-relaxed mb-4" html={asHtmlString(block.llm_plain_language_html)} />
+        <ProseBlock className="text-[0.95rem] leading-relaxed mb-4 text-foreground/90" html={asHtmlString(block.llm_plain_language_html)} />
       ) : block.narrative_hint ? (
-        <p className="text-sm leading-relaxed text-foreground/90 mb-4 border-l-2 border-gold/40 pl-3">
+        <p className="text-[0.95rem] leading-relaxed text-foreground/90 mb-4 border-l-2 border-gold/40 pl-3 bg-gold/5 p-3 rounded-r-lg">
           {block.narrative_hint}
         </p>
       ) : block.llm_ad_narrative_html ? (
         <ProseBlock className="text-sm leading-relaxed mb-4" html={asHtmlString(block.llm_ad_narrative_html)} />
       ) : null}
 
-      {block.llm_astro_explanation_html ? (
-        <>
-          <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-royal mb-1 mt-2">
-            Astrological Explanation
-          </div>
-          <ProseBlock
-            className="text-sm leading-relaxed mb-4 text-muted-foreground"
-            html={asHtmlString(block.llm_astro_explanation_html)}
-          />
-        </>
-      ) : null}
-
-      {block.kp_promotion_override_label || block.kp_override_applied ? (
-        <Callout tone="warn" label="KP override" className="mb-4 text-sm">
-          Promotion-significator houses (2/6/10/11) are weak while foreign/job-change or leadership houses are
-          strong — final read: {String(block.kp_promotion_override_label || block.event_type)}.
-          {block.kp_override_reason ? ` ${String(block.kp_override_reason)}` : ""}
-        </Callout>
-      ) : null}
-
-      {yogas.length ? (
-        <div className="space-y-1.5 mb-4">
-          {yogas.map((y) => (
-            <div key={y} className="text-xs rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
-              <strong>{y.replace(/_/g, " ")}</strong>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {matrix.length ? (
-        <div className="mb-4 rounded-xl border border-border bg-muted/20 p-4">
-          <div className="text-sm font-semibold mb-3">Score Breakdown</div>
-          <div className="space-y-2">
-            {matrix.map(([label, value]) => (
-              <div key={label} className="grid grid-cols-[120px_1fr_40px] items-center gap-2 text-xs">
-                <span className="text-muted-foreground">{label}</span>
-                <Meter value={Math.round(value * 100)} tone="gold" className="h-1.5" />
-                <span className="tabular-nums font-medium text-right">{Math.round(value * 100)}%</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-            Note: promotion_score reflects raw promotion-potential signal strength before KP/D10/D9 override checks.
-            final_event_type ({eventLabel}) is the result after those checks are applied.
-          </p>
-        </div>
-      ) : null}
-
-      {d10 ? (
-        <div className="mb-4 rounded-xl border border-border bg-muted/20 p-4 space-y-2">
-          <div className="text-sm font-semibold">D10 Structural Table (This Period)</div>
-          <p className="text-xs text-muted-foreground">{d10.occupancy}</p>
-          <p className="text-sm">
-            <strong>D10 Manifestation:</strong> {d10.manifest}
-          </p>
-          <p className="text-sm font-semibold" style={{ color: d10.color }}>
-            D10 Verdict: {d10.verdict}
-          </p>
-        </div>
-      ) : null}
-
-      {cx.supporting.length || cx.blocking.length ? (
-        <div className="mb-4 rounded-xl border border-border bg-muted/20 p-4">
-          <div className="text-sm font-semibold mb-2">Contradiction Check</div>
-          <div className="grid md:grid-cols-2 gap-4 text-xs">
-            <div>
-              <div className="font-bold text-success mb-1">Supporting</div>
-              <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
-                {(cx.supporting.length ? cx.supporting : ["None identified"]).map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <div className="font-bold text-danger mb-1">Blocking</div>
-              <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
-                {(cx.blocking.length ? cx.blocking : ["None identified"]).map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className={`text-sm font-semibold mt-3 ${netColor}`}>Net: {cx.net}</div>
-        </div>
-      ) : null}
-
+      {/* --- Family Guidance (Non-technical) --- */}
       <div className="mb-4 rounded-xl border border-gold/20 bg-gold/5 p-4">
         <div className="font-semibold text-foreground mb-1">{family.headline}</div>
-        <p className="text-sm text-muted-foreground leading-relaxed">{family.body}</p>
+        <p className="text-[0.95rem] text-muted-foreground leading-relaxed">{family.body}</p>
         {severity && severity !== "mild" ? (
           <div className="mt-3 pt-3 border-t border-border/60 text-xs space-y-1">
             <div className="flex justify-between">
@@ -189,17 +109,111 @@ export function CareerRoadmapCard({ block, index }: { block: CareerTimelineBlock
         ) : null}
       </div>
 
-      {d10Subs.length ? (
-        <div className="mb-4 text-sm">
-          <div className="font-semibold mb-2">D10 Sub-Dimension Scores</div>
-          {d10Subs.map((row) => (
-            <div key={row.label} className="flex justify-between py-0.5 text-xs border-b border-border/40 last:border-0">
-              <span className="text-muted-foreground">{row.label}</span>
-              <strong className="tabular-nums">{row.value.toFixed(2)}</strong>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {/* --- Technical Evidence Accordion --- */}
+      <Accordion type="single" collapsible className="w-full mb-4">
+        <AccordionItem value="astro-evidence" className="border border-border/60 rounded-xl bg-muted/10 px-4">
+          <AccordionTrigger className="text-[11px] font-bold uppercase tracking-wider text-royal hover:no-underline py-3.5 data-[state=open]:text-royal-dark transition-colors">
+            <span className="flex items-center gap-2">
+              <span className="text-[14px] leading-none">🔭</span> View Astrological Evidence
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-5 pt-2 pb-4">
+            {block.llm_astro_explanation_html ? (
+              <ProseBlock
+                className="text-[0.9rem] leading-relaxed text-muted-foreground"
+                html={asHtmlString(block.llm_astro_explanation_html)}
+              />
+            ) : null}
+
+            {block.kp_promotion_override_label || block.kp_override_applied ? (
+              <Callout tone="warn" label="KP override" className="text-sm">
+                Promotion-significator houses (2/6/10/11) are weak while foreign/job-change or leadership houses are
+                strong — final read: {String(block.kp_promotion_override_label || block.event_type)}.
+                {block.kp_override_reason ? ` ${String(block.kp_override_reason)}` : ""}
+              </Callout>
+            ) : null}
+
+            {yogas.length ? (
+              <div className="space-y-1.5">
+                {yogas.map((y) => (
+                  <div key={y} className="text-[11.5px] rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+                    <strong>{y.replace(/_/g, " ")}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {matrix.length ? (
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <div className="text-sm font-semibold mb-3">Score Breakdown</div>
+                <div className="space-y-2">
+                  {matrix.map(([label, value]) => (
+                    <div key={label} className="grid grid-cols-[120px_1fr_40px] items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">{label}</span>
+                      <Meter value={Math.round(value * 100)} tone="gold" className="h-1.5" />
+                      <span className="tabular-nums font-medium text-right">{Math.round(value * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+                  Note: promotion_score reflects raw promotion-potential signal strength before KP/D10/D9 override checks.
+                  final_event_type ({eventLabel}) is the result after those checks are applied.
+                </p>
+              </div>
+            ) : null}
+
+            {d10 ? (
+              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+                <div className="text-sm font-semibold">D10 Structural Table (This Period)</div>
+                <p className="text-[11.5px] text-muted-foreground">{d10.occupancy}</p>
+                <p className="text-[12.5px]">
+                  <strong>D10 Manifestation:</strong> {d10.manifest}
+                </p>
+                <p className="text-[12.5px] font-semibold" style={{ color: d10.color }}>
+                  D10 Verdict: {d10.verdict}
+                </p>
+              </div>
+            ) : null}
+
+            {d10Subs.length ? (
+              <div className="text-[0.85rem]">
+                <div className="font-semibold mb-2">D10 Sub-Dimension Scores</div>
+                {d10Subs.map((row) => (
+                  <div key={row.label} className="flex justify-between py-1 text-[11.5px] border-b border-border/40 last:border-0">
+                    <span className="text-muted-foreground">{row.label}</span>
+                    <strong className="tabular-nums">{row.value.toFixed(2)}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {cx.supporting.length || cx.blocking.length ? (
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <div className="text-[0.9rem] font-semibold mb-2">Contradiction Check</div>
+                <div className="grid md:grid-cols-2 gap-4 text-[11.5px]">
+                  <div>
+                    <div className="font-bold text-success mb-1">Supporting</div>
+                    <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                      {(cx.supporting.length ? cx.supporting : ["None identified"]).map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <div className="font-bold text-danger mb-1">Blocking</div>
+                    <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                      {(cx.blocking.length ? cx.blocking : ["None identified"]).map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className={`text-[0.9rem] font-semibold mt-3 ${netColor}`}>Net: {cx.net}</div>
+              </div>
+            ) : null}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <Accordion type="single" collapsible>
         <AccordionItem value="details" className="border-t border-border">

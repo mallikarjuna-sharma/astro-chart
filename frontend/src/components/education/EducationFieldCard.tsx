@@ -61,40 +61,48 @@ export function EducationFieldCard({ rank, field }: Props) {
       <div className="space-y-3">
         {ap.path_stages?.length ? (
           <div>
-            <div className="text-[10.5px] font-bold text-gold uppercase tracking-wider mb-2">
+            <div className="text-[10.5px] font-bold text-gold uppercase tracking-wider mb-4 flex items-center gap-1.5">
               🎓 Academic Execution Path
             </div>
-            <div className="flex flex-wrap items-center gap-0">
+            <div className="relative pl-8 space-y-3 before:absolute before:inset-y-3 before:left-[15px] before:w-[2px] before:bg-border/60">
               {ap.path_stages.map((stage, i) => {
                 const stg = stage.stage;
                 const rec = stage.recommended ?? false;
                 const progName = progMap[stg] || stage.label || stg;
                 const subNiche = nicheMap[stg];
                 return (
-                  <div key={stg} className="flex items-center">
-                    {i > 0 ? <span className="text-muted-foreground px-1 text-sm">→</span> : null}
+                  <div key={stg} className="relative group">
+                    <div className={cn(
+                      "absolute -left-[23px] top-4 w-3.5 h-3.5 rounded-full border-[2px] shadow-sm z-10 transition-colors duration-300",
+                      rec ? "bg-background border-gold" : "bg-muted border-border"
+                    )} />
                     <div
                       className={cn(
-                        "px-3 py-1.5 rounded-lg border text-center text-[11px]",
+                        "px-4 py-3 rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 w-full text-left",
                         stageBoxClass(stg, rec),
                       )}
                     >
-                      <div className="font-bold leading-snug">
-                        {progName}
-                        {rec ? " ✓" : ""}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="font-semibold text-[0.92rem] leading-snug">
+                          {progName}
+                        </div>
+                        {rec && stage.strength_label ? (
+                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-background/60 backdrop-blur-sm border border-foreground/10 shrink-0 text-foreground/80 uppercase tracking-wide">
+                             {stage.strength_label} ✓
+                           </span>
+                        ) : null}
                       </div>
-                      {stage.strength_label ? (
-                        <small className="block text-[9px] font-normal opacity-75">{stage.strength_label}</small>
-                      ) : null}
                       {subNiche ? (
-                        <div className="text-[9.5px] text-muted-foreground italic mt-0.5 leading-snug">{subNiche}</div>
+                        <div className="text-[11.5px] text-foreground/70 mt-1.5 leading-snug border-t border-foreground/10 pt-1.5">
+                          {subNiche}
+                        </div>
                       ) : null}
                     </div>
                   </div>
                 );
               })}
             </div>
-            {ap.depth_label ? <p className="text-[10px] text-muted-foreground mt-1.5">{ap.depth_label}</p> : null}
+            {ap.depth_label ? <p className="text-[11px] text-muted-foreground mt-4 italic">Note: {ap.depth_label}</p> : null}
           </div>
         ) : null}
 
